@@ -1,0 +1,6 @@
+{
+  "name": "Messages",
+  "description": "A premium dark-themed messaging app with real-time conversations, active friends/contacts list, and smart local automated replies.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
