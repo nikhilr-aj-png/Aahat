@@ -7,10 +7,11 @@ import ChatView from './components/ChatView';
 import StatusSection from './components/StatusSection';
 import SettingsPanel from './components/SettingsPanel';
 import CallingOverlay from './components/CallingOverlay';
+import AdminEmbedPanel from './components/AdminEmbedPanel';
 import { requestNotificationPermission } from './firebase';
 
 // Icons for bottom navigation on mobile
-import { MessageSquare, CircleDot, Settings, LogOut, Sparkles, X } from 'lucide-react';
+import { MessageSquare, CircleDot, Settings, LogOut, Sparkles, X, Shield } from 'lucide-react';
 
 const SoundWaveLogo = () => (
   <div className="soundwave-logo">
@@ -34,6 +35,10 @@ export default function App() {
   
   // Tab control: chats, status, settings, admin
   const [activeTab, setActiveTab] = useState('chats');
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [showAdminPasswordModal, setShowAdminPasswordModal] = useState(false);
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [adminPasswordError, setAdminPasswordError] = useState('');
 
   // Dynamic mobile state listener
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
@@ -187,6 +192,30 @@ export default function App() {
     }
   }, [newChatName, selectContact]);
 
+  const handleAdminTabClick = useCallback(() => {
+    if (isAdminAuthenticated) {
+      setActiveTab('admin');
+      setIsMobileSidebarOpen(false);
+    } else {
+      setShowAdminPasswordModal(true);
+      setAdminPasswordError('');
+      setAdminPasswordInput('');
+    }
+  }, [isAdminAuthenticated]);
+
+  const handleAdminPasswordSubmit = useCallback((e) => {
+    e?.preventDefault();
+    if (adminPasswordInput === 'admin123' || adminPasswordInput === 'aahat-admin') {
+      setIsAdminAuthenticated(true);
+      setActiveTab('admin');
+      setShowAdminPasswordModal(false);
+      setIsMobileSidebarOpen(false);
+      setAdminPasswordError('');
+    } else {
+      setAdminPasswordError('Invalid admin password.');
+    }
+  }, [adminPasswordInput]);
+
   // Show auth screen if not logged in
   if (!user) {
     return <AuthScreen onLogin={handleLogin} />;
@@ -228,6 +257,14 @@ export default function App() {
             </button>
           </div>
           <div className="dock-bottom">
+            <button 
+              className={`dock-btn ${activeTab === 'admin' ? 'active' : ''}`}
+              onClick={handleAdminTabClick}
+              title="Admin Panel"
+              id="dock-tab-admin"
+            >
+              <Shield size={20} />
+            </button>
             <button 
               className={`dock-btn ${activeTab === 'settings' ? 'active' : ''}`}
               onClick={() => setActiveTab('settings')}
@@ -303,6 +340,13 @@ export default function App() {
             onUpdateProfile={updateProfile}
           />
         )}
+        {activeTab === 'admin' && (
+          <AdminEmbedPanel 
+            contacts={contacts} 
+            messages={messages} 
+            onResetDb={resetData} 
+          />
+        )}
       </div>
 
       {/* Mobile Bottom Navigation Bar */}
@@ -321,6 +365,13 @@ export default function App() {
           >
             <CircleDot size={20} />
             <span>Stories</span>
+          </button>
+          <button 
+            className={`mobile-nav-btn ${activeTab === 'admin' ? 'active' : ''}`}
+            onClick={handleAdminTabClick}
+          >
+            <Shield size={20} />
+            <span>Admin</span>
           </button>
           <button 
             className={`mobile-nav-btn ${activeTab === 'settings' ? 'active' : ''}`}
@@ -372,6 +423,49 @@ export default function App() {
                 </button>
                 <button type="submit" className="admin-btn admin-btn-primary">
                   Start Chat
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Admin Verification Modal */}
+      {showAdminPasswordModal && (
+        <div className="modal-overlay" onClick={() => setShowAdminPasswordModal(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '380px' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Shield size={16} style={{ color: 'var(--accent-light)' }} />
+                Admin Verification Required
+              </h3>
+              <button className="modal-close" onClick={() => setShowAdminPasswordModal(false)}><X size={18} /></button>
+            </div>
+            {adminPasswordError && (
+              <div className="error-banner" style={{ color: '#ef4444', fontSize: '12px', background: 'rgba(239, 68, 68, 0.1)', padding: '8px 12px', borderRadius: '6px', marginBottom: '12px' }}>
+                {adminPasswordError}
+              </div>
+            )}
+            <form onSubmit={handleAdminPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="form-group">
+                <label htmlFor="admin-password-input" style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                  Enter Admin Password
+                </label>
+                <input
+                  id="admin-password-input"
+                  type="password"
+                  placeholder="Admin password..."
+                  value={adminPasswordInput}
+                  onChange={e => setAdminPasswordInput(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+              <div className="form-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
+                <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setShowAdminPasswordModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="admin-btn admin-btn-primary">
+                  Access Dashboard
                 </button>
               </div>
             </form>
