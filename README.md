@@ -10,12 +10,34 @@ View your app in AI Studio: https://ai.studio/apps/079601da-4428-4915-b4a1-c4305
 
 ## Run Locally
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+The project consists of two web applications:
+- **`web`**: The main user-facing web app.
+- **`admin`**: The administrator dashboard web app.
 
+### Prerequisites:
+- [Node.js](https://nodejs.org/) (v18 or higher recommended)
+- npm or yarn
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+### Steps to Run:
+
+1. **Setup Environment Variables**:
+   Create a `.env` file in either the `web` or `admin` directories (or both) as needed based on `.env.example`.
+
+2. **Install dependencies and start development server**:
+
+   For the main web app:
+   ```bash
+   cd web
+   npm install
+   npm run dev
+   ```
+
+   For the admin dashboard:
+   ```bash
+   cd admin
+   npm install
+   npm run dev
+   ```
+
+3. Open the local address shown in your terminal (typically `http://localhost:5173`) in your browser.
+
