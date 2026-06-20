@@ -76,25 +76,43 @@ export default function App() {
       }
     };
 
+    const handleUserSession = async (session) => {
+      if (!session) {
+        setUser(null);
+        return;
+      }
+      const loggedUser = {
+        email: session.user.email,
+        name: session.user.user_metadata?.name || session.user.email.split('@')[0],
+        role: 'user'
+      };
+
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('role')
+          .eq('email', loggedUser.email)
+          .single();
+        if (data && data.role) {
+          loggedUser.role = data.role;
+        }
+      } catch (e) {
+        // Silent fallback to default 'user' role
+      }
+
+      setUser(loggedUser);
+      handleRegisterPush(loggedUser.email);
+    };
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        const loggedUser = {
-          email: session.user.email,
-          name: session.user.user_metadata?.name || session.user.email.split('@')[0]
-        };
-        setUser(loggedUser);
-        handleRegisterPush(loggedUser.email);
+        handleUserSession(session);
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
-        const loggedUser = {
-          email: session.user.email,
-          name: session.user.user_metadata?.name || session.user.email.split('@')[0]
-        };
-        setUser(loggedUser);
-        handleRegisterPush(loggedUser.email);
+        handleUserSession(session);
       } else {
         setUser(null);
       }
@@ -256,14 +274,16 @@ export default function App() {
             </button>
           </div>
           <div className="dock-bottom">
-            <button 
-              className={`dock-btn ${activeTab === 'admin' ? 'active' : ''}`}
-              onClick={handleAdminTabClick}
-              title="Admin Panel"
-              id="dock-tab-admin"
-            >
-              <Shield size={20} />
-            </button>
+            {user?.role === 'super_admin' && (
+              <button 
+                className={`dock-btn ${activeTab === 'admin' ? 'active' : ''}`}
+                onClick={handleAdminTabClick}
+                title="Admin Panel"
+                id="dock-tab-admin"
+              >
+                <Shield size={20} />
+              </button>
+            )}
             <button 
               className={`dock-btn ${activeTab === 'settings' ? 'active' : ''}`}
               onClick={() => setActiveTab('settings')}
@@ -365,13 +385,15 @@ export default function App() {
             <CircleDot size={20} />
             <span>Stories</span>
           </button>
-          <button 
-            className={`mobile-nav-btn ${activeTab === 'admin' ? 'active' : ''}`}
-            onClick={handleAdminTabClick}
-          >
-            <Shield size={20} />
-            <span>Admin</span>
-          </button>
+          {user?.role === 'super_admin' && (
+            <button 
+              className={`mobile-nav-btn ${activeTab === 'admin' ? 'active' : ''}`}
+              onClick={handleAdminTabClick}
+            >
+              <Shield size={20} />
+              <span>Admin</span>
+            </button>
+          )}
           <button 
             className={`mobile-nav-btn ${activeTab === 'settings' ? 'active' : ''}`}
             onClick={() => { setActiveTab('settings'); setIsMobileSidebarOpen(false); }}
