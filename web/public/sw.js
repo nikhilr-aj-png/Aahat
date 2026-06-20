@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aahat-v1';
+const CACHE_NAME = 'aahat-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -30,31 +30,28 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch events: Cache fallback to network
+// Fetch events: Stale-While-Revalidate Strategy
 self.addEventListener('fetch', (event) => {
   // Only cache GET requests
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((response) => {
-        // Cache valid responses
-        if (!response || response.status !== 200 || response.type !== 'basic') {
-          return response;
-        }
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.match(event.request).then((cachedResponse) => {
+        const fetchPromise = fetch(event.request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        }).catch(() => {
+          // Offline fallback for navigation requests
+          if (event.request.mode === 'navigate') {
+            return cache.match('/index.html');
+          }
         });
-        return response;
-      }).catch(() => {
-        // Offline fallback for index.html
-        if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
-        }
+
+        // Return cached response immediately, fallback to network fetch
+        return cachedResponse || fetchPromise;
       });
     })
   );
