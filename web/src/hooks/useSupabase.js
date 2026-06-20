@@ -347,11 +347,25 @@ export function useSupabase(user) {
     }
   }, [selectedContactId]);
 
-  const uploadFile = useCallback(async (file) => {
+  const uploadFile = useCallback(async (file, oldUrl = null) => {
+    if (oldUrl && oldUrl.includes('supabase.co/storage/v1/object/public/')) {
+      try {
+        const parts = oldUrl.split('/storage/v1/object/public/');
+        if (parts.length > 1) {
+          const pathParts = parts[1].split('/');
+          const bucket = pathParts[0];
+          const filePath = pathParts.slice(1).join('/');
+          await supabase.storage.from(bucket).remove([filePath]);
+        }
+      } catch (delErr) {
+        console.warn("Failed to remove old file from storage", delErr);
+      }
+    }
+
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `attachments/${fileName}`;
+      const filePath = `avatars/${fileName}`;
       const { error: uploadError } = await supabase.storage.from('attachments').upload(filePath, file);
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('attachments').getPublicUrl(filePath);

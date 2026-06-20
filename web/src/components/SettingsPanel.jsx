@@ -139,8 +139,12 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
   const handleAvatarChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    if (file.size > 1024 * 1024) {
+      alert("Image size must be less than 1MB.");
+      return;
+    }
     try {
-      const url = await onUploadFile(file);
+      const url = await onUploadFile(file, avatarUrl);
       setAvatarUrl(url);
     } catch (err) {
       console.error("Avatar upload failed:", err);
