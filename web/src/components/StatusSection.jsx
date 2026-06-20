@@ -67,20 +67,20 @@ export default function StatusSection({ contacts, user, onSelectContact, onUploa
     return () => clearInterval(timer);
   }, [activeStoryContact, currentSlideIndex, myStories]);
 
-  const handleNextSlide = (storiesList) => {
+  function handleNextSlide(storiesList) {
     if (currentSlideIndex < storiesList.length - 1) {
       setCurrentSlideIndex(prev => prev + 1);
     } else {
       // Close viewer
       setActiveStoryContact(null);
     }
-  };
+  }
 
-  const handlePrevSlide = () => {
+  function handlePrevSlide() {
     if (currentSlideIndex > 0) {
       setCurrentSlideIndex(prev => prev - 1);
     }
-  };
+  }
 
   const openStoryViewer = (contact) => {
     setActiveStoryContact(contact);
