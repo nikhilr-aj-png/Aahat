@@ -195,6 +195,9 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
 
   const handleTouchMove = (e) => {
     if (!isDragging) return;
+    if (e.cancelable) {
+      e.preventDefault();
+    }
     const touch = e.touches[0];
     setPosition({
       x: touch.clientX - dragStart.x,

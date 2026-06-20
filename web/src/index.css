@@ -4169,3 +4169,13 @@ body {
   to { transform: scale(1); opacity: 1; }
 }
 
+@media (max-width: 480px) {
+  .crop-modal-container {
+    width: 328px;
+    max-width: 96vw;
+  }
+  .crop-modal-body {
+    padding: 12px;
+  }
+}
+
