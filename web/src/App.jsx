@@ -204,9 +204,34 @@ export default function App() {
   }, [selectContact]);
 
   const handleMobileBack = useCallback(() => {
-    setSelectedContactId(null);
-    setIsMobileSidebarOpen(true);
+    if (window.history.state?.isChatOpen) {
+      window.history.back();
+    } else {
+      setSelectedContactId(null);
+      setIsMobileSidebarOpen(true);
+    }
   }, [setSelectedContactId]);
+
+  // Synchronize browser history Back action with chat closure
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (!event.state?.isChatOpen) {
+        setSelectedContactId(null);
+        setIsMobileSidebarOpen(true);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [setSelectedContactId]);
+
+  // Push state to browser history when chat is opened on mobile
+  useEffect(() => {
+    if (selectedContactId && isMobile) {
+      if (!window.history.state?.isChatOpen) {
+        window.history.pushState({ isChatOpen: true }, '');
+      }
+    }
+  }, [selectedContactId, isMobile]);
 
   // Calling Triggers
   const handleStartCall = useCallback((contact, type) => {
