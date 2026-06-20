@@ -13,7 +13,7 @@ import { supabase } from '../supabase';
  * blocked users manager, connected devices dashboard, security audits, legal terms,
  * and customer support tickets.
  */
-export default function SettingsPanel({ user, onLogout, meContact, onUploadFile, onUpdateProfile }) {
+export default function SettingsPanel({ user, onLogout, meContact, onUploadFile, onUpdateProfile, onRequestNotificationPermission }) {
   const [activeSubTab, setActiveSubTab] = useState('profile');
   
   // Profile States
@@ -590,6 +590,22 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
                 <input type="checkbox" checked={notifPreviews} onChange={() => setNotifPreviews(!notifPreviews)} />
                 <span className="slider" />
               </label>
+            </div>
+
+            <div style={{ marginTop: '24px', padding: '16px', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '10px', border: '1px solid var(--panel-border)' }}>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: '600' }}>Push Notifications (Mobile & Desktop)</h4>
+              <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                Enable system push notifications to stay updated when the app is running in the background or closed.
+              </p>
+              <button
+                type="button"
+                className="admin-btn admin-btn-primary"
+                onClick={onRequestNotificationPermission}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Bell size={16} />
+                <span>Enable Push Notifications</span>
+              </button>
             </div>
           </div>
         )}

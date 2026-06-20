@@ -9,6 +9,7 @@ import SettingsPanel from './components/SettingsPanel';
 import CallingOverlay from './components/CallingOverlay';
 import AdminEmbedPanel from './components/AdminEmbedPanel';
 import { requestNotificationPermission } from './firebase';
+import SafeAvatar from './components/SafeAvatar';
 
 // Icons for bottom navigation on mobile
 import { MessageSquare, CircleDot, Settings, LogOut, Sparkles, X, Shield, Users, Plus } from 'lucide-react';
@@ -191,6 +192,61 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // In-app notifications state
+  const [activeToast, setActiveToast] = useState(null);
+
+  const selectedContactIdRef = React.useRef(selectedContactId);
+  React.useEffect(() => {
+    selectedContactIdRef.current = selectedContactId;
+  }, [selectedContactId]);
+
+  const contactsRef = React.useRef(contacts);
+  React.useEffect(() => {
+    contactsRef.current = contacts;
+  }, [contacts]);
+
+  const handleMessageReceived = useCallback((msg) => {
+    // Only show toast if we are not currently viewing the sender's chat conversation
+    if (selectedContactIdRef.current !== msg.contactId) {
+      const contact = contactsRef.current.find(c => c.id === msg.contactId);
+      const senderName = contact?.name || msg.sender.split('@')[0];
+      setActiveToast({
+        id: Date.now(),
+        sender: senderName,
+        text: msg.text || "Sent a message",
+        contactId: msg.contactId
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeToast) {
+      const timer = setTimeout(() => {
+        setActiveToast(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeToast]);
+
+  const handleRequestNotificationPermission = useCallback(async () => {
+    try {
+      const token = await requestNotificationPermission();
+      if (token) {
+        if (user?.email) {
+          await supabase
+            .from('users')
+            .update({ fcmToken: token })
+            .eq('email', user.email);
+        }
+        alert("Push notifications enabled successfully!");
+      } else {
+        alert("Notification permission denied or failed.");
+      }
+    } catch (e) {
+      alert("Error enabling notifications: " + e.message);
+    }
+  }, [user]);
+
   // Data layer
   const {
     contacts, messages, isLoading,
@@ -202,7 +258,7 @@ export default function App() {
     toggleArchive, togglePin, toggleMute, toggleFavorite,
     clearChat, deleteChat,
     updateProfile, postStory
-  } = useSupabase(user);
+  } = useSupabase(user, handleMessageReceived);
 
   // Handlers
   const handleLogin = useCallback((userData) => setUser(userData), []);
@@ -574,6 +630,7 @@ export default function App() {
             meContact={contacts.find(c => c.id === 'me')}
             onUploadFile={uploadFile}
             onUpdateProfile={updateProfile}
+            onRequestNotificationPermission={handleRequestNotificationPermission}
           />
         )}
         {activeTab === 'admin' && (
@@ -714,6 +771,38 @@ export default function App() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Glassmorphic Slide-in Notification Toast */}
+      {activeToast && (
+        <div 
+          className="in-app-toast-container"
+          onClick={() => {
+            handleSelectContact(activeToast.contactId);
+            setActiveToast(null);
+          }}
+        >
+          <div className="in-app-toast-avatar">
+            <SafeAvatar 
+              src={contacts.find(c => c.id === activeToast.contactId)?.avatarUrl || ''} 
+              name={activeToast.sender} 
+              size={40} 
+            />
+          </div>
+          <div className="in-app-toast-content">
+            <div className="in-app-toast-sender">{activeToast.sender}</div>
+            <div className="in-app-toast-text">{activeToast.text}</div>
+          </div>
+          <button 
+            className="in-app-toast-close"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveToast(null);
+            }}
+          >
+            <X size={16} />
+          </button>
         </div>
       )}
     </div>

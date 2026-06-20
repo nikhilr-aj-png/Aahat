@@ -5,7 +5,7 @@ import { supabase } from '../supabase';
  * Custom hook encapsulating all Supabase data operations, real-time subscriptions,
  * and offline fallback logic for the Aahat messaging app.
  */
-export function useSupabase(user) {
+export function useSupabase(user, onMessageReceived) {
   const [contacts, setContacts] = useState([]);
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -141,7 +141,8 @@ export function useSupabase(user) {
             recentMessageText: lastMsg.attachmentUrl && !lastMsg.text ? "Sent an image" : lastMsg.text,
             recentMessageTime: lastMsg.timeText || "Just now",
             recentMessageIsUnread: unreadCount > 0,
-            unreadCount: unreadCount
+            unreadCount: unreadCount,
+            lastMessageTimestamp: lastMsg.timestamp
           };
         }
         return c;
@@ -264,7 +265,8 @@ export function useSupabase(user) {
                 recentMessageText: clientMsg.attachmentUrl && !clientMsg.text ? "Sent an image" : clientMsg.text,
                 recentMessageTime: "Just now",
                 recentMessageIsUnread: !clientMsg.isFromMe,
-                unreadCount: newUnreadCount
+                unreadCount: newUnreadCount,
+                lastMessageTimestamp: clientMsg.timestamp
               };
             }
             return c;
@@ -272,6 +274,10 @@ export function useSupabase(user) {
 
           // Trigger local browser notification and sound for incoming messages
           if (!clientMsg.isFromMe) {
+            if (onMessageReceived) {
+              onMessageReceived(clientMsg);
+            }
+
             try {
               // Play a light synth-beep audio sound
               const audioCtx = new (window.AudioContext || window.webkitAudioContext)();

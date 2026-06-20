@@ -162,7 +162,11 @@ export default function Sidebar({
                     // Pinned chats go to top
                     if (a.isPinned && !b.isPinned) return -1;
                     if (!a.isPinned && b.isPinned) return 1;
-                    return 0;
+                    
+                    // Bubble last message to top
+                    const timeA = a.lastMessageTimestamp || 0;
+                    const timeB = b.lastMessageTimestamp || 0;
+                    return timeB - timeA;
                   })
                   .map(chat => (
                     <div
