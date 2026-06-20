@@ -311,6 +311,28 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
               </div>
             </div>
 
+            <div className="form-group" style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '16px', borderRadius: '10px', border: '1px solid var(--panel-border)', marginBottom: '20px' }}>
+              <label style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>Virtual Number (Aahat ID)</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ fontSize: '18px', color: 'var(--accent-light)', fontFamily: 'monospace', letterSpacing: '1px' }}>
+                  {user?.virtual_number || 'Not Assigned'}
+                </strong>
+                {user?.virtual_number && (
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-ghost"
+                    style={{ padding: '6px 12px', fontSize: '11px' }}
+                    onClick={() => {
+                      navigator.clipboard.writeText(user.virtual_number);
+                      alert("Aahat ID copied to clipboard!");
+                    }}
+                  >
+                    Copy ID
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="form-group">
               <label>Display Name</label>
               <input 

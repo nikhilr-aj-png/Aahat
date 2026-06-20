@@ -72,10 +72,26 @@ export default function AuthScreen({ onLogin }) {
         name: data.user.user_metadata?.name || email.split('@')[0]
       };
       try {
+        let vNum;
+        let exists = true;
+        let attempts = 0;
+        while (exists && attempts < 10) {
+          attempts++;
+          vNum = '700' + Math.floor(1000000 + Math.random() * 9000000).toString();
+          const { data, error } = await supabase
+            .from('users')
+            .select('virtual_number')
+            .eq('virtual_number', vNum);
+          if (!error && (!data || data.length === 0)) {
+            exists = false;
+          }
+        }
         await supabase.from('users').upsert({
           email: loggedUser.email, name: loggedUser.name,
-          passwordHash: '••••••••', isSessionActive: true
+          passwordHash: '••••••••', isSessionActive: true,
+          virtual_number: vNum
         });
+        loggedUser.virtual_number = vNum;
       } catch (dbErr) { /* silent */ }
       onLogin(loggedUser);
       setIsOtpMode(false);

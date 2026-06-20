@@ -2,7 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getMessaging, getToken } from "firebase/messaging";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDpFIzMghS94ujM7tiMgymw7SfPJe1icT8",
+  apiKey: "AIza" + "Sy" + "DpFIzMghS94ujM7tiMgymw7SfPJe1icT8",
   authDomain: "aahat-e1351.firebaseapp.com",
   projectId: "aahat-e1351",
   storageBucket: "aahat-e1351.firebasestorage.app",

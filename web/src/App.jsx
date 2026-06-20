@@ -77,6 +77,24 @@ export default function App() {
       }
     };
 
+    const helperGenerateVirtualNumber = async () => {
+      let num;
+      let exists = true;
+      let attempts = 0;
+      while (exists && attempts < 10) {
+        attempts++;
+        num = '700' + Math.floor(1000000 + Math.random() * 9000000).toString();
+        const { data, error } = await supabase
+          .from('users')
+          .select('virtual_number')
+          .eq('virtual_number', num);
+        if (!error && (!data || data.length === 0)) {
+          exists = false;
+        }
+      }
+      return num;
+    };
+
     const handleUserSession = async (session) => {
       if (!session) {
         setUser(null);
@@ -86,37 +104,51 @@ export default function App() {
       const loggedUser = {
         email: session.user.email,
         name: session.user.user_metadata?.name || session.user.email.split('@')[0],
-        role: 'user'
+        role: 'user',
+        virtual_number: ''
       };
 
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('role')
+          .select('role, virtual_number')
           .eq('email', loggedUser.email)
           .single();
-        if (data && data.role) {
-          loggedUser.role = data.role;
+        if (data) {
+          loggedUser.role = data.role || 'user';
+          if (data.virtual_number) {
+            loggedUser.virtual_number = data.virtual_number;
+          } else {
+            const vNum = await helperGenerateVirtualNumber();
+            await supabase.from('users').update({ virtual_number: vNum }).eq('email', loggedUser.email);
+            loggedUser.virtual_number = vNum;
+          }
         } else {
           // If profile is missing in the users table, auto-create/sync it
+          const vNum = await helperGenerateVirtualNumber();
           await supabase.from('users').upsert({
             email: loggedUser.email,
             name: loggedUser.name,
             passwordHash: '••••••••',
             isSessionActive: true,
-            role: 'user'
+            role: 'user',
+            virtual_number: vNum
           });
+          loggedUser.virtual_number = vNum;
         }
       } catch (e) {
         // Fallback: Try to upsert in case of RLS missing insert policy or network issues
         try {
+          const vNum = '700' + Math.floor(1000000 + Math.random() * 9000000).toString();
           await supabase.from('users').upsert({
             email: loggedUser.email,
             name: loggedUser.name,
             passwordHash: '••••••••',
             isSessionActive: true,
-            role: 'user'
+            role: 'user',
+            virtual_number: vNum
           });
+          loggedUser.virtual_number = vNum;
         } catch (err) {}
       }
 
@@ -208,30 +240,56 @@ export default function App() {
   const handleCreateNewChat = useCallback(async (e) => {
     e?.preventDefault();
     if (!newChatName.trim()) return;
-    const name = newChatName.trim();
-    const contactId = name.toLowerCase().replace(/\s+/g, '-');
-    
-    // Optimistic insert into Supabase
+    const searchVal = newChatName.trim();
+
+    if (user && searchVal === user.virtual_number) {
+      alert("You cannot start a chat with yourself using your own Aahat ID. Use the 'You (Message Yourself)' chat!");
+      return;
+    }
+
     try {
-      const newContact = {
-        id: contactId,
-        name,
-        avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150`,
-        isActive: true,
-        lastActiveText: "Active now",
-        isRecent: true,
-        recentMessageText: "Say hello!",
-        recentMessageTime: "Just now",
-        recentMessageIsUnread: false
-      };
-      await supabase.from('contacts').insert([newContact]);
+      // Query users table for the virtual number
+      const { data: matchedUser, error } = await supabase
+        .from('users')
+        .select('email, name, virtual_number')
+        .eq('virtual_number', searchVal)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!matchedUser) {
+        alert(`No user found with Aahat ID: ${searchVal}`);
+        return;
+      }
+
+      const contactId = matchedUser.email.split('@')[0];
+      
+      // Check if contact already exists in local list
+      const contactExists = contacts.some(c => c.id === contactId);
+
+      if (!contactExists) {
+        const newContact = {
+          id: contactId,
+          name: matchedUser.name,
+          avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150`,
+          isActive: true,
+          lastActiveText: "Active now",
+          isRecent: true,
+          recentMessageText: "Say hello!",
+          recentMessageTime: "Just now",
+          recentMessageIsUnread: false
+        };
+        await supabase.from('contacts').insert([newContact]);
+      }
+
       selectContact(contactId);
       setShowNewChatModal(false);
       setNewChatName('');
     } catch (err) {
-      alert("Error adding contact, check connection.");
+      console.error(err);
+      alert("Error adding contact. Please verify connection and try again.");
     }
-  }, [newChatName, selectContact]);
+  }, [newChatName, user, contacts, selectContact]);
 
   const handleAdminTabClick = useCallback(() => {
     if (isAdminAuthenticated || user?.role === 'super_admin') {
@@ -459,12 +517,12 @@ export default function App() {
             <form onSubmit={handleCreateNewChat} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="form-group">
                 <label htmlFor="new-chat-name" style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
-                  Friend's Full Name
+                  Friend's Virtual Number (Aahat ID)
                 </label>
                 <input
                   id="new-chat-name"
                   type="text"
-                  placeholder="Enter display name..."
+                  placeholder="Enter 10-digit Aahat ID..."
                   value={newChatName}
                   onChange={e => setNewChatName(e.target.value)}
                   autoFocus
