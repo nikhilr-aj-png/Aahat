@@ -95,9 +95,27 @@ export default function App() {
           .single();
         if (data && data.role) {
           loggedUser.role = data.role;
+        } else {
+          // If profile is missing in the users table, auto-create/sync it
+          await supabase.from('users').upsert({
+            email: loggedUser.email,
+            name: loggedUser.name,
+            passwordHash: '••••••••',
+            isSessionActive: true,
+            role: 'user'
+          });
         }
       } catch (e) {
-        // Silent fallback to default 'user' role
+        // Fallback: Try to upsert in case of RLS missing insert policy or network issues
+        try {
+          await supabase.from('users').upsert({
+            email: loggedUser.email,
+            name: loggedUser.name,
+            passwordHash: '••••••••',
+            isSessionActive: true,
+            role: 'user'
+          });
+        } catch (err) {}
       }
 
       setUser(loggedUser);
