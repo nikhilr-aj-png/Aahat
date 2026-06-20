@@ -4,6 +4,8 @@ import {
   ChevronRight, Lock, FileText, HelpCircle, AlertTriangle, 
   Download, Trash2, Key, HelpCircle as HelpIcon, Search, FileSignature
 } from 'lucide-react';
+import SafeAvatar from './SafeAvatar';
+import { supabase } from '../supabase';
 
 /**
  * SettingsPanel - Modular settings page inside Aahat messaging client.
@@ -177,6 +179,39 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
       };
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!confirm("Are you sure you want to remove your profile picture?")) return;
+    setIsUploadingAvatar(true);
+    
+    // Delete from Supabase Storage
+    if (avatarUrl && avatarUrl.includes('supabase.co/storage/v1/object/public/')) {
+      try {
+        const parts = avatarUrl.split('/storage/v1/object/public/');
+        if (parts.length > 1) {
+          const pathParts = parts[1].split('/');
+          const bucket = pathParts[0];
+          const filePath = pathParts.slice(1).join('/');
+          await supabase.storage.from(bucket).remove([filePath]);
+        }
+      } catch (err) {
+        console.warn("Failed to remove avatar from storage:", err);
+      }
+    }
+
+    // Clear state, localStorage, and update profile
+    try {
+      setAvatarUrl('');
+      localStorage.setItem('aahat_avatar_url', '');
+      if (onUpdateProfile) {
+        await onUpdateProfile(displayName, statusMsg, '');
+      }
+    } catch (err) {
+      console.error("Failed to remove avatar:", err);
+    } finally {
+      setIsUploadingAvatar(false);
+    }
   };
 
   const handleMouseDown = (e) => {
@@ -406,19 +441,34 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
           <form onSubmit={handleSaveProfile} className="settings-section-form">
             <h3>Profile Settings</h3>
             <div className="profile-setup-avatar">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt="Avatar" className="profile-avatar-large" style={{ objectFit: 'cover', borderRadius: '50%' }} />
-              ) : (
-                <div className="profile-avatar-large">{displayName[0].toUpperCase()}</div>
-              )}
-              <div>
-                <button 
-                  type="button" 
-                  className="btn-secondary-action"
-                  onClick={() => document.getElementById('avatar-upload-input').click()}
-                >
-                  Change Avatar
-                </button>
+              <SafeAvatar 
+                src={avatarUrl} 
+                name={displayName} 
+                size={80} 
+                className="profile-avatar-large" 
+                style={{ fontSize: '28px' }}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    type="button" 
+                    className="btn-secondary-action"
+                    onClick={() => document.getElementById('avatar-upload-input').click()}
+                  >
+                    Change Avatar
+                  </button>
+                  {avatarUrl && (
+                    <button 
+                      type="button" 
+                      className="btn-secondary-action"
+                      style={{ borderColor: 'rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}
+                      onClick={handleRemoveAvatar}
+                      disabled={isUploadingAvatar}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
                 <input 
                   type="file" 
                   id="avatar-upload-input" 

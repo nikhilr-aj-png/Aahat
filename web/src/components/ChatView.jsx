@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
+import SafeAvatar from './SafeAvatar';
 
 /**
  * ChatView — Main chat area with header, calling buttons, in-chat search,
@@ -210,23 +211,12 @@ export default function ChatView({
 
           <div className="chat-header-info">
             <div className="avatar-wrapper">
-              {activeContact.avatarUrl ? (
-                <img src={activeContact.avatarUrl} alt={activeContact.name} className="avatar-image header-avatar" loading="lazy" />
-              ) : (
-                <div className="avatar-image header-avatar" style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'var(--accent-gradient)',
-                  color: 'white',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  borderRadius: 'var(--radius-full)',
-                  border: '2px solid rgba(255, 255, 255, 0.08)'
-                }}>
-                  {activeContact.name[0].toUpperCase()}
-                </div>
-              )}
+              <SafeAvatar 
+                src={activeContact.avatarUrl} 
+                name={activeContact.name} 
+                size={36} 
+                className="avatar-image header-avatar" 
+              />
               {!activeContact.isGroup && (
                 <div className={`status-badge ${activeContact.isActive ? 'active' : 'offline'}`} />
               )}
@@ -418,26 +408,13 @@ export default function ChatView({
 
           <div className="sidebar-details-scroll">
             <div className="details-avatar-card">
-              {activeContact.avatarUrl ? (
-                <img src={activeContact.avatarUrl} alt="" className="details-avatar" />
-              ) : (
-                <div className="details-avatar" style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'var(--accent-gradient)',
-                  color: 'white',
-                  fontWeight: '700',
-                  fontSize: '24px',
-                  borderRadius: 'var(--radius-full)',
-                  border: '3px solid var(--panel-border)',
-                  margin: '0 auto 8px',
-                  width: '80px',
-                  height: '80px'
-                }}>
-                  {activeContact.name[0].toUpperCase()}
-                </div>
-              )}
+              <SafeAvatar 
+                src={activeContact.avatarUrl} 
+                name={activeContact.name} 
+                size={80} 
+                className="details-avatar" 
+                style={{ margin: '0 auto 8px', fontSize: '24px' }}
+              />
               <h3>{activeContact.name}</h3>
               <p>{activeContact.isGroup ? "Group Chat" : activeContact.lastActiveText}</p>
             </div>
@@ -525,25 +502,12 @@ export default function ChatView({
                   .map(contact => (
                     <div key={contact.id} className="forward-contact-row">
                       <div className="contact-details">
-                        {contact.avatarUrl ? (
-                          <img src={contact.avatarUrl} alt="" className="contact-avatar-sm" />
-                        ) : (
-                          <div className="contact-avatar-sm" style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: 'var(--accent-gradient)',
-                            color: 'white',
-                            fontWeight: '700',
-                            fontSize: '10px',
-                            borderRadius: 'var(--radius-full)',
-                            width: '24px',
-                            height: '24px',
-                            border: '1px solid rgba(255, 255, 255, 0.08)'
-                          }}>
-                            {contact.name[0].toUpperCase()}
-                          </div>
-                        )}
+                        <SafeAvatar 
+                          src={contact.avatarUrl} 
+                          name={contact.name} 
+                          size={24} 
+                          className="contact-avatar-sm" 
+                        />
                         <span>{contact.name}</span>
                       </div>
                       <button 

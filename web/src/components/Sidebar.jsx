@@ -3,6 +3,7 @@ import {
   Search, LogOut, RefreshCw, MessageSquare, Settings, 
   Pin, VolumeX, Star, Archive, Shield, Plus, CircleDot 
 } from 'lucide-react';
+import SafeAvatar from './SafeAvatar';
 
 /**
  * Sidebar — Contains Aahat Sound-wave logo, settings/actions, search bar,
@@ -93,13 +94,12 @@ export default function Sidebar({
           >
             <div className="user-info" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div className="avatar-wrapper" style={{ position: 'relative', width: '36px', height: '36px' }}>
-                {meContact && meContact.avatarUrl ? (
-                  <img src={meContact.avatarUrl} alt={user.name} className="avatar-image" style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} />
-                ) : (
-                  <div className="user-avatar" style={{ width: '36px', height: '36px', fontSize: '14px', borderRadius: '50%', background: 'var(--accent-gradient)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                    {user.name[0].toUpperCase()}
-                  </div>
-                )}
+                <SafeAvatar 
+                  src={meContact?.avatarUrl} 
+                  name={user.name} 
+                  size={36} 
+                  className="avatar-image" 
+                />
                 <div className="status-badge active" style={{ position: 'absolute', bottom: '0', right: '0', width: '10px', height: '10px', backgroundColor: 'var(--accent-light)', border: '2px solid var(--panel-bg)', borderRadius: '50%' }} />
               </div>
               <div className="user-details" style={{ flex: 1 }}>
@@ -172,23 +172,12 @@ export default function Sidebar({
                       id={`chat-item-${chat.id}`}
                     >
                       <div className="avatar-wrapper">
-                        {chat.avatarUrl ? (
-                          <img src={chat.avatarUrl} alt={chat.name} className="avatar-image" loading="lazy" />
-                        ) : (
-                          <div className="avatar-image" style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: 'var(--accent-gradient)',
-                            color: 'white',
-                            fontWeight: '700',
-                            fontSize: '14px',
-                            borderRadius: 'var(--radius-full)',
-                            border: '2px solid rgba(255, 255, 255, 0.08)'
-                          }}>
-                            {chat.name[0].toUpperCase()}
-                          </div>
-                        )}
+                        <SafeAvatar 
+                          src={chat.avatarUrl} 
+                          name={chat.name} 
+                          size={40} 
+                          className="avatar-image" 
+                        />
                         {!chat.isGroup && (
                           <div className={`status-badge ${chat.isActive ? 'active' : 'offline'}`} />
                         )}
