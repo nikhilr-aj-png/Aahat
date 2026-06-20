@@ -13,18 +13,18 @@ import { supabase } from '../supabase';
  * blocked users manager, connected devices dashboard, security audits, legal terms,
  * and customer support tickets.
  */
-export default function SettingsPanel({ user, onLogout, meContact, onUploadFile, onUpdateProfile, onRequestNotificationPermission }) {
+export default function SettingsPanel({ user, profile, onLogout, onUploadFile, onUpdateProfile, onRequestNotificationPermission }) {
   const [activeSubTab, setActiveSubTab] = useState('profile');
   
-  // Profile States
+  // Profile States — initialized from V2 profile model
   const [displayName, setDisplayName] = useState(() => {
-    return meContact?.name?.replace(' (You)', '') || user?.name || localStorage.getItem('aahat_display_name') || '';
+    return profile?.display_name || user?.email?.split('@')[0] || '';
   });
   const [statusMsg, setStatusMsg] = useState(() => {
-    return meContact?.description || localStorage.getItem('aahat_status_msg') || 'Hey there! I am using Aahat.';
+    return profile?.bio || 'Hey there! I am using Aahat.';
   });
   const [avatarUrl, setAvatarUrl] = useState(() => {
-    return meContact?.avatarUrl || localStorage.getItem('aahat_avatar_url') || '';
+    return profile?.avatar_url || '';
   });
 
   // Avatar Cropper States
@@ -38,23 +38,23 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
   const [selectedFile, setSelectedFile] = useState(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   
-  // Privacy States
+  // Privacy States — initialized from profile JSONB
   const [privacyLastSeen, setPrivacyLastSeen] = useState(() => {
-    return localStorage.getItem('aahat_privacy_last_seen') !== 'false';
+    return profile?.privacy_settings?.last_seen !== false;
   });
   const [privacyReceipts, setPrivacyReceipts] = useState(() => {
-    return localStorage.getItem('aahat_privacy_receipts') !== 'false';
+    return profile?.privacy_settings?.read_receipts !== false;
   });
   const [statusAudience, setStatusAudience] = useState(() => {
-    return localStorage.getItem('aahat_status_audience') || 'contacts';
-  }); // contacts, everyone, private
+    return profile?.privacy_settings?.status || 'contacts';
+  });
   
-  // Notification States
+  // Notification States — initialized from profile JSONB
   const [notifSound, setNotifSound] = useState(() => {
-    return localStorage.getItem('aahat_notif_sound') !== 'false';
+    return profile?.notification_settings?.sound !== false;
   });
   const [notifPreviews, setNotifPreviews] = useState(() => {
-    return localStorage.getItem('aahat_notif_previews') !== 'false';
+    return profile?.notification_settings?.previews !== false;
   });
   
   // Theme States
@@ -113,49 +113,104 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
     localStorage.setItem('aahat_2fa_enabled', is2faEnabled ? 'true' : 'false');
   }, [is2faEnabled]);
 
+  // Sync profile and settings dynamically when profile prop changes
   React.useEffect(() => {
-    localStorage.setItem('aahat_privacy_last_seen', privacyLastSeen ? 'true' : 'false');
-  }, [privacyLastSeen]);
-
-  React.useEffect(() => {
-    localStorage.setItem('aahat_privacy_receipts', privacyReceipts ? 'true' : 'false');
-  }, [privacyReceipts]);
-
-  React.useEffect(() => {
-    localStorage.setItem('aahat_status_audience', statusAudience);
-  }, [statusAudience]);
-
-  React.useEffect(() => {
-    localStorage.setItem('aahat_notif_sound', notifSound ? 'true' : 'false');
-  }, [notifSound]);
-
-  React.useEffect(() => {
-    localStorage.setItem('aahat_notif_previews', notifPreviews ? 'true' : 'false');
-  }, [notifPreviews]);
-
-  React.useEffect(() => {
-    localStorage.setItem('aahat_blocked_users', JSON.stringify(blockedUsers));
-  }, [blockedUsers]);
-
-  // Sync profile states dynamically when meContact or user props change in real-time
-  React.useEffect(() => {
-    if (meContact) {
-      setDisplayName(meContact.name?.replace(' (You)', '') || user?.name || '');
-      setStatusMsg(meContact.description || '');
-      setAvatarUrl(meContact.avatarUrl || '');
+    if (profile) {
+      setDisplayName(profile.display_name || '');
+      setStatusMsg(profile.bio || '');
+      setAvatarUrl(profile.avatar_url || '');
+      
+      if (profile.privacy_settings) {
+        setPrivacyLastSeen(profile.privacy_settings.last_seen !== false);
+        setPrivacyReceipts(profile.privacy_settings.read_receipts !== false);
+        setStatusAudience(profile.privacy_settings.status || 'contacts');
+      }
+      
+      if (profile.notification_settings) {
+        setNotifSound(profile.notification_settings.sound !== false);
+        setNotifPreviews(profile.notification_settings.previews !== false);
+      }
     }
-  }, [meContact, user]);
+  }, [profile]);
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
-    localStorage.setItem('aahat_display_name', displayName);
-    localStorage.setItem('aahat_status_msg', statusMsg);
-    localStorage.setItem('aahat_avatar_url', avatarUrl);
-    
-    if (onUpdateProfile) {
-      await onUpdateProfile(displayName, statusMsg, avatarUrl);
+    try {
+      if (onUpdateProfile) {
+        await onUpdateProfile({
+          display_name: displayName,
+          bio: statusMsg,
+          avatar_url: avatarUrl
+        });
+      }
+      alert("Profile settings updated successfully!");
+    } catch (err) {
+      alert("Error saving profile: " + err.message);
     }
-    alert("Profile settings updated successfully!");
+  };
+
+  const handleTogglePrivacyLastSeen = async () => {
+    const newVal = !privacyLastSeen;
+    setPrivacyLastSeen(newVal);
+    if (onUpdateProfile && profile) {
+      await onUpdateProfile({
+        privacy_settings: {
+          ...(profile.privacy_settings || {}),
+          last_seen: newVal
+        }
+      });
+    }
+  };
+
+  const handleTogglePrivacyReceipts = async () => {
+    const newVal = !privacyReceipts;
+    setPrivacyReceipts(newVal);
+    if (onUpdateProfile && profile) {
+      await onUpdateProfile({
+        privacy_settings: {
+          ...(profile.privacy_settings || {}),
+          read_receipts: newVal
+        }
+      });
+    }
+  };
+
+  const handleChangeStatusAudience = async (val) => {
+    setStatusAudience(val);
+    if (onUpdateProfile && profile) {
+      await onUpdateProfile({
+        privacy_settings: {
+          ...(profile.privacy_settings || {}),
+          status: val
+        }
+      });
+    }
+  };
+
+  const handleToggleNotifSound = async () => {
+    const newVal = !notifSound;
+    setNotifSound(newVal);
+    if (onUpdateProfile && profile) {
+      await onUpdateProfile({
+        notification_settings: {
+          ...(profile.notification_settings || {}),
+          sound: newVal
+        }
+      });
+    }
+  };
+
+  const handleToggleNotifPreviews = async () => {
+    const newVal = !notifPreviews;
+    setNotifPreviews(newVal);
+    if (onUpdateProfile && profile) {
+      await onUpdateProfile({
+        notification_settings: {
+          ...(profile.notification_settings || {}),
+          previews: newVal
+        }
+      });
+    }
   };
 
   const handleAvatarChange = (e) => {
@@ -484,15 +539,15 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
               <label style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>Virtual Number (Aahat ID)</label>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <strong style={{ fontSize: '18px', color: 'var(--accent-light)', fontFamily: 'monospace', letterSpacing: '1px' }}>
-                  {user?.virtual_number || 'Not Assigned'}
+                  {profile?.virtual_number || 'Not Assigned'}
                 </strong>
-                {user?.virtual_number && (
+                {profile?.virtual_number && (
                   <button
                     type="button"
                     className="admin-btn admin-btn-ghost"
                     style={{ padding: '6px 12px', fontSize: '11px' }}
                     onClick={() => {
-                      navigator.clipboard.writeText(user.virtual_number);
+                      navigator.clipboard.writeText(profile.virtual_number);
                       alert("Aahat ID copied to clipboard!");
                     }}
                   >
@@ -538,7 +593,7 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
                 <p>Allow other users to see when you were last online.</p>
               </div>
               <label className="switch">
-                <input type="checkbox" checked={privacyLastSeen} onChange={() => setPrivacyLastSeen(!privacyLastSeen)} />
+                <input type="checkbox" checked={privacyLastSeen} onChange={handleTogglePrivacyLastSeen} />
                 <span className="slider" />
               </label>
             </div>
@@ -549,14 +604,14 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
                 <p>Allow double blue check indicators for read messages.</p>
               </div>
               <label className="switch">
-                <input type="checkbox" checked={privacyReceipts} onChange={() => setPrivacyReceipts(!privacyReceipts)} />
+                <input type="checkbox" checked={privacyReceipts} onChange={handleTogglePrivacyReceipts} />
                 <span className="slider" />
               </label>
             </div>
 
             <div className="form-group" style={{ marginTop: '10px' }}>
               <label>Status / Story Audience</label>
-              <select value={statusAudience} onChange={e => setStatusAudience(e.target.value)}>
+              <select value={statusAudience} onChange={e => handleChangeStatusAudience(e.target.value)}>
                 <option value="everyone">Everyone</option>
                 <option value="contacts">My Contacts Only</option>
                 <option value="private">Private (Only selected users)</option>
@@ -576,7 +631,7 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
                 <p>Play sounds for incoming messages and call rings.</p>
               </div>
               <label className="switch">
-                <input type="checkbox" checked={notifSound} onChange={() => setNotifSound(!notifSound)} />
+                <input type="checkbox" checked={notifSound} onChange={handleToggleNotifSound} />
                 <span className="slider" />
               </label>
             </div>
@@ -587,7 +642,7 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
                 <p>Show message preview in system notification toasts.</p>
               </div>
               <label className="switch">
-                <input type="checkbox" checked={notifPreviews} onChange={() => setNotifPreviews(!notifPreviews)} />
+                <input type="checkbox" checked={notifPreviews} onChange={handleToggleNotifPreviews} />
                 <span className="slider" />
               </label>
             </div>

@@ -1,259 +1,314 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { PhoneOff, Mic, MicOff, Video, VideoOff, ScreenShare, Volume2, VolumeX, ShieldAlert, Sparkles } from 'lucide-react';
+import React, { useRef, useEffect, useState } from 'react';
+import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume2, VolumeX, Monitor, X } from 'lucide-react';
+import SafeAvatar from './SafeAvatar';
 
 /**
- * CallingOverlay - Renders fullscreen voice and video calling overlays with active
- * grids, HD controls, duration trackers, screen-share mocks, and sound alerts.
+ * CallingOverlay — Full-screen overlay for voice/video calls (V2).
+ * Supports real WebRTC streams, call controls, screen sharing, and incoming call UI.
  */
-export default function CallingOverlay({ callState, onHangup }) {
-  const { contact, type, isRinging } = callState;
-  const [isMuted, setIsMuted] = useState(false);
-  const [isCameraOff, setIsCameraOff] = useState(false);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const timerRef = useRef(null);
-
+export default function CallingOverlay({
+  callState,
+  callDuration,
+  isMuted,
+  isCameraOff,
+  isSpeakerOn,
+  isScreenSharing,
+  localStream,
+  remoteStream,
+  onHangup,
+  onReject,
+  onAnswer,
+  onToggleMute,
+  onToggleCamera,
+  onToggleScreenShare,
+  onToggleSpeaker
+}) {
   const localVideoRef = useRef(null);
-  const localStreamRef = useRef(null);
+  const remoteVideoRef = useRef(null);
 
-  // Sound generator using Web Audio API for ringing and disconnects
+  // Attach streams to video elements
   useEffect(() => {
-    let audioCtx = null;
-    let oscillator = null;
-    let gainNode = null;
-
-    if (isRinging) {
-      // Ring sound simulation
-      try {
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        audioCtx = new AudioContext();
-        
-        const ring = () => {
-          if (!audioCtx) return;
-          oscillator = audioCtx.createOscillator();
-          gainNode = audioCtx.createGain();
-          
-          oscillator.type = 'sine';
-          oscillator.frequency.setValueAtTime(440, audioCtx.currentTime); // A4 note
-          
-          // Ringing pattern (frequency modulation)
-          oscillator.frequency.linearRampToValueAtTime(480, audioCtx.currentTime + 0.1);
-          oscillator.frequency.linearRampToValueAtTime(440, audioCtx.currentTime + 0.2);
-          
-          gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
-          gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
-          
-          oscillator.connect(gainNode);
-          gainNode.connect(audioCtx.destination);
-          
-          oscillator.start();
-          oscillator.stop(audioCtx.currentTime + 1.3);
-        };
-
-        // Ring every 2.5 seconds
-        ring();
-        const interval = setInterval(ring, 2500);
-        return () => {
-          clearInterval(interval);
-          if (audioCtx) audioCtx.close();
-        };
-      } catch (e) {
-        console.warn("Web Audio not supported", e);
-      }
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
     }
-  }, [isRinging]);
+  }, [localStream]);
 
-  // Duration Timer
   useEffect(() => {
-    if (!isRinging) {
-      timerRef.current = setInterval(() => {
-        setDuration(prev => prev + 1);
-      }, 1000);
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
     }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isRinging]);
+  }, [remoteStream]);
 
-  // Local Video Capture in Call
-  useEffect(() => {
-    let activeStream = null;
-    const startLocalVideo = async () => {
-      if (type === 'video' && !isCameraOff && !isRinging) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user', width: 320, height: 240 },
-            audio: false
-          });
-          activeStream = stream;
-          localStreamRef.current = stream;
-          if (localVideoRef.current) {
-            localVideoRef.current.srcObject = stream;
-          }
-        } catch (err) {
-          console.warn("Failed to get local camera for call:", err);
-        }
-      }
-    };
+  if (!callState) return null;
 
-    startLocalVideo();
+  const { contact, type, isRinging, isIncoming } = callState;
+  const isVideo = type === 'video';
 
-    return () => {
-      if (activeStream) {
-        activeStream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [type, isCameraOff, isRinging]);
-
-  const formatDuration = (sec) => {
-    const mins = Math.floor(sec / 60);
-    const secs = sec % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  // Format duration
+  const formatDuration = (seconds) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
   };
 
-  if (!contact) return null;
-
   return (
-    <div className={`calling-overlay ${type}`} id="calling-overlay">
-      <div className="calling-blur-bg" style={{ backgroundImage: `url(${contact.avatarUrl})` }} />
-      
-      {/* Encryption Badge */}
-      <div className="call-security-badge">
-        <Sparkles size={12} />
-        <span>End-to-End Encrypted HD Call</span>
+    <div className="calling-overlay" id="calling-overlay">
+      {/* Background */}
+      <div className="call-background">
+        <div className="call-gradient-1" />
+        <div className="call-gradient-2" />
       </div>
 
-      {/* Main Panel Content */}
-      <div className="call-container-inner">
-        {type === 'voice' ? (
-          /* Voice Call Layout */
-          <div className="voice-call-layout">
-            <div className="caller-profile">
-              <div className={`caller-avatar-wrapper ${isRinging ? 'ringing' : 'connected'}`}>
-                <img src={contact.avatarUrl} alt={contact.name} className="caller-avatar-img" />
-                <span className="pulse-ring ring-1" />
-                <span className="pulse-ring ring-2" />
-                <span className="pulse-ring ring-3" />
+      {/* Video streams for video calls */}
+      {isVideo && !isRinging && (
+        <div className="video-call-streams">
+          {/* Remote video (full screen) */}
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className="remote-video"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              zIndex: 1
+            }}
+          />
+
+          {/* Local video (PiP) */}
+          <div className="local-video-pip" style={{
+            position: 'absolute',
+            bottom: '120px',
+            right: '20px',
+            width: '140px',
+            height: '200px',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            border: '2px solid rgba(255,255,255,0.2)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+            zIndex: 10
+          }}>
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
+            />
+            {isCameraOff && (
+              <div style={{
+                position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.8)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--text-muted)', fontSize: '11px'
+              }}>
+                Camera Off
               </div>
-              <h2>{contact.name}</h2>
-              <p className="call-status">
-                {isRinging ? 'Ringing...' : `In Call • ${formatDuration(duration)}`}
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Call content */}
+      <div className="call-content" style={{ position: 'relative', zIndex: 5 }}>
+        {/* Ringing / incoming call state */}
+        {isRinging && (
+          <div className="call-ringing-content" style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            height: '100%', gap: '24px'
+          }}>
+            {/* Avatar with ring animation */}
+            <div className="call-avatar-ring" style={{ position: 'relative' }}>
+              <div style={{
+                position: 'absolute', inset: '-16px', borderRadius: '50%',
+                border: '2px solid rgba(79, 70, 229, 0.3)',
+                animation: 'pulse 2s ease-in-out infinite'
+              }} />
+              <div style={{
+                position: 'absolute', inset: '-32px', borderRadius: '50%',
+                border: '2px solid rgba(79, 70, 229, 0.15)',
+                animation: 'pulse 2s ease-in-out infinite 0.5s'
+              }} />
+              <SafeAvatar
+                src={contact?.avatarUrl}
+                name={contact?.name || 'Unknown'}
+                size={100}
+                style={{ borderRadius: '50%', border: '3px solid rgba(255,255,255,0.2)' }}
+              />
+            </div>
+
+            <div style={{ textAlign: 'center' }}>
+              <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px' }}>
+                {contact?.name || 'Unknown'}
+              </h2>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+                {isIncoming
+                  ? `Incoming ${isVideo ? 'video' : 'voice'} call...`
+                  : `Calling...`
+                }
               </p>
             </div>
-          </div>
-        ) : (
-          /* Video Call Layout */
-          <div className="video-call-layout">
-            <div className="video-grid">
-              
-              {/* Remote Feed */}
-              <div className="video-feed remote">
-                {!isCameraOff ? (
-                  <div className="simulated-feed remote-feed-graphic">
-                    <img src={contact.avatarUrl} alt="" className="feed-avatar-shadow" />
-                    <div className="remote-hd-badge">HD 1080p</div>
-                  </div>
-                ) : (
-                  <div className="video-feed-placeholder">
-                    <img src={contact.avatarUrl} alt="" className="caller-placeholder-avatar" />
-                    <p>{contact.name}'s camera is off</p>
-                  </div>
-                )}
-                <div className="feed-label">{contact.name}</div>
-              </div>
 
-              {/* Local Feed / Screen Share */}
-              <div className="video-feed local">
-                {isScreenSharing ? (
-                  <div className="simulated-feed screen-share-graphic">
-                    <div className="screen-share-glow" />
-                    <p>Sharing your screen</p>
-                  </div>
-                ) : !isCameraOff ? (
-                  <div className="simulated-feed local-feed-graphic" style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-                    <video 
-                      ref={localVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  </div>
-                ) : (
-                  <div className="video-feed-placeholder">
-                    <p>Camera Off</p>
-                  </div>
-                )}
-                <div className="feed-label">You</div>
+            {/* Incoming call: Accept / Reject */}
+            {isIncoming ? (
+              <div style={{ display: 'flex', gap: '32px', marginTop: '32px' }}>
+                <button
+                  className="call-action-btn decline"
+                  onClick={onReject}
+                  style={{
+                    width: '64px', height: '64px', borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                    border: 'none', color: 'white', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 4px 20px rgba(239, 68, 68, 0.4)',
+                    transition: 'transform 0.2s'
+                  }}
+                  title="Decline"
+                >
+                  <PhoneOff size={24} />
+                </button>
+                <button
+                  className="call-action-btn accept"
+                  onClick={onAnswer}
+                  style={{
+                    width: '64px', height: '64px', borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                    border: 'none', color: 'white', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 4px 20px rgba(34, 197, 94, 0.4)',
+                    transition: 'transform 0.2s'
+                  }}
+                  title="Accept"
+                >
+                  <Phone size={24} />
+                </button>
               </div>
-            </div>
-            
-            {/* Top overlay details */}
-            <div className="video-overlay-details">
-              <h3>{contact.name}</h3>
-              <p>{isRinging ? 'Connecting video...' : formatDuration(duration)}</p>
-            </div>
+            ) : (
+              /* Outgoing call: just show hangup */
+              <button
+                className="call-action-btn decline"
+                onClick={onHangup}
+                style={{
+                  width: '64px', height: '64px', borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                  border: 'none', color: 'white', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 4px 20px rgba(239, 68, 68, 0.4)',
+                  marginTop: '32px'
+                }}
+                title="Cancel Call"
+              >
+                <PhoneOff size={24} />
+              </button>
+            )}
           </div>
         )}
 
-        {/* Call Action Controls bar */}
-        <div className="call-controls-bar">
-          
-          {/* Mute Button */}
-          <button 
-            className={`btn-call-action ${isMuted ? 'active' : ''}`}
-            onClick={() => setIsMuted(!isMuted)}
-            title={isMuted ? "Unmute Mic" : "Mute Mic"}
-            id="btn-call-mute"
-          >
-            {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
-          </button>
+        {/* Active call state */}
+        {!isRinging && (
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'space-between', height: '100%', padding: '40px 20px 32px'
+          }}>
+            {/* Top: contact info + duration */}
+            <div style={{ textAlign: 'center' }}>
+              {!isVideo && (
+                <SafeAvatar
+                  src={contact?.avatarUrl}
+                  name={contact?.name || 'Unknown'}
+                  size={80}
+                  style={{ borderRadius: '50%', margin: '0 auto 16px', border: '3px solid rgba(255,255,255,0.2)' }}
+                />
+              )}
+              <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '4px' }}>{contact?.name || 'Unknown'}</h2>
+              <p style={{ fontSize: '16px', color: 'var(--accent-light)', fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>
+                {formatDuration(callDuration)}
+              </p>
+            </div>
 
-          {/* Toggle Camera (Only for video calls) */}
-          {type === 'video' && (
-            <button 
-              className={`btn-call-action ${isCameraOff ? 'active' : ''}`}
-              onClick={() => setIsCameraOff(!isCameraOff)}
-              title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
-              id="btn-call-camera"
-            >
-              {isCameraOff ? <VideoOff size={20} /> : <Video size={20} />}
-            </button>
-          )}
+            {/* Bottom: controls */}
+            <div style={{
+              display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center',
+              background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(20px)',
+              borderRadius: '16px', padding: '16px 24px',
+              border: '1px solid rgba(255,255,255,0.1)'
+            }}>
+              <button
+                onClick={onToggleMute}
+                style={{
+                  width: '48px', height: '48px', borderRadius: '50%',
+                  background: isMuted ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.15)', color: isMuted ? '#fca5a5' : 'white',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 0.2s'
+                }}
+                title={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+              </button>
 
-          {/* Screenshare (Only for video calls) */}
-          {type === 'video' && (
-            <button 
-              className={`btn-call-action ${isScreenSharing ? 'active' : ''}`}
-              onClick={() => setIsScreenSharing(!isScreenSharing)}
-              title="Share Screen"
-              id="btn-call-screenshare"
-            >
-              <ScreenShare size={20} />
-            </button>
-          )}
+              {isVideo && (
+                <button
+                  onClick={onToggleCamera}
+                  style={{
+                    width: '48px', height: '48px', borderRadius: '50%',
+                    background: isCameraOff ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.15)', color: isCameraOff ? '#fca5a5' : 'white',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}
+                  title={isCameraOff ? 'Turn on camera' : 'Turn off camera'}
+                >
+                  {isCameraOff ? <VideoOff size={20} /> : <Video size={20} />}
+                </button>
+              )}
 
-          {/* Speaker Button */}
-          <button 
-            className={`btn-call-action ${!isSpeakerOn ? 'active' : ''}`}
-            onClick={() => setIsSpeakerOn(!isSpeakerOn)}
-            title={isSpeakerOn ? "Speaker Off" : "Speaker On"}
-            id="btn-call-speaker"
-          >
-            {isSpeakerOn ? <Volume2 size={20} /> : <VolumeX size={20} />}
-          </button>
+              <button
+                onClick={onToggleSpeaker}
+                style={{
+                  width: '48px', height: '48px', borderRadius: '50%',
+                  background: !isSpeakerOn ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.15)', color: !isSpeakerOn ? '#fca5a5' : 'white',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+                title={isSpeakerOn ? 'Speaker off' : 'Speaker on'}
+              >
+                {isSpeakerOn ? <Volume2 size={20} /> : <VolumeX size={20} />}
+              </button>
 
-          {/* Hang Up Button */}
-          <button 
-            className="btn-call-action hangup" 
-            onClick={onHangup}
-            title="Hang Up"
-            id="btn-call-hangup"
-          >
-            <PhoneOff size={22} />
-          </button>
-        </div>
+              {isVideo && (
+                <button
+                  onClick={onToggleScreenShare}
+                  style={{
+                    width: '48px', height: '48px', borderRadius: '50%',
+                    background: isScreenSharing ? 'rgba(79,70,229,0.4)' : 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.15)', color: isScreenSharing ? '#a5b4fc' : 'white',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}
+                  title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
+                >
+                  <Monitor size={20} />
+                </button>
+              )}
+
+              {/* Hangup */}
+              <button
+                onClick={onHangup}
+                style={{
+                  width: '48px', height: '48px', borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                  border: 'none', color: 'white', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 4px 16px rgba(239, 68, 68, 0.4)'
+                }}
+                title="End Call"
+              >
+                <PhoneOff size={20} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

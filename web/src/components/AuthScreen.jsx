@@ -3,10 +3,11 @@ import { Mail, User, Lock, Sparkles, ArrowLeft, Shield } from 'lucide-react';
 import { supabase } from '../supabase';
 
 /**
- * AuthScreen — Handles login, registration, and OTP verification.
- * Includes a "Try Demo" button for exploring the app without authentication.
+ * AuthScreen — Handles login, registration, and OTP verification (V2).
+ * No longer takes onLogin prop — the useAuth hook's onAuthStateChange
+ * listener automatically detects session changes and sets the user.
  */
-export default function AuthScreen({ onLogin }) {
+export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -25,12 +26,9 @@ export default function AuthScreen({ onLogin }) {
     setIsAuthenticating(true);
     setAuthError(null);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      onLogin({
-        email: data.user.email,
-        name: data.user.user_metadata?.name || data.user.email.split('@')[0]
-      });
+      // useAuth's onAuthStateChange handles session detection automatically
     } catch (e) {
       setAuthError(e.message || "Invalid credentials.");
     } finally {
@@ -65,27 +63,10 @@ export default function AuthScreen({ onLogin }) {
     setIsAuthenticating(true);
     setAuthError(null);
     try {
-      const { data, error } = await supabase.auth.verifyOtp({ email, token: otp, type: 'signup' });
+      const { error } = await supabase.auth.verifyOtp({ email, token: otp, type: 'signup' });
       if (error) throw error;
-      const loggedUser = {
-        email: data.user.email,
-        name: data.user.user_metadata?.name || email.split('@')[0]
-      };
-      try {
-        await supabase.from('users').upsert({
-          email: loggedUser.email, name: loggedUser.name,
-          passwordHash: '••••••••', isSessionActive: true
-        });
-        const { data: profile } = await supabase
-          .from('users')
-          .select('virtual_number')
-          .eq('email', loggedUser.email)
-          .single();
-        if (profile) {
-          loggedUser.virtual_number = profile.virtual_number;
-        }
-      } catch (dbErr) { /* silent */ }
-      onLogin(loggedUser);
+      // Profile is auto-created by database trigger (handle_new_user)
+      // useAuth picks up the session automatically
       setIsOtpMode(false);
     } catch (e) {
       setAuthError(e.message || "Invalid code.");

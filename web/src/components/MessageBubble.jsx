@@ -1,30 +1,35 @@
 import React, { memo, useState } from 'react';
-import { Smile, Trash2, Check, CheckCheck, Reply, Share2, Play, Pause, Volume2, FileText } from 'lucide-react';
+import { Smile, Trash2, Check, CheckCheck, Reply, Share2, Play, Pause, Volume2, FileText, Edit3, Pin, Star } from 'lucide-react';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
 /**
- * MessageBubble — Renders a single message with text, optional attachment,
- * hover actions (reply, forward, react, delete), nested reply preview,
- * read receipts, and voice note players.
+ * MessageBubble — Renders a single message (V2).
+ * Supports text, images, voice notes, PDFs, reactions, reply preview,
+ * edit, delete for me/everyone, pin, and star.
  */
 function MessageBubble({ 
   msg, 
   showReactionPicker, 
   onToggleReactionPicker, 
   onAddReaction, 
-  onDelete,
+  onDeleteForMe,
+  onDeleteForEveryone,
+  onEditMessage,
   onReply,
-  onForward
+  onForward,
+  onTogglePin,
+  onToggleStar,
+  currentUserId
 }) {
   const isMe = msg.isFromMe;
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioInstance, setAudioInstance] = useState(null);
+  const [showDeleteMenu, setShowDeleteMenu] = useState(false);
 
   const toggleAudio = () => {
-    // If it's a mock voice note, fallback to simulated progress
-    const isMockUrl = !msg.attachmentUrl || (!msg.attachmentUrl.startsWith('http') && !msg.attachmentUrl.startsWith('blob:'));
+    const isMockUrl = !msg.attachment_url || (!msg.attachment_url.startsWith('http') && !msg.attachment_url.startsWith('blob:'));
     
     if (isMockUrl) {
       setIsPlayingAudio(!isPlayingAudio);
@@ -44,15 +49,11 @@ function MessageBubble({
     }
 
     if (isPlayingAudio) {
-      if (audioInstance) {
-        audioInstance.pause();
-      }
+      if (audioInstance) audioInstance.pause();
       setIsPlayingAudio(false);
     } else {
-      const audio = audioInstance || new Audio(msg.attachmentUrl);
-      if (!audioInstance) {
-        setAudioInstance(audio);
-      }
+      const audio = audioInstance || new Audio(msg.attachment_url);
+      if (!audioInstance) setAudioInstance(audio);
       
       audio.play().catch(e => {
         console.error("Audio playback failed:", e);
@@ -64,7 +65,6 @@ function MessageBubble({
         const progressVal = (audio.currentTime / audio.duration) * 100;
         setAudioProgress(isNaN(progressVal) ? 0 : progressVal);
       };
-      
       audio.onended = () => {
         setIsPlayingAudio(false);
         setAudioProgress(0);
@@ -72,59 +72,80 @@ function MessageBubble({
     }
   };
 
-  // Determine if it's a voice note
-  const isVoiceNote = msg.attachmentUrl && msg.attachmentUrl.includes('voice-note');
-  
-  // Determine if it's a PDF document
-  const isPdf = msg.attachmentUrl && msg.attachmentUrl.toLowerCase().includes('.pdf');
+  const isVoiceNote = msg.message_type === 'voice_note' || msg.message_type === 'audio' ||
+    (msg.attachment_url && msg.attachment_url.includes('voice-note'));
+  const isPdf = msg.message_type === 'file' || (msg.attachment_url && msg.attachment_url.toLowerCase().includes('.pdf'));
+  const isImage = msg.message_type === 'image' || (msg.attachment_url && !isVoiceNote && !isPdf);
+  const isSystem = msg.message_type === 'system';
+  const isOptimistic = msg._optimistic;
+  const isFailed = msg._status === 'failed';
+
+  // Format time
+  const timeText = msg.created_at
+    ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : '';
+
+  // Reactions grouped
+  const reactionGroups = {};
+  (msg.reactionList || []).forEach(r => {
+    if (!reactionGroups[r.emoji]) reactionGroups[r.emoji] = [];
+    reactionGroups[r.emoji].push(r.user_id);
+  });
+
+  if (isSystem) {
+    return (
+      <div className="date-separator system-message" id={`msg-${msg.id}`}>
+        <span style={{ fontStyle: 'italic', fontSize: '11px' }}>🔔 {msg.content}</span>
+      </div>
+    );
+  }
 
   return (
     <div
-      className={`message-bubble-wrapper ${isMe ? 'me' : 'other'} ${msg.replyToId ? 'has-reply' : ''}`}
+      className={`message-bubble-wrapper ${isMe ? 'me' : 'other'} ${msg.reply_to_id ? 'has-reply' : ''} ${isOptimistic ? 'optimistic' : ''} ${isFailed ? 'failed' : ''}`}
       id={`msg-${msg.id}`}
     >
       <div className="bubble-row">
-        {/* Incoming Profile Avatar */}
         {!isMe && (
-          <div className="message-sender-avatar" title={msg.replyToSender || "Contact"}>
-            {msg.contactId ? msg.contactId[0].toUpperCase() : 'C'}
+          <div className="message-sender-avatar" title={msg.senderName || 'Contact'}>
+            {msg.senderName ? msg.senderName[0].toUpperCase() : 'C'}
           </div>
         )}
 
-        <div className={`message-bubble ${msg.attachmentUrl && !msg.text ? 'attachment-only' : ''}`}>
+        <div className={`message-bubble ${msg.attachment_url && !msg.content ? 'attachment-only' : ''} ${msg.is_pinned ? 'pinned-msg' : ''}`}>
           
-          {/* Nested Replied-to Message Banner */}
-          {msg.replyToText && (
+          {/* Reply preview */}
+          {msg.replyToContent && (
             <div className="replied-banner-nested">
               <div className="replied-sender-name">
-                {msg.replyToSender === 'me' || msg.replyToSender === 'You' ? 'You' : msg.replyToSender}
+                {msg.replyToSenderName || 'User'}
               </div>
-              <p className="replied-text-preview">{msg.replyToText}</p>
+              <p className="replied-text-preview">{msg.replyToContent}</p>
             </div>
           )}
 
-          {/* Attachment (Images/Videos) */}
-          {msg.attachmentUrl && !isVoiceNote && !isPdf && (
+          {/* Image attachment */}
+          {isImage && msg.attachment_url && !isVoiceNote && !isPdf && (
             <div className="message-attachment">
-              <img src={msg.attachmentUrl} alt="Attachment" loading="lazy" />
+              <img src={msg.attachment_url} alt="Attachment" loading="lazy" />
             </div>
           )}
 
-          {/* Attachment (PDF) */}
-          {msg.attachmentUrl && !isVoiceNote && isPdf && (
+          {/* PDF attachment */}
+          {isPdf && msg.attachment_url && (
             <div className="message-attachment pdf-attachment" style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '12px', border: '1px solid var(--panel-border)', display: 'flex', alignItems: 'center', gap: '12px', minWidth: '200px' }}>
               <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
                 <FileText size={20} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                <span style={{ fontSize: '13px', fontWeight: '600', color: 'white', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>Document.pdf</span>
+                <span style={{ fontSize: '13px', fontWeight: '600', color: 'white', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{msg.attachment_name || 'Document.pdf'}</span>
                 <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>PDF Document</span>
               </div>
-              <a href={msg.attachmentUrl} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', fontSize: '11.5px', color: 'white', background: 'rgba(255,255,255,0.08)', border: '1px solid var(--panel-border)', borderRadius: '6px', textDecoration: 'none' }}>Open</a>
+              <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', fontSize: '11.5px', color: 'white', background: 'rgba(255,255,255,0.08)', border: '1px solid var(--panel-border)', borderRadius: '6px', textDecoration: 'none' }}>Open</a>
             </div>
           )}
 
-          {/* Voice Note player mock */}
+          {/* Voice note */}
           {isVoiceNote && (
             <div className="voice-note-player">
               <button className="play-pause-btn" onClick={toggleAudio}>
@@ -144,40 +165,42 @@ function MessageBubble({
             </div>
           )}
 
-          {/* Text content */}
-          {msg.text && (
-            <p className="message-text">{msg.text}</p>
+          {/* Text */}
+          {msg.content && msg.message_type !== 'system' && (
+            <p className="message-text">
+              {msg.content}
+              {msg.is_edited && <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '6px', fontStyle: 'italic' }}>edited</span>}
+            </p>
           )}
 
-          {/* Hover Actions Menu */}
+          {/* Hover actions */}
           <div className="message-hover-actions">
-            <button
-              className="msg-action-btn"
-              onClick={() => onReply(msg)}
-              title="Reply"
-              id={`btn-reply-${msg.id}`}
-            >
+            <button className="msg-action-btn" onClick={() => onReply(msg)} title="Reply" id={`btn-reply-${msg.id}`}>
               <Reply size={12} />
             </button>
-            <button
-              className="msg-action-btn"
-              onClick={() => onForward(msg)}
-              title="Forward"
-              id={`btn-forward-${msg.id}`}
-            >
+            <button className="msg-action-btn" onClick={() => onForward(msg)} title="Forward" id={`btn-forward-${msg.id}`}>
               <Share2 size={12} />
             </button>
-            <button
-              className="msg-action-btn"
-              onClick={() => onToggleReactionPicker(showReactionPicker === msg.id ? null : msg.id)}
-              title="React"
-              id={`btn-react-${msg.id}`}
-            >
+            <button className="msg-action-btn" onClick={() => onToggleReactionPicker(showReactionPicker === msg.id ? null : msg.id)} title="React" id={`btn-react-${msg.id}`}>
               <Smile size={12} />
+            </button>
+            {isMe && (
+              <button className="msg-action-btn" onClick={() => {
+                const newText = prompt('Edit message:', msg.content);
+                if (newText && newText !== msg.content) onEditMessage?.(msg.id, newText);
+              }} title="Edit" id={`btn-edit-${msg.id}`}>
+                <Edit3 size={12} />
+              </button>
+            )}
+            <button className="msg-action-btn" onClick={() => onTogglePin?.(msg.id)} title={msg.is_pinned ? 'Unpin' : 'Pin'}>
+              <Pin size={12} />
+            </button>
+            <button className="msg-action-btn" onClick={() => onToggleStar?.(msg.id)} title="Star">
+              <Star size={12} />
             </button>
             <button
               className="msg-action-btn danger"
-              onClick={() => onDelete(msg.id)}
+              onClick={() => setShowDeleteMenu(!showDeleteMenu)}
               title="Delete"
               id={`btn-delete-${msg.id}`}
             >
@@ -185,7 +208,37 @@ function MessageBubble({
             </button>
           </div>
 
-          {/* Reaction Picker Popover */}
+          {/* Delete submenu */}
+          {showDeleteMenu && (
+            <div style={{
+              position: 'absolute', bottom: '-50px', right: isMe ? '0' : 'auto', left: isMe ? 'auto' : '0',
+              background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(12px)',
+              border: '1px solid var(--panel-border)', borderRadius: '8px', padding: '4px',
+              display: 'flex', flexDirection: 'column', gap: '2px', zIndex: 30, minWidth: '140px',
+              boxShadow: 'var(--shadow-md)'
+            }}>
+              <button
+                style={{ padding: '6px 12px', fontSize: '11px', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', textAlign: 'left', borderRadius: '4px' }}
+                onClick={() => { onDeleteForMe?.(msg.id); setShowDeleteMenu(false); }}
+                onMouseOver={e => e.target.style.background = 'var(--glass-hover)'}
+                onMouseOut={e => e.target.style.background = 'none'}
+              >
+                Delete for me
+              </button>
+              {isMe && (
+                <button
+                  style={{ padding: '6px 12px', fontSize: '11px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', textAlign: 'left', borderRadius: '4px' }}
+                  onClick={() => { onDeleteForEveryone?.(msg.id); setShowDeleteMenu(false); }}
+                  onMouseOver={e => e.target.style.background = 'rgba(239,68,68,0.1)'}
+                  onMouseOut={e => e.target.style.background = 'none'}
+                >
+                  Delete for everyone
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Reaction picker */}
           {showReactionPicker === msg.id && (
             <div className={`reaction-picker ${isMe ? 'right' : 'left'}`}>
               {REACTION_EMOJIS.map(emoji => (
@@ -202,22 +255,31 @@ function MessageBubble({
         </div>
       </div>
 
-      {/* Render Reaction tag below bubble */}
-      {msg.reaction && (
+      {/* Reactions */}
+      {Object.keys(reactionGroups).length > 0 && (
         <div className="reaction-tag-container">
-          <div className="reaction-tag" onClick={() => onAddReaction(msg.id, null)} title="Click to remove reaction">
-            {msg.reaction}
-          </div>
+          {Object.entries(reactionGroups).map(([emoji, userIds]) => (
+            <div
+              key={emoji}
+              className="reaction-tag"
+              onClick={() => onAddReaction(msg.id, emoji)}
+              title={`${userIds.length} reaction(s)`}
+            >
+              {emoji} {userIds.length > 1 && <span style={{ fontSize: '10px', marginLeft: '2px' }}>{userIds.length}</span>}
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Message Timestamp & Receipts */}
+      {/* Timestamp & receipts */}
       <div className="message-info-row">
-        <span className="msg-time-stamp">{msg.timeText}</span>
+        <span className="msg-time-stamp">{timeText}</span>
         {isMe && (
-          msg.isRead
-            ? <CheckCheck size={11} className="read-receipt read" />
-            : <Check size={11} className="read-receipt" />
+          isFailed
+            ? <span style={{ fontSize: '10px', color: '#ef4444' }}>Failed</span>
+            : isOptimistic
+              ? <Check size={11} className="read-receipt sending" style={{ opacity: 0.4 }} />
+              : <CheckCheck size={11} className="read-receipt read" />
         )}
       </div>
     </div>

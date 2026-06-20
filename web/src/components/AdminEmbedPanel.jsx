@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Users, Activity, MessageSquare, ShieldAlert, Server, Trash2, Ban, ShieldCheck, CheckCircle } from 'lucide-react';
+import SafeAvatar from './SafeAvatar';
 
 /**
  * AdminEmbedPanel - Render client-side admin panel dashboard with charts,
  * moderation queue, user controls, and system configs.
  */
-export default function AdminEmbedPanel({ contacts, messages }) {
+export default function AdminEmbedPanel({ conversations = [], messages = [] }) {
   const [adminTab, setAdminTab] = useState('overview');
   const [blockedCount, setBlockedCount] = useState(1);
   const [suspendList, setSuspendList] = useState({});
@@ -30,9 +31,9 @@ export default function AdminEmbedPanel({ contacts, messages }) {
     setReports(prev => prev.filter(r => r.id !== reportId));
   };
 
-  const totalUsers = contacts.filter(c => !c.isGroup).length + 1; // plus self
-  const onlineUsers = contacts.filter(c => c.isActive && !c.isGroup).length + 1;
-  const totalGroups = contacts.filter(c => c.isGroup).length;
+  const totalUsers = conversations.filter(c => c.type === 'direct').length + 1; // plus self
+  const onlineUsers = conversations.filter(c => c.isOnline && c.type === 'direct').length + 1;
+  const totalGroups = conversations.filter(c => c.type === 'group').length;
   
   return (
     <div className="admin-embed-container" id="admin-panel">
@@ -129,13 +130,13 @@ export default function AdminEmbedPanel({ contacts, messages }) {
           <div className="admin-tab-section">
             <h3>Registered User Accounts</h3>
             <div className="users-mgmt-list">
-              {contacts.map(user => (
+              {conversations.map(user => (
                 <div key={user.id} className="admin-user-row">
                   <div className="user-info-side">
-                    <img src={user.avatarUrl} alt="" className="user-avatar-sm" />
+                    <SafeAvatar src={user.avatarUrl} name={user.name} size={32} className="user-avatar-sm" />
                     <div>
                       <h4>{user.name}</h4>
-                      <span>ID: <code>{user.id}</code> {user.isGroup && "• GROUP"}</span>
+                      <span>ID: <code>{user.id}</code> {user.type === 'group' && "• GROUP"}</span>
                     </div>
                   </div>
                   <div className="user-actions-side">

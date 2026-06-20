@@ -1,6 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from './hooks/useAuth';
+import { useConversations } from './hooks/useConversations';
+import { useMessages } from './hooks/useMessages';
+import { usePresence } from './hooks/usePresence';
+import { useCalling } from './hooks/useCalling';
+import { useStatuses } from './hooks/useStatuses';
+import { useChannels } from './hooks/useChannels';
 import { supabase } from './supabase';
-import { useSupabase } from './hooks/useSupabase';
+
 import AuthScreen from './components/AuthScreen';
 import Sidebar from './components/Sidebar';
 import ChatView from './components/ChatView';
@@ -8,10 +15,9 @@ import StatusSection from './components/StatusSection';
 import SettingsPanel from './components/SettingsPanel';
 import CallingOverlay from './components/CallingOverlay';
 import AdminEmbedPanel from './components/AdminEmbedPanel';
-import { requestNotificationPermission } from './firebase';
 import SafeAvatar from './components/SafeAvatar';
+import { requestNotificationPermission } from './firebase';
 
-// Icons for bottom navigation on mobile
 import { MessageSquare, CircleDot, Settings, LogOut, Sparkles, X, Shield, Users, Plus } from 'lucide-react';
 
 const SoundWaveLogo = () => (
@@ -25,233 +31,136 @@ const SoundWaveLogo = () => (
 );
 
 /**
- * App — Root component for Aahat messaging application.
- * Orchestrates auth state, tabs navigation, calling states, and mobile responsive layouts.
+ * App — Root component for Aahat messaging application (V2).
+ * Uses normalized database hooks for auth, conversations, messages,
+ * presence, calling, and statuses.
  */
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  // --- Auth ---
+  const {
+    user, profile, isLoading: isAuthLoading,
+    signOut, updateProfile, fetchProfile
+  } = useAuth();
+
+  // --- Conversations ---
+  const {
+    conversations, selectedConversationId, activeConversation,
+    selectConversation, setSelectedConversationId,
+    startDirectChat, startDirectChatByVirtualNumber, createGroup,
+    fetchGroupMembers, addGroupMember, removeGroupMember,
+    updateGroupMemberRole, leaveGroup,
+    toggleMute, togglePin, toggleArchive, toggleFavorite,
+    clearChat, deleteChat, refetch: refetchConversations,
+    isLoading: isConvLoading
+  } = useConversations(user);
+
+  // --- Messages (for the active conversation) ---
+  const {
+    messages: activeMessages, isLoading: isMsgLoading,
+    sendMessage, editMessage, deleteForMe, deleteForEveryone,
+    addReaction, removeReaction, togglePinMessage, toggleStarMessage,
+    markAsRead, uploadFile
+  } = useMessages(user, selectedConversationId);
+
+  // --- Presence ---
+  const { isUserOnline, setTyping, getTypingUsers } = usePresence(user);
+
+  // --- Calling ---
+  const {
+    callState, callDuration, isMuted: isCallMuted, isCameraOff, isSpeakerOn, isScreenSharing,
+    localStream, remoteStream,
+    startCall, answerCall, hangup, rejectCall,
+    toggleMute: toggleCallMute, toggleCamera, toggleScreenShare, setIsSpeakerOn
+  } = useCalling(user);
+
+  // --- Statuses ---
+  const {
+    myStatuses, otherStatuses, postStatus, viewStatus, deleteStatus,
+    isLoading: isStatusLoading
+  } = useStatuses(user);
+
+  // --- Channels ---
+  const channelsData = useChannels(user);
+
+  // --- UI State ---
+  const [activeTab, setActiveTab] = useState('chats');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(true);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
-  const [newChatName, setNewChatName] = useState('');
-  
-  // Tab control: chats, status, settings, admin
-  const [activeTab, setActiveTab] = useState('chats');
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
-  const [showAdminPasswordModal, setShowAdminPasswordModal] = useState(false);
-  const [adminPasswordInput, setAdminPasswordInput] = useState('');
-  const [adminPasswordError, setAdminPasswordError] = useState('');
+  const [showNewGroupModal, setShowNewGroupModal] = useState(false);
+  const [newChatId, setNewChatId] = useState('');
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupDesc, setNewGroupDesc] = useState('');
+  const [activeToast, setActiveToast] = useState(null);
 
-  // Dynamic mobile state listener
+  // Mobile responsive
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Calling state
-  const [callState, setCallState] = useState({
-    active: false,
-    contact: null,
-    type: 'voice', // voice or video
-    isRinging: false
-  });
-
-  // Auth persistence
-  // Auth persistence
+  // Mark messages as read when conversation is selected
   useEffect(() => {
-    const handleRegisterPush = async (email) => {
-      try {
-        const token = await requestNotificationPermission();
-        if (token) {
-          await supabase
-            .from('users')
-            .update({ fcmToken: token })
-            .eq('email', email);
-        }
-      } catch (err) {
-        console.warn("FCM token registration failed", err);
-      }
-    };
-
-    const handleUserSession = async (session) => {
-      if (!session) {
-        setUser(null);
-        setIsAuthLoading(false);
-        return;
-      }
-      const loggedUser = {
-        email: session.user.email.toLowerCase(),
-        name: session.user.user_metadata?.name || session.user.email.split('@')[0],
-        avatarUrl: session.user.user_metadata?.avatarUrl || '',
-        description: '',
-        role: 'user',
-        virtual_number: '',
-        id: ''
-      };
-
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('id, role, virtual_number, avatarUrl, description')
-          .eq('email', loggedUser.email)
-          .single();
-        if (data) {
-          loggedUser.role = data.role || 'user';
-          loggedUser.id = data.id || '';
-          loggedUser.avatarUrl = data.avatarUrl || loggedUser.avatarUrl;
-          loggedUser.description = data.description || '';
-          if (data.virtual_number) {
-            loggedUser.virtual_number = data.virtual_number;
-          } else {
-            // Trigger will generate it on insert. If missing on existing, fetch updated
-            const { data: updated } = await supabase
-              .from('users')
-              .select('id, virtual_number, avatarUrl, description')
-              .eq('email', loggedUser.email)
-              .single();
-            if (updated) {
-              loggedUser.virtual_number = updated.virtual_number;
-              loggedUser.id = updated.id || '';
-              loggedUser.avatarUrl = updated.avatarUrl || loggedUser.avatarUrl;
-              loggedUser.description = updated.description || '';
-            }
-          }
-        } else {
-          // If profile is missing in the users table, auto-create/sync it
-          // Trigger automatically generates virtual_number
-          await supabase.from('users').insert({
-            email: loggedUser.email,
-            name: loggedUser.name,
-            passwordHash: '••••••••',
-            isSessionActive: true,
-            role: 'user'
-          });
-          const { data: updated } = await supabase
-            .from('users')
-            .select('id, virtual_number, avatarUrl, description')
-            .eq('email', loggedUser.email)
-            .single();
-          if (updated) {
-            loggedUser.virtual_number = updated.virtual_number;
-            loggedUser.id = updated.id || '';
-            loggedUser.avatarUrl = updated.avatarUrl || loggedUser.avatarUrl;
-            loggedUser.description = updated.description || '';
-          }
-        }
-      } catch (e) {
-        // Fallback: Try to insert/upsert
-        try {
-          await supabase.from('users').upsert({
-            email: loggedUser.email,
-            name: loggedUser.name,
-            passwordHash: '••••••••',
-            isSessionActive: true,
-            role: 'user'
-          });
-          const { data: updated } = await supabase
-            .from('users')
-            .select('id, virtual_number, avatarUrl, description')
-            .eq('email', loggedUser.email)
-            .single();
-          if (updated) {
-            loggedUser.virtual_number = updated.virtual_number;
-            loggedUser.id = updated.id || '';
-            loggedUser.avatarUrl = updated.avatarUrl || loggedUser.avatarUrl;
-            loggedUser.description = updated.description || '';
-          }
-        } catch (err) {}
-      }
-
-      setUser(loggedUser);
-      handleRegisterPush(loggedUser.email);
-      setIsAuthLoading(false);
-    };
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        handleUserSession(session);
-      } else {
-        setIsAuthLoading(false);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        handleUserSession(session);
-      } else {
-        setUser(null);
-        setIsAuthLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // In-app notifications state
-  const [activeToast, setActiveToast] = useState(null);
-
-  const selectedContactIdRef = React.useRef(null);
-  const contactsRef = React.useRef([]);
-
-  const handleMessageReceived = useCallback((msg) => {
-    // Only show toast if we are not currently viewing the sender's chat conversation
-    if (selectedContactIdRef.current !== msg.contactId) {
-      const contact = contactsRef.current.find(c => c.id === msg.contactId);
-      const senderName = contact?.name || msg.sender.split('@')[0];
-      setActiveToast({
-        id: Date.now(),
-        sender: senderName,
-        text: msg.text || "Sent a message",
-        contactId: msg.contactId
-      });
+    if (selectedConversationId && activeMessages.length > 0) {
+      markAsRead();
     }
-  }, []);
+  }, [selectedConversationId, activeMessages.length, markAsRead]);
 
-  // Data layer
-  const {
-    contacts, messages, isLoading,
-    selectedContactId, typingStatus,
-    activeContact, activeMessages,
-    sendMessage, addReaction, deleteMessage,
-    selectContact, uploadFile,
-    setSelectedContactId,
-    toggleArchive, togglePin, toggleMute, toggleFavorite,
-    clearChat, deleteChat,
-    updateProfile, postStory
-  } = useSupabase(user, handleMessageReceived);
-
-  React.useEffect(() => {
-    selectedContactIdRef.current = selectedContactId;
-  }, [selectedContactId]);
-
-  React.useEffect(() => {
-    contactsRef.current = contacts;
-  }, [contacts]);
-
+  // Toast auto-dismiss
   useEffect(() => {
     if (activeToast) {
-      const timer = setTimeout(() => {
-        setActiveToast(null);
-      }, 5000);
+      const timer = setTimeout(() => setActiveToast(null), 5000);
       return () => clearTimeout(timer);
     }
   }, [activeToast]);
 
+  // Listen for incoming messages to show toasts
+  const selectedConvRef = useRef(null);
+  useEffect(() => { selectedConvRef.current = selectedConversationId; }, [selectedConversationId]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const toastChannel = supabase
+      .channel('toast-notifications')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages'
+      }, async (payload) => {
+        const msg = payload.new;
+        if (!msg || msg.sender_id === user.id) return;
+        if (msg.conversation_id === selectedConvRef.current) return;
+        if (msg.message_type === 'system') return;
+
+        // Find conversation info
+        const conv = conversations.find(c => c.id === msg.conversation_id);
+        if (!conv) return;
+
+        setActiveToast({
+          id: Date.now(),
+          sender: conv.name || 'New message',
+          text: msg.content || 'Sent an attachment',
+          conversationId: msg.conversation_id,
+          avatarUrl: conv.avatarUrl || ''
+        });
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(toastChannel);
+  }, [user, conversations]);
+
+  // FCM Registration
   const handleRequestNotificationPermission = useCallback(async () => {
     try {
       const token = await requestNotificationPermission();
-      if (token) {
-        if (user?.email) {
-          await supabase
-            .from('users')
-            .update({ fcmToken: token })
-            .eq('email', user.email);
-        }
+      if (token && user) {
+        await supabase
+          .from('profiles')
+          .update({ fcm_token: token })
+          .eq('id', user.id);
         alert("Push notifications enabled successfully!");
       } else {
         alert("Notification permission denied or failed.");
@@ -261,157 +170,131 @@ export default function App() {
     }
   }, [user]);
 
-  // Handlers
-  const handleLogin = useCallback((userData) => setUser(userData), []);
+  // Popstate for mobile back
+  useEffect(() => {
+    const handlePopState = () => {
+      setSelectedConversationId(null);
+      setIsMobileSidebarOpen(true);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [setSelectedConversationId]);
 
-  const handleLogout = useCallback(async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-  }, []);
+  useEffect(() => {
+    if (selectedConversationId && isMobile) {
+      if (!window.history.state?.isChatOpen) {
+        window.history.pushState({ isChatOpen: true }, '');
+      }
+    }
+  }, [selectedConversationId, isMobile]);
 
-  const handleSelectContact = useCallback((id) => {
-    selectContact(id);
+  // --- Handlers ---
+  const handleSelectConversation = useCallback((id) => {
+    selectConversation(id);
     setActiveTab('chats');
     setIsMobileSidebarOpen(false);
-  }, [selectContact]);
+  }, [selectConversation]);
 
   const handleMobileBack = useCallback(() => {
     if (window.history.state?.isChatOpen) {
       window.history.back();
     } else {
-      setSelectedContactId(null);
+      setSelectedConversationId(null);
       setIsMobileSidebarOpen(true);
     }
-  }, [setSelectedContactId]);
+  }, [setSelectedConversationId]);
 
-  // Synchronize browser history Back action with chat closure
-  useEffect(() => {
-    const handlePopState = (event) => {
-      if (!event.state?.isChatOpen) {
-        setSelectedContactId(null);
-        setIsMobileSidebarOpen(true);
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [setSelectedContactId]);
-
-  // Push state to browser history when chat is opened on mobile
-  useEffect(() => {
-    if (selectedContactId && isMobile) {
-      if (!window.history.state?.isChatOpen) {
-        window.history.pushState({ isChatOpen: true }, '');
+  const handleSend = useCallback(async (text, attachmentUrl, replyPayload) => {
+    const options = {};
+    if (attachmentUrl) {
+      // Determine type from URL
+      if (typeof attachmentUrl === 'string' && attachmentUrl.includes('voice-note')) {
+        options.messageType = 'voice_note';
+        options.attachmentUrl = attachmentUrl;
+      } else if (typeof attachmentUrl === 'string' && attachmentUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)) {
+        options.messageType = 'image';
+        options.attachmentUrl = attachmentUrl;
+      } else if (typeof attachmentUrl === 'string' && attachmentUrl.match(/\.(mp4|webm|mov)/i)) {
+        options.messageType = 'video';
+        options.attachmentUrl = attachmentUrl;
+      } else if (typeof attachmentUrl === 'string' && attachmentUrl.match(/\.(pdf|doc|docx|zip)/i)) {
+        options.messageType = 'file';
+        options.attachmentUrl = attachmentUrl;
+      } else if (typeof attachmentUrl === 'string' && attachmentUrl.startsWith('data:')) {
+        // Base64 fallback
+        if (attachmentUrl.startsWith('data:image')) {
+          options.messageType = 'image';
+        } else if (attachmentUrl.startsWith('data:audio')) {
+          options.messageType = 'voice_note';
+        } else {
+          options.messageType = 'file';
+        }
+        options.attachmentUrl = attachmentUrl;
+      } else {
+        options.attachmentUrl = attachmentUrl;
       }
     }
-  }, [selectedContactId, isMobile]);
+    if (replyPayload?.id) {
+      options.replyToId = replyPayload.id;
+    }
 
-  // Calling Triggers
-  const handleStartCall = useCallback((contact, type) => {
-    setCallState({
-      active: true,
-      contact,
-      type,
-      isRinging: true
-    });
+    await sendMessage(text, options);
+  }, [sendMessage]);
 
-    // Ring for 3 seconds then connect call automatically
-    setTimeout(() => {
-      setCallState(prev => prev.active ? { ...prev, isRinging: false } : prev);
-    }, 3000);
-  }, []);
+  const handleStartCall = useCallback((type) => {
+    if (!activeConversation) return;
+    startCall(activeConversation, type);
+  }, [activeConversation, startCall]);
 
-  const handleHangup = useCallback(() => {
-    setCallState({
-      active: false,
-      contact: null,
-      type: 'voice',
-      isRinging: false
-    });
-  }, []);
-
-  const handleNewChat = useCallback(() => {
-    setShowNewChatModal(true);
-  }, []);
-
-  const handleCreateNewChat = useCallback(async (e) => {
+  const handleNewChat = useCallback(async (e) => {
     e?.preventDefault();
-    if (!newChatName.trim()) return;
-    const searchVal = newChatName.trim();
-
-    if (user && searchVal === user.virtual_number) {
-      alert("You cannot start a chat with yourself using your own Aahat ID. Use the 'You (Message Yourself)' chat!");
-      return;
-    }
+    if (!newChatId.trim()) return;
 
     try {
-      // Query users table for the virtual number with avatarUrl and description
-      const { data: matchedUser, error } = await supabase
-        .from('users')
-        .select('email, name, virtual_number, avatarUrl, description')
-        .eq('virtual_number', searchVal)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (!matchedUser) {
-        alert(`No user found with Aahat ID: ${searchVal}`);
-        return;
-      }
-
-      const contactId = matchedUser.email.split('@')[0];
-      
-      // Check if contact already exists in local list
-      const contactExists = contacts.some(c => c.id === contactId);
-
-      if (!contactExists) {
-        const newContact = {
-          id: `${user.email}:${contactId}`,
-          name: matchedUser.name,
-          avatarUrl: matchedUser.avatarUrl || '',
-          description: matchedUser.description || '',
-          isActive: true,
-          lastActiveText: "Active now",
-          isRecent: true,
-          recentMessageText: "Say hello!",
-          recentMessageTime: "Just now",
-          recentMessageIsUnread: false
-        };
-        await supabase.from('contacts').insert([newContact]);
-      }
-
-      selectContact(contactId);
+      await startDirectChatByVirtualNumber(newChatId.trim());
       setShowNewChatModal(false);
-      setNewChatName('');
+      setNewChatId('');
     } catch (err) {
-      console.error(err);
-      alert("Error adding contact. Please verify connection and try again.");
+      alert(err.message || 'Error starting chat');
     }
-  }, [newChatName, user, contacts, selectContact]);
+  }, [newChatId, startDirectChatByVirtualNumber]);
 
-  const handleAdminTabClick = useCallback(() => {
-    if (isAdminAuthenticated || user?.role === 'super_admin') {
-      setActiveTab('admin');
-      setIsMobileSidebarOpen(false);
-    } else {
-      setShowAdminPasswordModal(true);
-      setAdminPasswordError('');
-      setAdminPasswordInput('');
-    }
-  }, [isAdminAuthenticated, user]);
-
-  const handleAdminPasswordSubmit = useCallback((e) => {
+  const handleCreateGroup = useCallback(async (e) => {
     e?.preventDefault();
-    if (adminPasswordInput === 'admin123' || adminPasswordInput === 'aahat-admin') {
-      setIsAdminAuthenticated(true);
-      setActiveTab('admin');
-      setShowAdminPasswordModal(false);
-      setIsMobileSidebarOpen(false);
-      setAdminPasswordError('');
-    } else {
-      setAdminPasswordError('Invalid admin password.');
-    }
-  }, [adminPasswordInput]);
+    if (!newGroupName.trim()) return;
 
+    try {
+      await createGroup(newGroupName.trim(), newGroupDesc.trim());
+      setShowNewGroupModal(false);
+      setNewGroupName('');
+      setNewGroupDesc('');
+    } catch (err) {
+      alert(err.message || 'Error creating group');
+    }
+  }, [newGroupName, newGroupDesc, createGroup]);
+
+  const handleUpdateProfile = useCallback(async (displayName, bio, avatarUrl) => {
+    return updateProfile({
+      display_name: displayName,
+      bio,
+      avatar_url: avatarUrl
+    });
+  }, [updateProfile]);
+
+  const handleLogout = useCallback(async () => {
+    await signOut();
+  }, [signOut]);
+
+  // --- Computed ---
+  const unreadTotal = conversations.filter(c => 
+    c.type !== 'self' && c.unreadCount > 0
+  ).length;
+
+  const typingUsersInActiveConv = selectedConversationId
+    ? getTypingUsers(selectedConversationId)
+    : [];
+
+  // --- Render ---
   if (isAuthLoading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg-gradient)', color: 'var(--text-primary)' }}>
@@ -421,29 +304,20 @@ export default function App() {
     );
   }
 
-  // Show auth screen if not logged in
   if (!user) {
-    return <AuthScreen onLogin={handleLogin} />;
+    return <AuthScreen />;
   }
-
-  // Mobile state tracked dynamically via resize Hook
-
-  const unreadTotal = contacts.filter(c => {
-    if (c.id === 'me') return false;
-    if (user && (c.name.toLowerCase() === user.name.toLowerCase() || c.id === user.email?.split('@')[0])) return false;
-    return c.recentMessageIsUnread || (c.unreadCount > 0);
-  }).length;
 
   return (
     <div className="app-container" id="app-container">
-      {/* Slim vertical navigation dock on Desktop */}
+      {/* Desktop Navigation Dock */}
       {!isMobile && (
         <div className="nav-dock">
           <div className="dock-top">
             <div className="dock-logo-container" title="Aahat">
               <SoundWaveLogo />
             </div>
-             <button 
+            <button
               className={`dock-btn ${activeTab === 'chats' ? 'active' : ''}`}
               onClick={() => setActiveTab('chats')}
               title="Chats"
@@ -452,7 +326,7 @@ export default function App() {
               <MessageSquare size={20} />
               {unreadTotal > 0 && <span className="dock-badge-dot" />}
             </button>
-            <button 
+            <button
               className={`dock-btn ${activeTab === 'contacts' ? 'active' : ''}`}
               onClick={() => setActiveTab('contacts')}
               title="Contacts"
@@ -460,7 +334,7 @@ export default function App() {
             >
               <Users size={20} />
             </button>
-            <button 
+            <button
               className={`dock-btn ${activeTab === 'status' ? 'active' : ''}`}
               onClick={() => setActiveTab('status')}
               title="Stories"
@@ -470,17 +344,17 @@ export default function App() {
             </button>
           </div>
           <div className="dock-bottom">
-            {user?.role === 'super_admin' && (
-              <button 
+            {profile?.role === 'super_admin' && (
+              <button
                 className={`dock-btn ${activeTab === 'admin' ? 'active' : ''}`}
-                onClick={handleAdminTabClick}
+                onClick={() => setActiveTab('admin')}
                 title="Admin Panel"
                 id="dock-tab-admin"
               >
                 <Shield size={20} />
               </button>
             )}
-            <button 
+            <button
               className={`dock-btn ${activeTab === 'settings' ? 'active' : ''}`}
               onClick={() => setActiveTab('settings')}
               title="Settings"
@@ -488,8 +362,8 @@ export default function App() {
             >
               <Settings size={20} />
             </button>
-            <button 
-              className="dock-btn logout" 
+            <button
+              className="dock-btn logout"
               onClick={handleLogout}
               title="Sign Out"
               id="dock-tab-logout"
@@ -500,15 +374,16 @@ export default function App() {
         </div>
       )}
 
-      {/* Main View Area Tabs */}
+      {/* Main Content */}
       <div className="main-content-window">
         {activeTab === 'chats' && (
           <>
             <Sidebar
               user={user}
-              contacts={contacts}
-              selectedContactId={selectedContactId}
-              onSelectContact={handleSelectContact}
+              profile={profile}
+              conversations={conversations}
+              selectedConversationId={selectedConversationId}
+              onSelectConversation={handleSelectConversation}
               onLogout={handleLogout}
               isMobileOpen={isMobileSidebarOpen}
               onCloseMobile={() => setIsMobileSidebarOpen(false)}
@@ -518,21 +393,41 @@ export default function App() {
               togglePin={togglePin}
               toggleMute={toggleMute}
               toggleFavorite={toggleFavorite}
-              onNewChat={handleNewChat}
+              onNewChat={() => setShowNewChatModal(true)}
+              onNewGroup={() => setShowNewGroupModal(true)}
+              isUserOnline={isUserOnline}
+              isLoading={isConvLoading}
             />
             <ChatView
-              activeContact={activeContact}
-              activeMessages={activeMessages}
-              typingStatus={typingStatus}
-              onSend={sendMessage}
+              conversation={activeConversation}
+              messages={activeMessages}
+              typingUsers={typingUsersInActiveConv}
+              onSend={handleSend}
               onAddReaction={addReaction}
-              onDeleteMessage={deleteMessage}
+              onRemoveReaction={removeReaction}
+              onDeleteForMe={deleteForMe}
+              onDeleteForEveryone={deleteForEveryone}
+              onEditMessage={editMessage}
+              onTogglePinMessage={togglePinMessage}
+              onToggleStarMessage={toggleStarMessage}
               onUploadFile={uploadFile}
-              onBack={selectedContactId ? handleMobileBack : undefined}
+              onBack={selectedConversationId ? handleMobileBack : undefined}
               onStartCall={handleStartCall}
-              contacts={contacts}
-              onClearChat={clearChat}
-              onDeleteChat={deleteChat}
+              conversations={conversations}
+              onClearChat={() => clearChat(selectedConversationId)}
+              onDeleteChat={() => deleteChat(selectedConversationId)}
+              onSetTyping={setTyping}
+              currentUserId={user?.id}
+              isUserOnline={isUserOnline}
+              onForwardMessage={(text, attachmentUrl, targetConvId) => {
+                // Temporarily switch context to forward
+                sendMessage(text, { attachmentUrl, messageType: attachmentUrl ? 'image' : 'text' });
+              }}
+              onFetchGroupMembers={fetchGroupMembers}
+              onAddGroupMember={addGroupMember}
+              onRemoveGroupMember={removeGroupMember}
+              onUpdateGroupMemberRole={updateGroupMemberRole}
+              onLeaveGroup={leaveGroup}
             />
           </>
         )}
@@ -544,8 +439,8 @@ export default function App() {
                 <Users size={22} style={{ color: 'var(--accent-light)' }} />
                 My Contacts
               </h2>
-              <button 
-                onClick={handleNewChat} 
+              <button
+                onClick={() => setShowNewChatModal(true)}
                 className="admin-btn admin-btn-primary"
                 style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', fontSize: '13px' }}
               >
@@ -555,32 +450,24 @@ export default function App() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {contacts.filter(c => {
-                if (c.id === 'me') return false;
-                if (user && (c.name.toLowerCase() === user.name.toLowerCase() || c.id === user.email?.split('@')[0])) return false;
-                return true;
-              }).length === 0 ? (
+              {conversations.filter(c => c.type === 'direct').length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '40px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--panel-border)', borderRadius: '12px', color: 'var(--text-secondary)' }}>
                   <Users size={32} style={{ opacity: 0.4, marginBottom: '12px' }} />
                   <p>No contacts added yet. Click "Add Contact" to add friends by their Aahat ID!</p>
                 </div>
               ) : (
-                contacts.filter(c => {
-                  if (c.id === 'me') return false;
-                  if (user && (c.name.toLowerCase() === user.name.toLowerCase() || c.id === user.email?.split('@')[0])) return false;
-                  return true;
-                }).map(contact => (
-                  <div 
-                    key={contact.id} 
-                    onClick={() => handleSelectContact(contact.id)}
-                    style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'center', 
-                      padding: '16px', 
-                      background: 'rgba(30,41,59,0.3)', 
-                      border: '1px solid var(--panel-border)', 
-                      borderRadius: '12px', 
+                conversations.filter(c => c.type === 'direct').map(conv => (
+                  <div
+                    key={conv.id}
+                    onClick={() => handleSelectConversation(conv.id)}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '16px',
+                      background: 'rgba(30,41,59,0.3)',
+                      border: '1px solid var(--panel-border)',
+                      borderRadius: '12px',
                       cursor: 'pointer',
                       transition: 'transform 0.2s, background 0.2s'
                     }}
@@ -588,26 +475,22 @@ export default function App() {
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                       <div className="avatar-wrapper" style={{ position: 'relative', width: '44px', height: '44px' }}>
-                        {contact.avatarUrl ? (
-                          <img src={contact.avatarUrl} alt={contact.name} style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover' }} />
-                        ) : (
-                          <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--accent-gradient)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '16px' }}>
-                            {contact.name[0].toUpperCase()}
-                          </div>
-                        )}
-                        <div className={`status-badge ${contact.isActive ? 'active' : 'offline'}`} style={{ position: 'absolute', bottom: '0', right: '0', width: '12px', height: '12px', borderRadius: '50%', border: '2px solid var(--panel-bg)', backgroundColor: contact.isActive ? 'var(--accent-light)' : '#9ca3af' }} />
+                        <SafeAvatar
+                          src={conv.avatarUrl}
+                          name={conv.name}
+                          size={44}
+                          className="avatar-image"
+                        />
+                        <div className={`status-badge ${isUserOnline(conv.otherMemberId) ? 'active' : 'offline'}`} />
                       </div>
                       <div>
-                        <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: 'white' }}>{contact.name}</h4>
-                        <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>{contact.lastActiveText || 'Offline'}</p>
+                        <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: 'white' }}>{conv.name}</h4>
+                        <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                          {isUserOnline(conv.otherMemberId) ? 'Online' : conv.description || 'Offline'}
+                        </p>
                       </div>
                     </div>
-                    <button 
-                      className="admin-btn admin-btn-ghost"
-                      style={{ padding: '6px 12px', fontSize: '12px' }}
-                    >
-                      Chat
-                    </button>
+                    <button className="admin-btn admin-btn-ghost" style={{ padding: '6px 12px', fontSize: '12px' }}>Chat</button>
                   </div>
                 ))
               )}
@@ -616,66 +499,83 @@ export default function App() {
         )}
 
         {activeTab === 'status' && (
-          <StatusSection 
-            contacts={contacts} 
-            user={user} 
-            onSelectContact={handleSelectContact} 
+          <StatusSection
+            myStatuses={myStatuses}
+            otherStatuses={otherStatuses}
+            user={user}
+            profile={profile}
+            onPostStatus={postStatus}
+            onViewStatus={viewStatus}
+            onDeleteStatus={deleteStatus}
+            onSelectConversation={handleSelectConversation}
             onUploadFile={uploadFile}
-            onPostStory={postStory}
+            isUserOnline={isUserOnline}
+            conversations={conversations}
+            channels={channelsData.channels}
+            myChannels={channelsData.myChannels}
+            activeChannelId={channelsData.activeChannelId}
+            activeChannelPosts={channelsData.activeChannelPosts}
+            setActiveChannelId={channelsData.setActiveChannelId}
+            onCreateChannel={channelsData.createChannel}
+            onSubscribeToChannel={channelsData.subscribeToChannel}
+            onUnsubscribeFromChannel={channelsData.unsubscribeFromChannel}
+            onCreateChannelPost={channelsData.createChannelPost}
           />
         )}
+
         {activeTab === 'settings' && (
-          <SettingsPanel 
-            user={user} 
-            onLogout={handleLogout} 
-            meContact={contacts.find(c => c.id === 'me')}
+          <SettingsPanel
+            user={user}
+            profile={profile}
+            onLogout={handleLogout}
             onUploadFile={uploadFile}
-            onUpdateProfile={updateProfile}
+            onUpdateProfile={handleUpdateProfile}
             onRequestNotificationPermission={handleRequestNotificationPermission}
           />
         )}
+
         {activeTab === 'admin' && (
-          <AdminEmbedPanel 
-            contacts={contacts} 
-            messages={messages} 
+          <AdminEmbedPanel
+            conversations={conversations}
+            messages={activeMessages}
           />
         )}
       </div>
 
-      {/* Mobile Bottom Navigation Bar */}
+      {/* Mobile Bottom Navigation */}
       {isMobile && (
         <div className="mobile-bottom-nav">
-          <button 
+          <button
             className={`mobile-nav-btn ${activeTab === 'chats' ? 'active' : ''}`}
             onClick={() => { setActiveTab('chats'); setIsMobileSidebarOpen(true); }}
           >
             <MessageSquare size={20} />
             <span>Chats</span>
           </button>
-          <button 
+          <button
             className={`mobile-nav-btn ${activeTab === 'contacts' ? 'active' : ''}`}
             onClick={() => { setActiveTab('contacts'); setIsMobileSidebarOpen(false); }}
           >
             <Users size={20} />
             <span>Contacts</span>
           </button>
-          <button 
+          <button
             className={`mobile-nav-btn ${activeTab === 'status' ? 'active' : ''}`}
             onClick={() => { setActiveTab('status'); setIsMobileSidebarOpen(false); }}
           >
             <CircleDot size={20} />
             <span>Stories</span>
           </button>
-          {user?.role === 'super_admin' && (
-            <button 
+          {profile?.role === 'super_admin' && (
+            <button
               className={`mobile-nav-btn ${activeTab === 'admin' ? 'active' : ''}`}
-              onClick={handleAdminTabClick}
+              onClick={() => setActiveTab('admin')}
             >
               <Shield size={20} />
               <span>Admin</span>
             </button>
           )}
-          <button 
+          <button
             className={`mobile-nav-btn ${activeTab === 'settings' ? 'active' : ''}`}
             onClick={() => { setActiveTab('settings'); setIsMobileSidebarOpen(false); }}
           >
@@ -685,15 +585,28 @@ export default function App() {
         </div>
       )}
 
-      {/* Call Fullscreen Overlays */}
-      {callState.active && (
-        <CallingOverlay 
-          callState={callState} 
-          onHangup={handleHangup}
+      {/* Calling Overlay */}
+      {callState && (
+        <CallingOverlay
+          callState={callState}
+          callDuration={callDuration}
+          isMuted={isCallMuted}
+          isCameraOff={isCameraOff}
+          isSpeakerOn={isSpeakerOn}
+          isScreenSharing={isScreenSharing}
+          localStream={localStream}
+          remoteStream={remoteStream}
+          onHangup={hangup}
+          onReject={rejectCall}
+          onAnswer={() => answerCall(callState.callId, callState.contact?.id, callState.type)}
+          onToggleMute={toggleCallMute}
+          onToggleCamera={toggleCamera}
+          onToggleScreenShare={toggleScreenShare}
+          onToggleSpeaker={() => setIsSpeakerOn(!isSpeakerOn)}
         />
       )}
 
-      {/* New Chat Premium Modal */}
+      {/* New Chat Modal */}
       {showNewChatModal && (
         <div className="modal-overlay" onClick={() => setShowNewChatModal(false)}>
           <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
@@ -704,103 +617,90 @@ export default function App() {
               </h3>
               <button className="modal-close" onClick={() => setShowNewChatModal(false)}><X size={18} /></button>
             </div>
-            <form onSubmit={handleCreateNewChat} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <form onSubmit={handleNewChat} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="form-group">
-                <label htmlFor="new-chat-name" style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                <label htmlFor="new-chat-id" style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
                   Friend's Virtual Number (Aahat ID)
                 </label>
                 <input
-                  id="new-chat-name"
+                  id="new-chat-id"
                   type="text"
                   placeholder="Enter 10-digit Aahat ID..."
-                  value={newChatName}
-                  onChange={e => setNewChatName(e.target.value)}
+                  value={newChatId}
+                  onChange={e => setNewChatId(e.target.value)}
                   autoFocus
                   required
                 />
               </div>
               <div className="form-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
-                <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setShowNewChatModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="admin-btn admin-btn-primary">
-                  Start Chat
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-      {/* Admin Verification Modal */}
-      {showAdminPasswordModal && (
-        <div className="modal-overlay" onClick={() => setShowAdminPasswordModal(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '380px' }}>
-            <div className="modal-header">
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Shield size={16} style={{ color: 'var(--accent-light)' }} />
-                Admin Verification Required
-              </h3>
-              <button className="modal-close" onClick={() => setShowAdminPasswordModal(false)}><X size={18} /></button>
-            </div>
-            {adminPasswordError && (
-              <div className="error-banner" style={{ color: '#ef4444', fontSize: '12px', background: 'rgba(239, 68, 68, 0.1)', padding: '8px 12px', borderRadius: '6px', marginBottom: '12px' }}>
-                {adminPasswordError}
-              </div>
-            )}
-            <form onSubmit={handleAdminPasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div className="form-group">
-                <label htmlFor="admin-password-input" style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
-                  Enter Admin Password
-                </label>
-                <input
-                  id="admin-password-input"
-                  type="password"
-                  placeholder="Admin password..."
-                  value={adminPasswordInput}
-                  onChange={e => setAdminPasswordInput(e.target.value)}
-                  autoFocus
-                  required
-                />
-              </div>
-              <div className="form-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
-                <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setShowAdminPasswordModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="admin-btn admin-btn-primary">
-                  Access Dashboard
-                </button>
+                <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setShowNewChatModal(false)}>Cancel</button>
+                <button type="submit" className="admin-btn admin-btn-primary">Start Chat</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Glassmorphic Slide-in Notification Toast */}
+      {/* New Group Modal */}
+      {showNewGroupModal && (
+        <div className="modal-overlay" onClick={() => setShowNewGroupModal(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '420px' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Users size={16} style={{ color: 'var(--accent-light)' }} />
+                Create Group
+              </h3>
+              <button className="modal-close" onClick={() => setShowNewGroupModal(false)}><X size={18} /></button>
+            </div>
+            <form onSubmit={handleCreateGroup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="form-group">
+                <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>Group Name</label>
+                <input
+                  type="text"
+                  placeholder="Enter group name..."
+                  value={newGroupName}
+                  onChange={e => setNewGroupName(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>Description (optional)</label>
+                <input
+                  type="text"
+                  placeholder="What is this group about?"
+                  value={newGroupDesc}
+                  onChange={e => setNewGroupDesc(e.target.value)}
+                />
+              </div>
+              <div className="form-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
+                <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setShowNewGroupModal(false)}>Cancel</button>
+                <button type="submit" className="admin-btn admin-btn-primary">Create Group</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
       {activeToast && (
-        <div 
+        <div
           className="in-app-toast-container"
           onClick={() => {
-            handleSelectContact(activeToast.contactId);
+            handleSelectConversation(activeToast.conversationId);
             setActiveToast(null);
           }}
         >
           <div className="in-app-toast-avatar">
-            <SafeAvatar 
-              src={contacts.find(c => c.id === activeToast.contactId)?.avatarUrl || ''} 
-              name={activeToast.sender} 
-              size={40} 
-            />
+            <SafeAvatar src={activeToast.avatarUrl} name={activeToast.sender} size={40} />
           </div>
           <div className="in-app-toast-content">
             <div className="in-app-toast-sender">{activeToast.sender}</div>
             <div className="in-app-toast-text">{activeToast.text}</div>
           </div>
-          <button 
+          <button
             className="in-app-toast-close"
-            onClick={(e) => {
-              e.stopPropagation();
-              setActiveToast(null);
-            }}
+            onClick={(e) => { e.stopPropagation(); setActiveToast(null); }}
           >
             <X size={16} />
           </button>

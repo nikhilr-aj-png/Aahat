@@ -1,255 +1,319 @@
 import React, { useMemo, useState } from 'react';
 import { 
   Search, LogOut, RefreshCw, MessageSquare, Settings, 
-  Pin, VolumeX, Star, Archive, Shield, Plus, CircleDot 
+  Pin, VolumeX, Star, Archive, Shield, Plus, CircleDot, Users 
 } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 
 /**
- * Sidebar — Contains Aahat Sound-wave logo, settings/actions, search bar,
- * quick filters, horizontal active user strip, and chat list.
- * Includes a premium navigation dock on the left side.
+ * Sidebar — Chat conversations list with search, filters, and quick actions.
+ * Updated for V2 normalized conversation model.
  */
 export default function Sidebar({
-  user, contacts, selectedContactId,
-  onSelectContact, onLogout,
+  user, profile, conversations,
+  selectedConversationId,
+  onSelectConversation, onLogout,
   isMobileOpen, onCloseMobile,
   activeTab, setActiveTab,
   toggleArchive, togglePin, toggleMute, toggleFavorite,
-  onNewChat
+  onNewChat, onNewGroup,
+  isUserOnline, isLoading
 }) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterCategory, setFilterCategory] = useState('all'); // all, unread, groups, archived, favorites
+  const [filterCategory, setFilterCategory] = useState('all');
 
-  const meContact = useMemo(() => contacts.find(c => c.id === 'me'), [contacts]);
+  // Self conversation for the profile card
+  const selfConversation = useMemo(
+    () => conversations.find(c => c.type === 'self'),
+    [conversations]
+  );
 
-  // Filter contacts based on search query and category filters
-  const filteredContacts = useMemo(() => {
-    return contacts.filter(c => {
-      // Exclude self account ('me') completely from sidebar conversations list
-      if (c.id === 'me') {
-        return false;
-      }
-      // Exclude self account duplicates from conversation list
-      if (user && (c.name.toLowerCase() === user.name.toLowerCase() || c.id === user.email?.split('@')[0])) {
-        return false;
-      }
-
+  // Filter conversations based on search and category
+  const filteredConversations = useMemo(() => {
+    return conversations.filter(c => {
+      // Self-chat: always show at top but don't filter out
       const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            (c.recentMessageText && c.recentMessageText.toLowerCase().includes(searchQuery.toLowerCase()));
-      
+                            (c.previewText && c.previewText.toLowerCase().includes(searchQuery.toLowerCase()));
+
       if (!matchesSearch) return false;
 
       switch (filterCategory) {
         case 'unread':
-          return c.recentMessageIsUnread || (c.unreadCount && c.unreadCount > 0);
+          return c.unreadCount > 0;
         case 'groups':
-          return c.isGroup && !c.isArchived;
+          return c.type === 'group' && !c.isArchived;
         case 'archived':
           return c.isArchived;
         case 'favorites':
-          return c.isFavorite && !c.isArchived;
-        case 'all':
+          return c.isFavorite;
         default:
-          return !c.isArchived && c.isRecent;
+          return !c.isArchived;
       }
     });
-  }, [contacts, searchQuery, filterCategory, user]);
+  }, [conversations, searchQuery, filterCategory]);
 
-  const unreadTotal = useMemo(() =>
-    contacts.filter(c => {
-      // Exclude self ('me') and duplicates from unread totals
-      if (c.id === 'me') {
-        return false;
-      }
-      if (user && (c.name.toLowerCase() === user.name.toLowerCase() || c.id === user.email?.split('@')[0])) {
-        return false;
-      }
-      return c.recentMessageIsUnread || (c.unreadCount > 0);
-    }).length,
-    [contacts, user]
+  // Separate pinned and unpinned for display
+  const pinnedConversations = useMemo(
+    () => filteredConversations.filter(c => c.isPinned),
+    [filteredConversations]
+  );
+  const unpinnedConversations = useMemo(
+    () => filteredConversations.filter(c => !c.isPinned),
+    [filteredConversations]
   );
 
-  const handleSelect = (id) => {
-    onSelectContact(id);
-    if (window.innerWidth <= 768) onCloseMobile?.();
+  const unreadTotal = conversations.filter(c => c.type !== 'self' && c.unreadCount > 0).length;
+
+  // Quick context actions
+  const [contextMenuId, setContextMenuId] = useState(null);
+
+  const handleContextMenu = (e, convId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenuId(contextMenuId === convId ? null : convId);
   };
+
+  // Helper: Format "last active" text
+  const getActiveText = (conv) => {
+    if (conv.type === 'self') return 'Message yourself';
+    if (conv.type === 'group') return `${conv.memberCount || 0} members`;
+    if (conv.otherMemberId && isUserOnline?.(conv.otherMemberId)) return 'Online';
+    if (conv.lastSeen) {
+      const d = new Date(conv.lastSeen);
+      const now = new Date();
+      const diffMs = now - d;
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      const diffHrs = Math.floor(diffMins / 60);
+      if (diffHrs < 24) return `${diffHrs}h ago`;
+      return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    }
+    return 'Offline';
+  };
+
+  const renderConversationItem = (conv) => {
+    const isSelected = conv.id === selectedConversationId;
+    const isOnline = conv.type === 'direct' && conv.otherMemberId && isUserOnline?.(conv.otherMemberId);
+    const isSelf = conv.type === 'self';
+
+    return (
+      <div
+        key={conv.id}
+        className={`chat-item ${isSelected ? 'selected' : ''} ${conv.isPinned ? 'pinned' : ''}`}
+        onClick={() => onSelectConversation(conv.id)}
+        onContextMenu={(e) => handleContextMenu(e, conv.id)}
+        id={`chat-item-${conv.id}`}
+      >
+        <div className="avatar-wrapper">
+          <SafeAvatar
+            src={conv.avatarUrl}
+            name={conv.name}
+            size={44}
+            className="avatar-image"
+          />
+          {!isSelf && conv.type !== 'group' && (
+            <div className={`status-badge ${isOnline ? 'active' : 'offline'}`} />
+          )}
+          {conv.type === 'group' && (
+            <div className="status-badge group-badge" style={{ background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px', fontSize: '8px' }}>
+              <Users size={8} color="white" />
+            </div>
+          )}
+        </div>
+
+        <div className="chat-item-details">
+          <div className="chat-item-header">
+            <span className="chat-item-name">
+              {conv.name}
+              {conv.isPinned && <Pin size={10} style={{ marginLeft: '4px', opacity: 0.4 }} />}
+              {conv.isMuted && <VolumeX size={10} style={{ marginLeft: '4px', opacity: 0.4 }} />}
+            </span>
+            <span className="chat-item-time">{conv.previewTime}</span>
+          </div>
+          <div className="chat-item-sub">
+            <span className={`chat-item-message ${conv.unreadCount > 0 ? 'unread' : ''}`}>
+              {conv.previewText || (isSelf ? 'Message yourself' : 'No messages yet')}
+            </span>
+            {conv.unreadCount > 0 && (
+              <span className="unread-badge" />
+            )}
+          </div>
+        </div>
+
+        {/* Context Menu */}
+        {contextMenuId === conv.id && (
+          <div 
+            className="chat-context-menu" 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+              background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(12px)',
+              border: '1px solid var(--panel-border)', borderRadius: '8px',
+              padding: '4px', display: 'flex', gap: '2px', zIndex: 20,
+              boxShadow: 'var(--shadow-md)'
+            }}
+          >
+            <button 
+              className="btn-icon" title={conv.isPinned ? 'Unpin' : 'Pin'}
+              onClick={() => { togglePin(conv.id); setContextMenuId(null); }}
+            >
+              <Pin size={14} />
+            </button>
+            <button 
+              className="btn-icon" title={conv.isMuted ? 'Unmute' : 'Mute'}
+              onClick={() => { toggleMute(conv.id); setContextMenuId(null); }}
+            >
+              <VolumeX size={14} />
+            </button>
+            <button 
+              className="btn-icon" title={conv.isFavorite ? 'Unfavorite' : 'Favorite'}
+              onClick={() => { toggleFavorite(conv.id); setContextMenuId(null); }}
+            >
+              <Star size={14} />
+            </button>
+            <button 
+              className="btn-icon" title={conv.isArchived ? 'Unarchive' : 'Archive'}
+              onClick={() => { toggleArchive(conv.id); setContextMenuId(null); }}
+            >
+              <Archive size={14} />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Close context menu when clicking outside
+  React.useEffect(() => {
+    if (contextMenuId) {
+      const handleClick = () => setContextMenuId(null);
+      document.addEventListener('click', handleClick);
+      return () => document.removeEventListener('click', handleClick);
+    }
+  }, [contextMenuId]);
 
   return (
     <div className={`sidebar ${isMobileOpen ? 'mobile-open' : ''}`} id="sidebar">
-      {/* Main Sidebar Panels */}
       <div className="sidebar-inner">
         {/* Header */}
         <div className="sidebar-header">
-          <div className="sidebar-brand-row">
-            <h2 className="brand-text">Aahat <span className="brand-hindi">आहट</span></h2>
+          <div className="sidebar-brand">
+            <img src="/logo.png" alt="Aahat" className="sidebar-logo" />
+            <span className="brand-text">Aahat <span className="brand-hindi">आहट</span></span>
           </div>
 
-          {/* User profile card */}
-          <div 
-            className="profile-card" 
-            onClick={() => handleSelect('me')} 
-            title="Message Yourself" 
+          {/* Profile Card */}
+          <div
+            className="profile-card"
+            onClick={() => selfConversation && onSelectConversation(selfConversation.id)}
             style={{ cursor: 'pointer' }}
           >
-            <div className="user-info" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div className="avatar-wrapper" style={{ position: 'relative', width: '36px', height: '36px' }}>
-                <SafeAvatar 
-                  src={meContact?.avatarUrl} 
-                  name={user.name} 
-                  size={36} 
-                  className="avatar-image" 
-                />
-                <div className="status-badge active" style={{ position: 'absolute', bottom: '0', right: '0', width: '10px', height: '10px', backgroundColor: 'var(--accent-light)', border: '2px solid var(--panel-bg)', borderRadius: '50%' }} />
+            <div className="user-info">
+              <SafeAvatar
+                src={profile?.avatar_url || ''}
+                name={profile?.display_name || user?.email?.split('@')[0] || 'U'}
+                size={36}
+                className="user-avatar"
+              />
+              <div className="user-details">
+                <h4>{profile?.display_name || user?.email?.split('@')[0] || 'User'}</h4>
+                <span className="online-status">
+                  <span className="online-dot" /> Online
+                </span>
               </div>
-              <div className="user-details" style={{ flex: 1 }}>
-                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '600' }}>{user.name} <span className="profile-you-badge" style={{ fontSize: '10px', color: 'var(--accent-light)', opacity: 0.8 }}>(You)</span></h4>
-                <p className="online-status" style={{ margin: 0, fontSize: '11px', color: 'var(--text-secondary)' }}>Message yourself</p>
-              </div>
+            </div>
+            <div className="profile-actions">
+              <button className="btn-icon" onClick={(e) => { e.stopPropagation(); onNewChat(); }} title="New Chat" id="btn-new-chat">
+                <Plus size={18} />
+              </button>
             </div>
           </div>
 
-          {/* Search bar */}
-          <div className="search-bar" id="search-bar">
+          {/* Search */}
+          <div className="search-bar">
             <Search size={14} className="search-icon" />
             <input
               type="text"
-              placeholder="Search chats, groups, messages..."
+              placeholder="Search conversations..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               id="search-input"
             />
           </div>
-
-          {/* Quick Filters */}
-          <div className="quick-filters-row">
-            {[
-              { id: 'all', label: 'All' },
-              { id: 'unread', label: 'Unread' },
-              { id: 'groups', label: 'Groups' },
-              { id: 'favorites', label: 'Favorites' },
-              { id: 'archived', label: 'Archived' }
-            ].map(cat => (
-              <button
-                key={cat.id}
-                className={`filter-chip ${filterCategory === cat.id ? 'active' : ''}`}
-                onClick={() => setFilterCategory(cat.id)}
-                id={`filter-chip-${cat.id}`}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
         </div>
 
-        {/* Chat List */}
-        <div className="chat-list-section">
-          {activeTab === 'chats' && (
+        {/* Filter Chips */}
+        <div className="filter-chips" style={{ display: 'flex', gap: '6px', padding: '8px 20px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+          {[
+            { key: 'all', label: 'All' },
+            { key: 'unread', label: `Unread${unreadTotal > 0 ? ` (${unreadTotal})` : ''}` },
+            { key: 'groups', label: 'Groups' },
+            { key: 'favorites', label: 'Favorites' },
+            { key: 'archived', label: 'Archived' }
+          ].map(f => (
+            <button
+              key={f.key}
+              className={`filter-chip ${filterCategory === f.key ? 'active' : ''}`}
+              onClick={() => setFilterCategory(f.key)}
+              style={{
+                padding: '4px 12px', borderRadius: '16px', fontSize: '11px', fontWeight: '600',
+                border: '1px solid var(--panel-border)', cursor: 'pointer', whiteSpace: 'nowrap',
+                transition: 'all 0.15s',
+                background: filterCategory === f.key ? 'var(--accent-gradient)' : 'var(--glass-subtle)',
+                color: filterCategory === f.key ? 'white' : 'var(--text-secondary)'
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Conversation List */}
+        <div className="chat-list-section" id="chat-list">
+          {isLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+              <RefreshCw size={20} className="spin" style={{ animation: 'spin 1s linear infinite', marginBottom: '8px' }} />
+              <p style={{ fontSize: '12px' }}>Loading conversations...</p>
+            </div>
+          ) : filteredConversations.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+              <MessageSquare size={24} style={{ opacity: 0.4, marginBottom: '8px' }} />
+              <p style={{ fontSize: '12px' }}>
+                {searchQuery ? 'No conversations match your search' : 'No conversations yet'}
+              </p>
+              {!searchQuery && (
+                <button
+                  onClick={onNewChat}
+                  style={{ marginTop: '12px', padding: '6px 16px', fontSize: '12px', borderRadius: '8px', background: 'var(--accent-gradient)', border: 'none', color: 'white', cursor: 'pointer' }}
+                >
+                  Start a Chat
+                </button>
+              )}
+            </div>
+          ) : (
             <>
-              <div className="section-label">
-                Conversations
-                {unreadTotal > 0 && <span className="unread-total">{unreadTotal}</span>}
-              </div>
+              {/* Pinned */}
+              {pinnedConversations.length > 0 && (
+                <>
+                  <div className="section-label">
+                    <Pin size={10} /> Pinned
+                  </div>
+                  {pinnedConversations.map(renderConversationItem)}
+                </>
+              )}
 
-              {filteredContacts.length === 0 ? (
-                <div className="empty-state-small">
-                  <MessageSquare size={20} />
-                  <p>No conversations found</p>
-                </div>
-              ) : (
-                filteredContacts
-                  .sort((a, b) => {
-                    // Pinned chats go to top
-                    if (a.isPinned && !b.isPinned) return -1;
-                    if (!a.isPinned && b.isPinned) return 1;
-                    
-                    // Bubble last message to top
-                    const timeA = a.lastMessageTimestamp || 0;
-                    const timeB = b.lastMessageTimestamp || 0;
-                    return timeB - timeA;
-                  })
-                  .map(chat => (
-                    <div
-                      key={chat.id}
-                      className={`chat-item ${selectedContactId === chat.id ? 'selected' : ''}`}
-                      onClick={() => handleSelect(chat.id)}
-                      id={`chat-item-${chat.id}`}
-                    >
-                      <div className="avatar-wrapper">
-                        <SafeAvatar 
-                          src={chat.avatarUrl} 
-                          name={chat.name} 
-                          size={40} 
-                          className="avatar-image" 
-                        />
-                        {!chat.isGroup && (
-                          <div className={`status-badge ${chat.isActive ? 'active' : 'offline'}`} />
-                        )}
-                      </div>
-                      
-                      <div className="chat-item-details">
-                        <div className="chat-item-header">
-                          <span className="chat-item-name">{chat.name}</span>
-                          <span className="chat-item-time">{chat.recentMessageTime}</span>
-                        </div>
-                        <div className="chat-item-sub">
-                          <span className={`chat-item-message ${chat.recentMessageIsUnread ? 'unread' : ''}`}>
-                            {chat.recentMessageText || "No messages yet"}
-                          </span>
-
-                          {/* Chat Status Flags (Pin, Mute, Favorite) */}
-                          <div className="chat-badges-panel">
-                            {chat.isPinned && <Pin size={10} className="badge-icon pinned" />}
-                            {chat.isMuted && <VolumeX size={10} className="badge-icon muted" />}
-                            {chat.isFavorite && <Star size={10} className="badge-icon favorite" />}
-                            
-                            {/* Unread count badge */}
-                            {(chat.recentMessageIsUnread || chat.unreadCount > 0) && (
-                              <span className="chat-unread-count-badge">
-                                {chat.unreadCount || 1}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Quick Hover Control Panel */}
-                      <div className="chat-hover-controls" onClick={e => e.stopPropagation()}>
-                        <button 
-                          className={`hover-control-btn ${chat.isPinned ? 'active' : ''}`}
-                          onClick={() => togglePin(chat.id)}
-                          title="Pin Chat"
-                        >
-                          <Pin size={11} />
-                        </button>
-                        <button 
-                          className={`hover-control-btn ${chat.isMuted ? 'active' : ''}`}
-                          onClick={() => toggleMute(chat.id)}
-                          title="Mute Chat"
-                        >
-                          <VolumeX size={11} />
-                        </button>
-                        <button 
-                          className={`hover-control-btn ${chat.isFavorite ? 'active' : ''}`}
-                          onClick={() => toggleFavorite(chat.id)}
-                          title="Favorite Chat"
-                        >
-                          <Star size={11} />
-                        </button>
-                        <button 
-                          className={`hover-control-btn ${chat.isArchived ? 'active' : ''}`}
-                          onClick={() => toggleArchive(chat.id)}
-                          title={chat.isArchived ? "Unarchive" : "Archive"}
-                        >
-                          <Archive size={11} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
+              {/* Recent */}
+              {unpinnedConversations.length > 0 && (
+                <>
+                  {pinnedConversations.length > 0 && (
+                    <div className="section-label">Recent</div>
+                  )}
+                  {unpinnedConversations.map(renderConversationItem)}
+                </>
               )}
             </>
           )}
-
         </div>
       </div>
     </div>

@@ -14,16 +14,37 @@ const AI_SUGGESTIONS = [
  * ChatInput — Message input bar with file attachments, camera upload simulation,
  * voice note recording simulation, emoji shortcuts, and smart AI assistant completions.
  */
-export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply }) {
+export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply, onSetTyping, conversationId }) {
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
-  const [facingMode, setFacingMode] = useState('user'); // user (front) or environment (back)
+  const [facingMode, setFacingMode] = useState('user');
   const recordingTimerRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Typing indicator: debounce to stop typing after 2 seconds of inactivity
+  const handleTypingChange = (text) => {
+    setInputText(text);
+    if (onSetTyping && conversationId) {
+      onSetTyping(conversationId, true);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        onSetTyping(conversationId, false);
+      }, 2000);
+    }
+  };
+
+  // Clear typing on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (onSetTyping && conversationId) onSetTyping(conversationId, false);
+    };
+  }, [conversationId, onSetTyping]);
 
   // Timer for voice note recording simulation
   useEffect(() => {
@@ -372,7 +393,7 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
                 type="text"
                 placeholder={isUploading ? "Uploading file..." : "Type a message..."}
                 value={inputText}
-                onChange={e => setInputText(e.target.value)}
+                onChange={e => handleTypingChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 disabled={isUploading}
                 id="message-input"
