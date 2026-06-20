@@ -278,10 +278,10 @@ export default function App() {
     }
 
     try {
-      // Query users table for the virtual number
+      // Query users table for the virtual number with avatarUrl and description
       const { data: matchedUser, error } = await supabase
         .from('users')
-        .select('email, name, virtual_number')
+        .select('email, name, virtual_number, avatarUrl, description')
         .eq('virtual_number', searchVal)
         .maybeSingle();
 
@@ -301,7 +301,8 @@ export default function App() {
         const newContact = {
           id: `${user.email}:${contactId}`,
           name: matchedUser.name,
-          avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150`,
+          avatarUrl: matchedUser.avatarUrl || '',
+          description: matchedUser.description || '',
           isActive: true,
           lastActiveText: "Active now",
           isRecent: true,

@@ -13,7 +13,7 @@ export function useSupabase(user) {
   const [typingStatus, setTypingStatus] = useState({});
 
   // Helper mapping functions to isolate tenant records using email-prefixed IDs
-  const getDbId = useCallback((clientId) => {
+  const getDbContactId = useCallback((clientId) => {
     if (!user) return clientId;
     return clientId.includes(':') ? clientId : `${user.email}:${clientId}`;
   }, [user]);
@@ -23,6 +23,13 @@ export function useSupabase(user) {
     const splitIndex = dbId.indexOf(':');
     return splitIndex !== -1 ? dbId.substring(splitIndex + 1) : dbId;
   }, []);
+
+  // Helper to generate a shared 1-to-1 conversation ID
+  const getConversationId = useCallback((clientId) => {
+    if (!user || clientId === 'me') return `${user.email}:me`;
+    const users = [user.email.split('@')[0], clientId].sort();
+    return `conversation:${users[0]}_${users[1]}`;
+  }, [user]);
 
   // --- Data Fetching ---
   const fetchData = useCallback(async () => {
@@ -36,13 +43,34 @@ export function useSupabase(user) {
         .like('id', `${user.email}:%`);
       if (cErr) throw cErr;
 
-      let finalContacts = (dbContacts || []).map(c => ({
-        ...c,
-        id: getClientId(c.id)
-      }));
+      // Fetch all users to dynamically join name, avatar, bio (description)
+      let { data: dbUsers } = await supabase
+        .from('users')
+        .select('email, name, avatarUrl, description');
+
+      let finalContacts = (dbContacts || []).map(c => {
+        const clientId = getClientId(c.id);
+        const matchingUser = (dbUsers || []).find(u => u.email.split('@')[0] === clientId);
+        if (matchingUser && clientId !== 'me') {
+          return {
+            ...c,
+            id: clientId,
+            name: matchingUser.name || c.name,
+            avatarUrl: matchingUser.avatarUrl || '',
+            description: matchingUser.description || ''
+          };
+        }
+        return {
+          ...c,
+          id: clientId
+        };
+      });
 
       // Ensure 'me' (Message Yourself) contact exists
       const hasSelf = finalContacts.some(c => c.id === 'me');
+      const currentUserProfile = (dbUsers || []).find(u => u.email === user.email);
+      const userBio = currentUserProfile?.description || '';
+
       if (!hasSelf) {
         const selfContact = {
           id: 'me',
@@ -56,12 +84,12 @@ export function useSupabase(user) {
           recentMessageIsUnread: false,
           isGroup: false,
           memberCount: 0,
-          description: 'Your personal notes and reminders container. Encrypted and synced.',
+          description: userBio || 'Your personal notes and reminders container. Encrypted and synced.',
           unreadCount: 0,
           isPinned: true
         };
         try {
-          await supabase.from('contacts').insert([{ ...selfContact, id: getDbId('me') }]);
+          await supabase.from('contacts').insert([{ ...selfContact, id: getDbContactId('me') }]);
           finalContacts = [selfContact, ...finalContacts];
         } catch (insSelfErr) {
           finalContacts = [selfContact, ...finalContacts];
@@ -71,24 +99,52 @@ export function useSupabase(user) {
         finalContacts = finalContacts.map(c => c.id === 'me' ? { 
           ...c, 
           name: `${user.name} (You)`,
-          avatarUrl: user.avatarUrl || c.avatarUrl || ''
+          avatarUrl: user.avatarUrl || c.avatarUrl || '',
+          description: userBio || c.description || ''
         } : c);
       }
 
-      setContacts(finalContacts);
-
-      // Fetch Messages isolated to this user
+      // Fetch Messages isolated to this user (either self-chat or shared conversation)
+      const username = user.email.split('@')[0];
       let { data: dbMessages, error: mErr } = await supabase
         .from('messages')
         .select('*')
-        .like('contactId', `${user.email}:%`);
+        .or(`contactId.eq.${user.email}:me,conversationId.like.conversation:%${username}%`);
       if (mErr) throw mErr;
 
-      const mappedMessages = (dbMessages || []).map(m => ({
-        ...m,
-        contactId: getClientId(m.contactId)
-      }));
+      const mappedMessages = (dbMessages || []).map(m => {
+        let contactId = 'me';
+        if (m.conversationId && m.conversationId.startsWith('conversation:')) {
+          const parts = m.conversationId.substring('conversation:'.length).split('_');
+          contactId = parts.find(p => p !== username) || 'me';
+        }
+        return {
+          ...m,
+          contactId,
+          isFromMe: m.sender === user.email
+        };
+      });
 
+      // Dynamically calculate preview states (recent message, unread count) based on loaded messages
+      finalContacts = finalContacts.map(c => {
+        if (c.id === 'me') return c;
+        const contactMsgs = mappedMessages.filter(m => m.contactId === c.id);
+        if (contactMsgs.length > 0) {
+          const lastMsg = contactMsgs[contactMsgs.length - 1];
+          const unreadCount = contactMsgs.filter(m => !m.isFromMe && !m.isRead).length;
+          return {
+            ...c,
+            isRecent: true,
+            recentMessageText: lastMsg.attachmentUrl && !lastMsg.text ? "Sent an image" : lastMsg.text,
+            recentMessageTime: lastMsg.timeText || "Just now",
+            recentMessageIsUnread: unreadCount > 0,
+            unreadCount: unreadCount
+          };
+        }
+        return c;
+      });
+
+      setContacts(finalContacts);
       setMessages(mappedMessages.sort((a, b) => a.timestamp - b.timestamp));
     } catch (e) {
       console.error("Supabase load error, using fallback", e);
@@ -152,10 +208,28 @@ export function useSupabase(user) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
         const newMsg = payload.new;
         if (payload.eventType === 'INSERT') {
-          if (!newMsg || !newMsg.contactId || !newMsg.contactId.startsWith(`${user.email}:`)) return;
+          if (!newMsg) return;
+          const username = user.email.split('@')[0];
+          const isSelf = newMsg.contactId === `${user.email}:me`;
           
-          const clientContactId = getClientId(newMsg.contactId);
-          const clientMsg = { ...newMsg, contactId: clientContactId };
+          let isShared = false;
+          if (newMsg.conversationId && newMsg.conversationId.startsWith('conversation:')) {
+            const participants = newMsg.conversationId.substring('conversation:'.length).split('_');
+            isShared = participants.includes(username);
+          }
+          if (!isSelf && !isShared) return;
+
+          let clientContactId = 'me';
+          if (isShared) {
+            const parts = newMsg.conversationId.substring('conversation:'.length).split('_');
+            clientContactId = parts.find(p => p !== username) || 'me';
+          }
+          
+          const clientMsg = { 
+            ...newMsg, 
+            contactId: clientContactId,
+            isFromMe: newMsg.sender === user.email
+          };
 
           setMessages(prev => {
             if (prev.some(m => m.id === clientMsg.id)) return prev;
@@ -178,21 +252,65 @@ export function useSupabase(user) {
 
             return [...prev, clientMsg].sort((a, b) => a.timestamp - b.timestamp);
           });
+
           setContacts(prev => prev.map(c => {
             if (c.id === clientMsg.contactId) {
+              const newUnreadCount = clientMsg.isFromMe ? c.unreadCount : (c.unreadCount || 0) + 1;
               return {
                 ...c, isRecent: true,
                 recentMessageText: clientMsg.attachmentUrl && !clientMsg.text ? "Sent an image" : clientMsg.text,
                 recentMessageTime: "Just now",
-                recentMessageIsUnread: !clientMsg.isFromMe
+                recentMessageIsUnread: !clientMsg.isFromMe,
+                unreadCount: newUnreadCount
               };
             }
             return c;
           }));
+
+          // Trigger local browser notification and sound for incoming messages
+          if (!clientMsg.isFromMe) {
+            try {
+              // Play a light synth-beep audio sound
+              const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+              const osc = audioCtx.createOscillator();
+              const gainNode = audioCtx.createGain();
+              osc.connect(gainNode);
+              gainNode.connect(audioCtx.destination);
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(587.33, audioCtx.currentTime); // D5 note
+              gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+              gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+              osc.start();
+              osc.stop(audioCtx.currentTime + 0.35);
+            } catch (soundErr) {
+              console.warn("Notification sound blocked by autoplay policy", soundErr);
+            }
+
+            if (Notification.permission === 'granted') {
+              new Notification(clientMsg.sender.split('@')[0], {
+                body: clientMsg.text || 'Sent an image',
+                icon: '/favicon.ico'
+              });
+            }
+          }
         } else if (payload.eventType === 'UPDATE') {
-          if (!newMsg || !newMsg.contactId || !newMsg.contactId.startsWith(`${user.email}:`)) return;
-          const clientContactId = getClientId(newMsg.contactId);
-          setMessages(prev => prev.map(m => m.id === newMsg.id ? { ...newMsg, contactId: clientContactId } : m));
+          if (!newMsg) return;
+          const username = user.email.split('@')[0];
+          const isSelf = newMsg.contactId === `${user.email}:me`;
+          
+          let isShared = false;
+          if (newMsg.conversationId && newMsg.conversationId.startsWith('conversation:')) {
+            const participants = newMsg.conversationId.substring('conversation:'.length).split('_');
+            isShared = participants.includes(username);
+          }
+          if (!isSelf && !isShared) return;
+
+          let clientContactId = 'me';
+          if (isShared) {
+            const parts = newMsg.conversationId.substring('conversation:'.length).split('_');
+            clientContactId = parts.find(p => p !== username) || 'me';
+          }
+          setMessages(prev => prev.map(m => m.id === newMsg.id ? { ...newMsg, contactId: clientContactId, isFromMe: newMsg.sender === user.email } : m));
         } else if (payload.eventType === 'DELETE') {
           const oldMsg = payload.old;
           setMessages(prev => prev.filter(m => m.id !== oldMsg.id));
@@ -221,9 +339,41 @@ export function useSupabase(user) {
       })
       .subscribe();
 
+    // Subscribe to users changes (for real-time profile updates of contacts)
+    const usersChannel = supabase
+      .channel('public-users-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
+        if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+          const updatedUser = payload.new;
+          if (!updatedUser) return;
+          const contactId = updatedUser.email.split('@')[0];
+          setContacts(prev => prev.map(c => {
+            if (c.id === contactId) {
+              return {
+                ...c,
+                name: updatedUser.name || c.name,
+                avatarUrl: updatedUser.avatarUrl || '',
+                description: updatedUser.description || ''
+              };
+            }
+            if (c.id === 'me' && updatedUser.email === user.email) {
+              return {
+                ...c,
+                name: `${updatedUser.name} (You)`,
+                avatarUrl: updatedUser.avatarUrl || '',
+                description: updatedUser.description || ''
+              };
+            }
+            return c;
+          }));
+        }
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(msgChannel);
       supabase.removeChannel(contactsChannel);
+      supabase.removeChannel(usersChannel);
     };
   }, [user, getClientId]);
 
@@ -249,8 +399,13 @@ export function useSupabase(user) {
       recentMessageTime: "Just now", recentMessageIsUnread: false
     } : c));
 
-    const dbContactId = getDbId(contactId);
-    const dbMsg = { ...newMsg, contactId: dbContactId };
+    const dbContactId = getDbContactId(contactId);
+    const dbMsg = { 
+      ...newMsg, 
+      contactId: dbContactId,
+      conversationId: getConversationId(contactId),
+      sender: user.email
+    };
 
     try {
       await supabase.from('messages').insert([dbMsg]);
@@ -263,7 +418,7 @@ export function useSupabase(user) {
       localStorage.setItem('aahat_messages', JSON.stringify([...messages, localMsg]));
       localStorage.setItem('aahat_contacts', JSON.stringify(contacts));
     }
-  }, [messages, contacts, getDbId]);
+  }, [messages, contacts, getDbContactId, getConversationId]);
 
   const addReaction = useCallback(async (msgId, emoji) => {
     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reaction: emoji } : m));
@@ -279,7 +434,7 @@ export function useSupabase(user) {
 
   const selectContact = useCallback(async (id) => {
     setSelectedContactId(id);
-    const dbId = getDbId(id);
+    const dbId = getDbContactId(id);
     setContacts(prev => {
       const exists = prev.some(c => c.id === id);
       if (!exists && id === 'me' && user) {
@@ -307,47 +462,47 @@ export function useSupabase(user) {
     });
     try { await supabase.from('contacts').update({ recentMessageIsUnread: false }).eq('id', dbId); }
     catch (e) { /* silent */ }
-  }, [user, getDbId]);
+  }, [user, getDbContactId]);
 
   const toggleArchive = useCallback(async (id) => {
     setContacts(prev => prev.map(c => c.id === id ? { ...c, isArchived: !c.isArchived } : c));
     try {
       const contact = contacts.find(c => c.id === id);
       if (contact) {
-        await supabase.from('contacts').update({ isArchived: !contact.isArchived }).eq('id', getDbId(id));
+        await supabase.from('contacts').update({ isArchived: !contact.isArchived }).eq('id', getDbContactId(id));
       }
     } catch (e) { /* silent */ }
-  }, [contacts, getDbId]);
+  }, [contacts, getDbContactId]);
 
   const togglePin = useCallback(async (id) => {
     setContacts(prev => prev.map(c => c.id === id ? { ...c, isPinned: !c.isPinned } : c));
     try {
       const contact = contacts.find(c => c.id === id);
       if (contact) {
-        await supabase.from('contacts').update({ isPinned: !contact.isPinned }).eq('id', getDbId(id));
+        await supabase.from('contacts').update({ isPinned: !contact.isPinned }).eq('id', getDbContactId(id));
       }
     } catch (e) { /* silent */ }
-  }, [contacts, getDbId]);
+  }, [contacts, getDbContactId]);
 
   const toggleMute = useCallback(async (id) => {
     setContacts(prev => prev.map(c => c.id === id ? { ...c, isMuted: !c.isMuted } : c));
     try {
       const contact = contacts.find(c => c.id === id);
       if (contact) {
-        await supabase.from('contacts').update({ isMuted: !contact.isMuted }).eq('id', getDbId(id));
+        await supabase.from('contacts').update({ isMuted: !contact.isMuted }).eq('id', getDbContactId(id));
       }
     } catch (e) { /* silent */ }
-  }, [contacts, getDbId]);
+  }, [contacts, getDbContactId]);
 
   const toggleFavorite = useCallback(async (id) => {
     setContacts(prev => prev.map(c => c.id === id ? { ...c, isFavorite: !c.isFavorite } : c));
     try {
       const contact = contacts.find(c => c.id === id);
       if (contact) {
-        await supabase.from('contacts').update({ isFavorite: !contact.isFavorite }).eq('id', getDbId(id));
+        await supabase.from('contacts').update({ isFavorite: !contact.isFavorite }).eq('id', getDbContactId(id));
       }
     } catch (e) { /* silent */ }
-  }, [contacts, getDbId]);
+  }, [contacts, getDbContactId]);
 
 
   const clearChat = useCallback(async (contactId) => {
@@ -360,18 +515,18 @@ export function useSupabase(user) {
     }
 
     try {
-      await supabase.from('messages').delete().eq('contactId', getDbId(contactId));
+      await supabase.from('messages').delete().eq('contactId', getDbContactId(contactId));
       await supabase.from('contacts').update({
         isRecent: false,
         recentMessageText: '',
         recentMessageTime: '',
         recentMessageIsUnread: false,
         unreadCount: 0
-      }).eq('id', getDbId(contactId));
+      }).eq('id', getDbContactId(contactId));
     } catch (e) {
       console.error("Error clearing chat:", e);
     }
-  }, [selectedContactId, getDbId]);
+  }, [selectedContactId, getDbContactId]);
 
   const deleteChat = useCallback(async (contactId) => {
     setMessages(prev => prev.filter(m => m.contactId !== contactId));
@@ -381,12 +536,12 @@ export function useSupabase(user) {
     }
 
     try {
-      await supabase.from('messages').delete().eq('contactId', getDbId(contactId));
-      await supabase.from('contacts').delete().eq('id', getDbId(contactId));
+      await supabase.from('messages').delete().eq('contactId', getDbContactId(contactId));
+      await supabase.from('contacts').delete().eq('id', getDbContactId(contactId));
     } catch (e) {
       console.error("Error deleting chat:", e);
     }
-  }, [selectedContactId, getDbId]);
+  }, [selectedContactId, getDbContactId]);
 
   const uploadFile = useCallback(async (file, oldUrl = null) => {
     if (oldUrl && oldUrl.includes('supabase.co/storage/v1/object/public/')) {
@@ -427,11 +582,17 @@ export function useSupabase(user) {
         data: { name, avatarUrl }
       });
 
+      await supabase.from('users').update({
+        name,
+        avatarUrl: avatarUrl || '',
+        description: bio || ''
+      }).eq('email', user.email);
+
       await supabase.from('contacts').update({
         name: `${name} (You)`,
         avatarUrl: avatarUrl || '',
         description: bio || ''
-      }).eq('id', getDbId('me'));
+      }).eq('id', getDbContactId('me'));
 
       setContacts(prev => prev.map(c => c.id === 'me' ? {
         ...c,
@@ -442,7 +603,7 @@ export function useSupabase(user) {
     } catch (err) {
       console.error("Profile update failed:", err);
     }
-  }, [getDbId]);
+  }, [getDbContactId, user]);
 
   // --- Derived Data ---
   const activeContact = useMemo(
