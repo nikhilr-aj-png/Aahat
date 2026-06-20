@@ -12,19 +12,38 @@ export function useSupabase(user) {
   const [selectedContactId, setSelectedContactId] = useState(null);
   const [typingStatus, setTypingStatus] = useState({});
 
+  // Helper mapping functions to isolate tenant records using email-prefixed IDs
+  const getDbId = useCallback((clientId) => {
+    if (!user) return clientId;
+    return clientId.includes(':') ? clientId : `${user.email}:${clientId}`;
+  }, [user]);
+
+  const getClientId = useCallback((dbId) => {
+    if (!dbId) return '';
+    const splitIndex = dbId.indexOf(':');
+    return splitIndex !== -1 ? dbId.substring(splitIndex + 1) : dbId;
+  }, []);
+
   // --- Data Fetching ---
   const fetchData = useCallback(async () => {
+    if (!user) return;
     setIsLoading(true);
     try {
-      // Fetch Contacts
-      let { data: dbContacts, error: cErr } = await supabase.from('contacts').select('*');
+      // Fetch Contacts isolated to this user
+      let { data: dbContacts, error: cErr } = await supabase
+        .from('contacts')
+        .select('*')
+        .like('id', `${user.email}:%`);
       if (cErr) throw cErr;
 
-      let finalContacts = dbContacts || [];
+      let finalContacts = (dbContacts || []).map(c => ({
+        ...c,
+        id: getClientId(c.id)
+      }));
 
       // Ensure 'me' (Message Yourself) contact exists
       const hasSelf = finalContacts.some(c => c.id === 'me');
-      if (!hasSelf && user) {
+      if (!hasSelf) {
         const selfContact = {
           id: 'me',
           name: `${user.name} (You)`,
@@ -42,12 +61,12 @@ export function useSupabase(user) {
           isPinned: true
         };
         try {
-          await supabase.from('contacts').insert([selfContact]);
+          await supabase.from('contacts').insert([{ ...selfContact, id: getDbId('me') }]);
           finalContacts = [selfContact, ...finalContacts];
         } catch (insSelfErr) {
           finalContacts = [selfContact, ...finalContacts];
         }
-      } else if (hasSelf && user) {
+      } else {
         // Keep the displayed name and avatar synchronized with the logged-in user
         finalContacts = finalContacts.map(c => c.id === 'me' ? { 
           ...c, 
@@ -58,11 +77,19 @@ export function useSupabase(user) {
 
       setContacts(finalContacts);
 
-      // Fetch Messages
-      let { data: dbMessages, error: mErr } = await supabase.from('messages').select('*');
+      // Fetch Messages isolated to this user
+      let { data: dbMessages, error: mErr } = await supabase
+        .from('messages')
+        .select('*')
+        .like('contactId', `${user.email}:%`);
       if (mErr) throw mErr;
 
-      setMessages((dbMessages || []).sort((a, b) => a.timestamp - b.timestamp));
+      const mappedMessages = (dbMessages || []).map(m => ({
+        ...m,
+        contactId: getClientId(m.contactId)
+      }));
+
+      setMessages(mappedMessages.sort((a, b) => a.timestamp - b.timestamp));
     } catch (e) {
       console.error("Supabase load error, using fallback", e);
       const savedContacts = localStorage.getItem('aahat_contacts');
@@ -123,44 +150,52 @@ export function useSupabase(user) {
     const msgChannel = supabase
       .channel('public-messages-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
+        const newMsg = payload.new;
         if (payload.eventType === 'INSERT') {
-          const newMsg = payload.new;
+          if (!newMsg || !newMsg.contactId || !newMsg.contactId.startsWith(`${user.email}:`)) return;
+          
+          const clientContactId = getClientId(newMsg.contactId);
+          const clientMsg = { ...newMsg, contactId: clientContactId };
+
           setMessages(prev => {
-            if (prev.some(m => m.id === newMsg.id)) return prev;
+            if (prev.some(m => m.id === clientMsg.id)) return prev;
 
             // Match and resolve optimistic messages to prevent duplicates
-            if (newMsg.isFromMe) {
+            if (clientMsg.isFromMe) {
               const optIndex = prev.findIndex(m => 
                 m.isFromMe &&
-                m.contactId === newMsg.contactId &&
-                m.text === newMsg.text &&
-                m.attachmentUrl === newMsg.attachmentUrl &&
-                Math.abs(Number(m.timestamp) - Number(newMsg.timestamp)) < 3000
+                m.contactId === clientMsg.contactId &&
+                m.text === clientMsg.text &&
+                m.attachmentUrl === clientMsg.attachmentUrl &&
+                Math.abs(Number(m.timestamp) - Number(clientMsg.timestamp)) < 3000
               );
               if (optIndex !== -1) {
                 const updated = [...prev];
-                updated[optIndex] = { ...updated[optIndex], id: newMsg.id };
+                updated[optIndex] = { ...updated[optIndex], id: clientMsg.id };
                 return updated;
               }
             }
 
-            return [...prev, newMsg].sort((a, b) => a.timestamp - b.timestamp);
+            return [...prev, clientMsg].sort((a, b) => a.timestamp - b.timestamp);
           });
           setContacts(prev => prev.map(c => {
-            if (c.id === newMsg.contactId) {
+            if (c.id === clientMsg.contactId) {
               return {
                 ...c, isRecent: true,
-                recentMessageText: newMsg.attachmentUrl && !newMsg.text ? "Sent an image" : newMsg.text,
+                recentMessageText: clientMsg.attachmentUrl && !clientMsg.text ? "Sent an image" : clientMsg.text,
                 recentMessageTime: "Just now",
-                recentMessageIsUnread: !newMsg.isFromMe
+                recentMessageIsUnread: !clientMsg.isFromMe
               };
             }
             return c;
           }));
         } else if (payload.eventType === 'UPDATE') {
-          setMessages(prev => prev.map(m => m.id === payload.new.id ? payload.new : m));
+          if (!newMsg || !newMsg.contactId || !newMsg.contactId.startsWith(`${user.email}:`)) return;
+          const clientContactId = getClientId(newMsg.contactId);
+          setMessages(prev => prev.map(m => m.id === newMsg.id ? { ...newMsg, contactId: clientContactId } : m));
         } else if (payload.eventType === 'DELETE') {
-          setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+          const oldMsg = payload.old;
+          setMessages(prev => prev.filter(m => m.id !== oldMsg.id));
         }
       })
       .subscribe();
@@ -169,15 +204,19 @@ export function useSupabase(user) {
     const contactsChannel = supabase
       .channel('public-contacts-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, (payload) => {
+        const eventId = payload.new?.id || payload.old?.id;
+        if (!eventId || !eventId.startsWith(`${user.email}:`)) return;
+        const clientId = getClientId(eventId);
+
         if (payload.eventType === 'INSERT') {
           setContacts(prev => {
-            if (prev.some(c => c.id === payload.new.id)) return prev;
-            return [...prev, payload.new];
+            if (prev.some(c => c.id === clientId)) return prev;
+            return [...prev, { ...payload.new, id: clientId }];
           });
         } else if (payload.eventType === 'UPDATE') {
-          setContacts(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...payload.new } : c));
+          setContacts(prev => prev.map(c => c.id === clientId ? { ...c, ...payload.new, id: clientId } : c));
         } else if (payload.eventType === 'DELETE') {
-          setContacts(prev => prev.filter(c => c.id !== payload.old.id));
+          setContacts(prev => prev.filter(c => c.id !== clientId));
         }
       })
       .subscribe();
@@ -186,7 +225,7 @@ export function useSupabase(user) {
       supabase.removeChannel(msgChannel);
       supabase.removeChannel(contactsChannel);
     };
-  }, [user]);
+  }, [user, getClientId]);
 
   // --- Actions ---
   const sendMessage = useCallback(async (contactId, text, attachmentUrl, replyTo = null) => {
@@ -210,18 +249,21 @@ export function useSupabase(user) {
       recentMessageTime: "Just now", recentMessageIsUnread: false
     } : c));
 
+    const dbContactId = getDbId(contactId);
+    const dbMsg = { ...newMsg, contactId: dbContactId };
+
     try {
-      await supabase.from('messages').insert([newMsg]);
+      await supabase.from('messages').insert([dbMsg]);
       await supabase.from('contacts').update({
         isRecent: true,
         recentMessageText: attachmentUrl && !text ? "Sent an image" : text,
         recentMessageTime: "Just now", recentMessageIsUnread: false
-      }).eq('id', contactId);
+      }).eq('id', dbContactId);
     } catch (err) {
       localStorage.setItem('aahat_messages', JSON.stringify([...messages, localMsg]));
       localStorage.setItem('aahat_contacts', JSON.stringify(contacts));
     }
-  }, [messages, contacts]);
+  }, [messages, contacts, getDbId]);
 
   const addReaction = useCallback(async (msgId, emoji) => {
     setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reaction: emoji } : m));
@@ -237,6 +279,7 @@ export function useSupabase(user) {
 
   const selectContact = useCallback(async (id) => {
     setSelectedContactId(id);
+    const dbId = getDbId(id);
     setContacts(prev => {
       const exists = prev.some(c => c.id === id);
       if (!exists && id === 'me' && user) {
@@ -256,55 +299,55 @@ export function useSupabase(user) {
           unreadCount: 0,
           isPinned: true
         };
-        // Async insert to DB
-        supabase.from('contacts').insert([selfContact]).then(() => {});
+        // Async insert to DB using prefixed ID
+        supabase.from('contacts').insert([{ ...selfContact, id: dbId }]).then(() => {});
         return [selfContact, ...prev];
       }
       return prev.map(c => c.id === id ? { ...c, recentMessageIsUnread: false } : c);
     });
-    try { await supabase.from('contacts').update({ recentMessageIsUnread: false }).eq('id', id); }
+    try { await supabase.from('contacts').update({ recentMessageIsUnread: false }).eq('id', dbId); }
     catch (e) { /* silent */ }
-  }, [user]);
+  }, [user, getDbId]);
 
   const toggleArchive = useCallback(async (id) => {
     setContacts(prev => prev.map(c => c.id === id ? { ...c, isArchived: !c.isArchived } : c));
     try {
       const contact = contacts.find(c => c.id === id);
       if (contact) {
-        await supabase.from('contacts').update({ isArchived: !contact.isArchived }).eq('id', id);
+        await supabase.from('contacts').update({ isArchived: !contact.isArchived }).eq('id', getDbId(id));
       }
     } catch (e) { /* silent */ }
-  }, [contacts]);
+  }, [contacts, getDbId]);
 
   const togglePin = useCallback(async (id) => {
     setContacts(prev => prev.map(c => c.id === id ? { ...c, isPinned: !c.isPinned } : c));
     try {
       const contact = contacts.find(c => c.id === id);
       if (contact) {
-        await supabase.from('contacts').update({ isPinned: !contact.isPinned }).eq('id', id);
+        await supabase.from('contacts').update({ isPinned: !contact.isPinned }).eq('id', getDbId(id));
       }
     } catch (e) { /* silent */ }
-  }, [contacts]);
+  }, [contacts, getDbId]);
 
   const toggleMute = useCallback(async (id) => {
     setContacts(prev => prev.map(c => c.id === id ? { ...c, isMuted: !c.isMuted } : c));
     try {
       const contact = contacts.find(c => c.id === id);
       if (contact) {
-        await supabase.from('contacts').update({ isMuted: !contact.isMuted }).eq('id', id);
+        await supabase.from('contacts').update({ isMuted: !contact.isMuted }).eq('id', getDbId(id));
       }
     } catch (e) { /* silent */ }
-  }, [contacts]);
+  }, [contacts, getDbId]);
 
   const toggleFavorite = useCallback(async (id) => {
     setContacts(prev => prev.map(c => c.id === id ? { ...c, isFavorite: !c.isFavorite } : c));
     try {
       const contact = contacts.find(c => c.id === id);
       if (contact) {
-        await supabase.from('contacts').update({ isFavorite: !contact.isFavorite }).eq('id', id);
+        await supabase.from('contacts').update({ isFavorite: !contact.isFavorite }).eq('id', getDbId(id));
       }
     } catch (e) { /* silent */ }
-  }, [contacts]);
+  }, [contacts, getDbId]);
 
 
   const clearChat = useCallback(async (contactId) => {
@@ -317,18 +360,18 @@ export function useSupabase(user) {
     }
 
     try {
-      await supabase.from('messages').delete().eq('contactId', contactId);
+      await supabase.from('messages').delete().eq('contactId', getDbId(contactId));
       await supabase.from('contacts').update({
         isRecent: false,
         recentMessageText: '',
         recentMessageTime: '',
         recentMessageIsUnread: false,
         unreadCount: 0
-      }).eq('id', contactId);
+      }).eq('id', getDbId(contactId));
     } catch (e) {
       console.error("Error clearing chat:", e);
     }
-  }, [selectedContactId]);
+  }, [selectedContactId, getDbId]);
 
   const deleteChat = useCallback(async (contactId) => {
     setMessages(prev => prev.filter(m => m.contactId !== contactId));
@@ -338,12 +381,12 @@ export function useSupabase(user) {
     }
 
     try {
-      await supabase.from('messages').delete().eq('contactId', contactId);
-      await supabase.from('contacts').delete().eq('id', contactId);
+      await supabase.from('messages').delete().eq('contactId', getDbId(contactId));
+      await supabase.from('contacts').delete().eq('id', getDbId(contactId));
     } catch (e) {
       console.error("Error deleting chat:", e);
     }
-  }, [selectedContactId]);
+  }, [selectedContactId, getDbId]);
 
   const uploadFile = useCallback(async (file, oldUrl = null) => {
     if (oldUrl && oldUrl.includes('supabase.co/storage/v1/object/public/')) {
@@ -388,7 +431,7 @@ export function useSupabase(user) {
         name: `${name} (You)`,
         avatarUrl: avatarUrl || '',
         description: bio || ''
-      }).eq('id', 'me');
+      }).eq('id', getDbId('me'));
 
       setContacts(prev => prev.map(c => c.id === 'me' ? {
         ...c,
@@ -399,7 +442,7 @@ export function useSupabase(user) {
     } catch (err) {
       console.error("Profile update failed:", err);
     }
-  }, []);
+  }, [getDbId]);
 
   // --- Derived Data ---
   const activeContact = useMemo(

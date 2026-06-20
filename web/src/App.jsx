@@ -294,7 +294,7 @@ export default function App() {
 
       if (!contactExists) {
         const newContact = {
-          id: contactId,
+          id: `${user.email}:${contactId}`,
           name: matchedUser.name,
           avatarUrl: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150`,
           isActive: true,
