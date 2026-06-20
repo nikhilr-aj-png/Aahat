@@ -195,12 +195,12 @@ export default function App() {
   // In-app notifications state
   const [activeToast, setActiveToast] = useState(null);
 
-  const selectedContactIdRef = React.useRef(selectedContactId);
+  const selectedContactIdRef = React.useRef(null);
   React.useEffect(() => {
     selectedContactIdRef.current = selectedContactId;
   }, [selectedContactId]);
 
-  const contactsRef = React.useRef(contacts);
+  const contactsRef = React.useRef([]);
   React.useEffect(() => {
     contactsRef.current = contacts;
   }, [contacts]);
