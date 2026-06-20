@@ -11,7 +11,7 @@ import {
  */
 export default function Sidebar({
   user, contacts, selectedContactId,
-  onSelectContact, onLogout, onResetDb,
+  onSelectContact, onLogout,
   isMobileOpen, onCloseMobile,
   activeTab, setActiveTab,
   toggleArchive, togglePin, toggleMute, toggleFavorite,
@@ -106,19 +106,6 @@ export default function Sidebar({
                 <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '600' }}>{user.name} <span className="profile-you-badge" style={{ fontSize: '10px', color: 'var(--accent-light)', opacity: 0.8 }}>(You)</span></h4>
                 <p className="online-status" style={{ margin: 0, fontSize: '11px', color: 'var(--text-secondary)' }}>Message yourself</p>
               </div>
-            </div>
-            <div className="profile-actions" onClick={e => e.stopPropagation()}>
-              <button 
-                className="btn-icon" 
-                title="Reset DB Data" 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onResetDb();
-                }} 
-                id="btn-reset"
-              >
-                <RefreshCw size={14} />
-              </button>
             </div>
           </div>
 

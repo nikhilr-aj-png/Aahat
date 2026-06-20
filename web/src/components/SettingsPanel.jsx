@@ -24,6 +24,17 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
   const [avatarUrl, setAvatarUrl] = useState(() => {
     return localStorage.getItem('aahat_avatar_url') || meContact?.avatarUrl || '';
   });
+
+  // Avatar Cropper States
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [cropImgSrc, setCropImgSrc] = useState('');
+  const [imgAspect, setImgAspect] = useState(1);
+  const [zoom, setZoom] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   
   // Privacy States
   const [privacyLastSeen, setPrivacyLastSeen] = useState(() => {
@@ -136,20 +147,112 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
     alert("Profile settings updated successfully!");
   };
 
-  const handleAvatarChange = async (e) => {
+  const handleAvatarChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > 1024 * 1024) {
       alert("Image size must be less than 1MB.");
       return;
     }
-    try {
-      const url = await onUploadFile(file, avatarUrl);
-      setAvatarUrl(url);
-    } catch (err) {
-      console.error("Avatar upload failed:", err);
-      alert("Error uploading avatar. Please try again.");
-    }
+    setSelectedFile(file);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.src = reader.result;
+      img.onload = () => {
+        setImgAspect(img.width / img.height);
+        setCropImgSrc(reader.result);
+        setZoom(1);
+        setPosition({ x: 0, y: 0 });
+        setShowCropModal(true);
+      };
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    setPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleTouchStart = (e) => {
+    const touch = e.touches[0];
+    setIsDragging(true);
+    setDragStart({ x: touch.clientX - position.x, y: touch.clientY - position.y });
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDragging) return;
+    const touch = e.touches[0];
+    setPosition({
+      x: touch.clientX - dragStart.x,
+      y: touch.clientY - dragStart.y
+    });
+  };
+
+  const handleSaveCrop = async () => {
+    if (!selectedFile) return;
+    setIsUploadingAvatar(true);
+    const img = new Image();
+    img.src = cropImgSrc;
+    img.onload = async () => {
+      const canvas = document.createElement('canvas');
+      const size = 300; // Crop size
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      ctx.clearRect(0, 0, size, size);
+
+      const aspect = img.width / img.height;
+      let drawWidth, drawHeight;
+      if (aspect > 1) {
+        drawHeight = size * zoom;
+        drawWidth = size * aspect * zoom;
+      } else {
+        drawWidth = size * zoom;
+        drawHeight = (size / aspect) * zoom;
+      }
+
+      const x = (size - drawWidth) / 2 + position.x;
+      const y = (size - drawHeight) / 2 + position.y;
+
+      ctx.drawImage(img, x, y, drawWidth, drawHeight);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          setIsUploadingAvatar(false);
+          return;
+        }
+        const croppedFile = new File([blob], selectedFile.name, { type: 'image/png' });
+        try {
+          const url = await onUploadFile(croppedFile, avatarUrl);
+          setAvatarUrl(url);
+          localStorage.setItem('aahat_avatar_url', url);
+          if (onUpdateProfile) {
+            await onUpdateProfile(displayName, statusMsg, url);
+          }
+          setShowCropModal(false);
+        } catch (err) {
+          console.error("Avatar upload failed:", err);
+          alert("Error uploading avatar. Please try again.");
+        } finally {
+          setIsUploadingAvatar(false);
+        }
+      }, 'image/png');
+    };
   };
 
   const handleUnblock = (id) => {
@@ -798,6 +901,74 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
           </div>
         )}
       </div>
+
+      {showCropModal && (
+        <div className="crop-modal-overlay">
+          <div className="crop-modal-container">
+            <div className="crop-modal-header">
+              <h4>Crop Profile Photo</h4>
+            </div>
+            <div className="crop-modal-body">
+              <div 
+                className="crop-preview-area"
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleMouseUp}
+              >
+                <img 
+                  src={cropImgSrc} 
+                  style={{
+                    position: 'absolute',
+                    left: `${(300 - (imgAspect > 1 ? 300 * imgAspect * zoom : 300 * zoom)) / 2 + position.x}px`,
+                    top: `${(300 - (imgAspect > 1 ? 300 * zoom : (300 / imgAspect) * zoom)) / 2 + position.y}px`,
+                    width: `${imgAspect > 1 ? 300 * imgAspect * zoom : 300 * zoom}px`,
+                    height: `${imgAspect > 1 ? 300 * zoom : (300 / imgAspect) * zoom}px`,
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                    maxWidth: 'none',
+                  }} 
+                  alt="crop preview" 
+                />
+                <div className="crop-circle-overlay" />
+              </div>
+              <div className="crop-zoom-container">
+                <span className="zoom-label">Zoom</span>
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="3" 
+                  step="0.1" 
+                  value={zoom} 
+                  onChange={(e) => setZoom(parseFloat(e.target.value))}
+                  className="crop-zoom-slider"
+                />
+              </div>
+            </div>
+            <div className="crop-modal-footer">
+              <button 
+                type="button" 
+                className="admin-btn admin-btn-ghost" 
+                onClick={() => setShowCropModal(false)}
+                disabled={isUploadingAvatar}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="admin-btn admin-btn-primary" 
+                onClick={handleSaveCrop}
+                disabled={isUploadingAvatar}
+              >
+                {isUploadingAvatar ? 'Saving...' : 'Save Avatar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

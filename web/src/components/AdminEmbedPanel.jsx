@@ -5,7 +5,7 @@ import { Users, Activity, MessageSquare, ShieldAlert, Server, Trash2, Ban, Shiel
  * AdminEmbedPanel - Render client-side admin panel dashboard with charts,
  * moderation queue, user controls, and system configs.
  */
-export default function AdminEmbedPanel({ contacts, messages, onResetDb }) {
+export default function AdminEmbedPanel({ contacts, messages }) {
   const [adminTab, setAdminTab] = useState('overview');
   const [blockedCount, setBlockedCount] = useState(1);
   const [suspendList, setSuspendList] = useState({});
@@ -226,13 +226,6 @@ export default function AdminEmbedPanel({ contacts, messages, onResetDb }) {
               </select>
             </div>
 
-            <div className="form-group border-top-settings">
-              <label>Database Reset Maintenance</label>
-              <p className="hint-desc">Warning: Clicking this will clear the database messages history tables.</p>
-              <button type="button" className="btn-danger-db" onClick={onResetDb}>
-                Reset Messaging Database
-              </button>
-            </div>
           </div>
         )}
       </div>

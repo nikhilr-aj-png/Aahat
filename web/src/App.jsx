@@ -86,6 +86,7 @@ export default function App() {
       const loggedUser = {
         email: session.user.email,
         name: session.user.user_metadata?.name || session.user.email.split('@')[0],
+        avatarUrl: session.user.user_metadata?.avatarUrl || '',
         role: 'user',
         virtual_number: ''
       };

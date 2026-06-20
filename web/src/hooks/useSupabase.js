@@ -28,7 +28,7 @@ export function useSupabase(user) {
         const selfContact = {
           id: 'me',
           name: `${user.name} (You)`,
-          avatarUrl: '',
+          avatarUrl: user.avatarUrl || '',
           isActive: true,
           lastActiveText: 'Online',
           isRecent: true,
@@ -48,8 +48,12 @@ export function useSupabase(user) {
           finalContacts = [selfContact, ...finalContacts];
         }
       } else if (hasSelf && user) {
-        // Keep the displayed name synchronized with the logged-in user name
-        finalContacts = finalContacts.map(c => c.id === 'me' ? { ...c, name: `${user.name} (You)` } : c);
+        // Keep the displayed name and avatar synchronized with the logged-in user
+        finalContacts = finalContacts.map(c => c.id === 'me' ? { 
+          ...c, 
+          name: `${user.name} (You)`,
+          avatarUrl: user.avatarUrl || c.avatarUrl || ''
+        } : c);
       }
 
       setContacts(finalContacts);
@@ -73,7 +77,7 @@ export function useSupabase(user) {
         const selfContact = {
           id: 'me',
           name: `${user.name} (You)`,
-          avatarUrl: '',
+          avatarUrl: user.avatarUrl || '',
           isActive: true,
           lastActiveText: 'Online',
           isRecent: true,
@@ -88,7 +92,11 @@ export function useSupabase(user) {
         };
         finalContacts = [selfContact, ...finalContacts];
       } else if (hasSelf && user) {
-        finalContacts = finalContacts.map(c => c.id === 'me' ? { ...c, name: `${user.name} (You)` } : c);
+        finalContacts = finalContacts.map(c => c.id === 'me' ? { 
+          ...c, 
+          name: `${user.name} (You)`,
+          avatarUrl: user.avatarUrl || c.avatarUrl || ''
+        } : c);
       }
       setContacts(finalContacts);
 
@@ -298,16 +306,6 @@ export function useSupabase(user) {
     } catch (e) { /* silent */ }
   }, [contacts]);
 
-  const resetData = useCallback(async () => {
-    try {
-      await supabase.from('messages').delete().neq('id', 0);
-      await supabase.from('contacts').delete().neq('id', 'none');
-    } catch (e) { /* silent */ }
-    localStorage.removeItem('aahat_contacts');
-    localStorage.removeItem('aahat_messages');
-    setSelectedContactId(null);
-    fetchData();
-  }, [fetchData]);
 
   const clearChat = useCallback(async (contactId) => {
     setMessages(prev => prev.filter(m => m.contactId !== contactId));
@@ -419,7 +417,7 @@ export function useSupabase(user) {
     selectedContactId, typingStatus,
     activeContact, activeMessages,
     sendMessage, addReaction, deleteMessage,
-    selectContact, resetData, uploadFile,
+    selectContact, uploadFile,
     setSelectedContactId,
     toggleArchive, togglePin, toggleMute, toggleFavorite,
     clearChat, deleteChat,
