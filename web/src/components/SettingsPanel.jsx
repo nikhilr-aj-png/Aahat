@@ -16,13 +16,13 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
   
   // Profile States
   const [displayName, setDisplayName] = useState(() => {
-    return localStorage.getItem('aahat_display_name') || meContact?.name?.replace(' (You)', '') || user.name;
+    return meContact?.name?.replace(' (You)', '') || user?.name || localStorage.getItem('aahat_display_name') || '';
   });
   const [statusMsg, setStatusMsg] = useState(() => {
-    return localStorage.getItem('aahat_status_msg') || meContact?.description || 'Hey there! I am using Aahat.';
+    return meContact?.description || localStorage.getItem('aahat_status_msg') || 'Hey there! I am using Aahat.';
   });
   const [avatarUrl, setAvatarUrl] = useState(() => {
-    return localStorage.getItem('aahat_avatar_url') || meContact?.avatarUrl || '';
+    return meContact?.avatarUrl || localStorage.getItem('aahat_avatar_url') || '';
   });
 
   // Avatar Cropper States
@@ -134,6 +134,15 @@ export default function SettingsPanel({ user, onLogout, meContact, onUploadFile,
   React.useEffect(() => {
     localStorage.setItem('aahat_blocked_users', JSON.stringify(blockedUsers));
   }, [blockedUsers]);
+
+  // Sync profile states dynamically when meContact or user props change in real-time
+  React.useEffect(() => {
+    if (meContact) {
+      setDisplayName(meContact.name?.replace(' (You)', '') || user?.name || '');
+      setStatusMsg(meContact.description || '');
+      setAvatarUrl(meContact.avatarUrl || '');
+    }
+  }, [meContact, user]);
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
