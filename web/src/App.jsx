@@ -88,28 +88,31 @@ export default function App() {
         name: session.user.user_metadata?.name || session.user.email.split('@')[0],
         avatarUrl: session.user.user_metadata?.avatarUrl || '',
         role: 'user',
-        virtual_number: ''
+        virtual_number: '',
+        id: ''
       };
 
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('role, virtual_number')
+          .select('id, role, virtual_number')
           .eq('email', loggedUser.email)
           .single();
         if (data) {
           loggedUser.role = data.role || 'user';
+          loggedUser.id = data.id || '';
           if (data.virtual_number) {
             loggedUser.virtual_number = data.virtual_number;
           } else {
             // Trigger will generate it on insert. If missing on existing, fetch updated
             const { data: updated } = await supabase
               .from('users')
-              .select('virtual_number')
+              .select('id, virtual_number')
               .eq('email', loggedUser.email)
               .single();
             if (updated) {
               loggedUser.virtual_number = updated.virtual_number;
+              loggedUser.id = updated.id || '';
             }
           }
         } else {
@@ -124,11 +127,12 @@ export default function App() {
           });
           const { data: updated } = await supabase
             .from('users')
-            .select('virtual_number')
+            .select('id, virtual_number')
             .eq('email', loggedUser.email)
             .single();
           if (updated) {
             loggedUser.virtual_number = updated.virtual_number;
+            loggedUser.id = updated.id || '';
           }
         }
       } catch (e) {
@@ -143,11 +147,12 @@ export default function App() {
           });
           const { data: updated } = await supabase
             .from('users')
-            .select('virtual_number')
+            .select('id, virtual_number')
             .eq('email', loggedUser.email)
             .single();
           if (updated) {
             loggedUser.virtual_number = updated.virtual_number;
+            loggedUser.id = updated.id || '';
           }
         } catch (err) {}
       }
