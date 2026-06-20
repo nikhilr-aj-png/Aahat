@@ -326,7 +326,7 @@ export function useSupabase(user) {
       .channel('public-contacts-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, (payload) => {
         const eventId = payload.new?.id || payload.old?.id;
-        if (!eventId || !eventId.startsWith(`${user.email}:`)) return;
+        if (!eventId || !eventId.startsWith(`${user.email.toLowerCase()}:`)) return;
         const clientId = getClientId(eventId);
 
         if (payload.eventType === 'INSERT') {
@@ -335,7 +335,13 @@ export function useSupabase(user) {
             return [...prev, { ...payload.new, id: clientId }];
           });
         } else if (payload.eventType === 'UPDATE') {
-          setContacts(prev => prev.map(c => c.id === clientId ? { ...c, ...payload.new, id: clientId } : c));
+          setContacts(prev => prev.map(c => c.id === clientId ? { 
+            ...c, 
+            ...payload.new, 
+            id: clientId,
+            avatarUrl: c.avatarUrl,
+            description: c.description
+          } : c));
         } else if (payload.eventType === 'DELETE') {
           setContacts(prev => prev.filter(c => c.id !== clientId));
         }
