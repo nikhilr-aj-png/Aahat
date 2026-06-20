@@ -29,6 +29,7 @@ const SoundWaveLogo = () => (
  */
 export default function App() {
   const [user, setUser] = useState(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(true);
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [newChatName, setNewChatName] = useState('');
@@ -79,6 +80,7 @@ export default function App() {
     const handleUserSession = async (session) => {
       if (!session) {
         setUser(null);
+        setIsAuthLoading(false);
         return;
       }
       const loggedUser = {
@@ -120,11 +122,14 @@ export default function App() {
 
       setUser(loggedUser);
       handleRegisterPush(loggedUser.email);
+      setIsAuthLoading(false);
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         handleUserSession(session);
+      } else {
+        setIsAuthLoading(false);
       }
     });
 
@@ -133,6 +138,7 @@ export default function App() {
         handleUserSession(session);
       } else {
         setUser(null);
+        setIsAuthLoading(false);
       }
     });
 
@@ -250,6 +256,15 @@ export default function App() {
       setAdminPasswordError('Invalid admin password.');
     }
   }, [adminPasswordInput]);
+
+  if (isAuthLoading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg-gradient)', color: 'var(--text-primary)' }}>
+        <SoundWaveLogo />
+        <span style={{ fontSize: '14px', fontWeight: '500', letterSpacing: '1px', opacity: 0.8 }}>Loading Aahat...</span>
+      </div>
+    );
+  }
 
   // Show auth screen if not logged in
   if (!user) {
