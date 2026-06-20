@@ -3022,7 +3022,7 @@ body {
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-xl);
   padding: 24px;
-  width: 100%;
+  width: calc(100% - 32px);
   max-width: 440px;
   box-shadow: var(--shadow-lg), var(--shadow-glow);
   transform-origin: center;
@@ -3856,6 +3856,23 @@ body {
   
   .settings-section-form, .settings-section {
     max-width: 100%;
+  }
+
+  .admin-embed-header {
+    padding: 16px;
+  }
+
+  .admin-tab-nav {
+    width: 100%;
+    justify-content: space-between;
+    gap: 4px;
+  }
+
+  .admin-tab-nav button {
+    flex: 1;
+    padding: 6px 4px;
+    font-size: 11px;
+    text-align: center;
   }
 }
 

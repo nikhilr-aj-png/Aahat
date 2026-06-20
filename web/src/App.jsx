@@ -182,7 +182,7 @@ export default function App() {
     selectedContactId, typingStatus,
     activeContact, activeMessages,
     sendMessage, addReaction, deleteMessage,
-    selectContact, resetData, uploadFile,
+    selectContact, uploadFile,
     setSelectedContactId,
     toggleArchive, togglePin, toggleMute, toggleFavorite,
     clearChat, deleteChat,
@@ -412,7 +412,6 @@ export default function App() {
               selectedContactId={selectedContactId}
               onSelectContact={handleSelectContact}
               onLogout={handleLogout}
-              onResetDb={resetData}
               isMobileOpen={isMobileSidebarOpen}
               onCloseMobile={() => setIsMobileSidebarOpen(false)}
               activeTab={activeTab}
@@ -539,7 +538,6 @@ export default function App() {
           <AdminEmbedPanel 
             contacts={contacts} 
             messages={messages} 
-            onResetDb={resetData} 
           />
         )}
       </div>
