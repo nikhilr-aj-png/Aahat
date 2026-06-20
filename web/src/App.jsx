@@ -11,7 +11,7 @@ import AdminEmbedPanel from './components/AdminEmbedPanel';
 import { requestNotificationPermission } from './firebase';
 
 // Icons for bottom navigation on mobile
-import { MessageSquare, CircleDot, Settings, LogOut, Sparkles, X, Shield } from 'lucide-react';
+import { MessageSquare, CircleDot, Settings, LogOut, Sparkles, X, Shield, Users, Plus } from 'lucide-react';
 
 const SoundWaveLogo = () => (
   <div className="soundwave-logo">
@@ -345,7 +345,7 @@ export default function App() {
             <div className="dock-logo-container" title="Aahat">
               <SoundWaveLogo />
             </div>
-            <button 
+             <button 
               className={`dock-btn ${activeTab === 'chats' ? 'active' : ''}`}
               onClick={() => setActiveTab('chats')}
               title="Chats"
@@ -353,6 +353,14 @@ export default function App() {
             >
               <MessageSquare size={20} />
               {unreadTotal > 0 && <span className="dock-badge-dot" />}
+            </button>
+            <button 
+              className={`dock-btn ${activeTab === 'contacts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('contacts')}
+              title="Contacts"
+              id="dock-tab-contacts"
+            >
+              <Users size={20} />
             </button>
             <button 
               className={`dock-btn ${activeTab === 'status' ? 'active' : ''}`}
@@ -432,6 +440,84 @@ export default function App() {
           </>
         )}
 
+        {activeTab === 'contacts' && (
+          <div className="contacts-section" style={{ flex: 1, padding: '24px', overflowY: 'auto', background: 'var(--bg-gradient)', color: 'var(--text-primary)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid var(--panel-border)', paddingBottom: '16px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
+                <Users size={22} style={{ color: 'var(--accent-light)' }} />
+                My Contacts
+              </h2>
+              <button 
+                onClick={handleNewChat} 
+                className="admin-btn admin-btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', fontSize: '13px' }}
+              >
+                <Plus size={16} />
+                Add Contact
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {contacts.filter(c => {
+                if (c.id === 'me') return false;
+                if (user && (c.name.toLowerCase() === user.name.toLowerCase() || c.id === user.email?.split('@')[0])) return false;
+                return true;
+              }).length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--panel-border)', borderRadius: '12px', color: 'var(--text-secondary)' }}>
+                  <Users size={32} style={{ opacity: 0.4, marginBottom: '12px' }} />
+                  <p>No contacts added yet. Click "Add Contact" to add friends by their Aahat ID!</p>
+                </div>
+              ) : (
+                contacts.filter(c => {
+                  if (c.id === 'me') return false;
+                  if (user && (c.name.toLowerCase() === user.name.toLowerCase() || c.id === user.email?.split('@')[0])) return false;
+                  return true;
+                }).map(contact => (
+                  <div 
+                    key={contact.id} 
+                    onClick={() => handleSelectContact(contact.id)}
+                    style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center', 
+                      padding: '16px', 
+                      background: 'rgba(30,41,59,0.3)', 
+                      border: '1px solid var(--panel-border)', 
+                      borderRadius: '12px', 
+                      cursor: 'pointer',
+                      transition: 'transform 0.2s, background 0.2s'
+                    }}
+                    className="contact-card-hover"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div className="avatar-wrapper" style={{ position: 'relative', width: '44px', height: '44px' }}>
+                        {contact.avatarUrl ? (
+                          <img src={contact.avatarUrl} alt={contact.name} style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover' }} />
+                        ) : (
+                          <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--accent-gradient)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '16px' }}>
+                            {contact.name[0].toUpperCase()}
+                          </div>
+                        )}
+                        <div className={`status-badge ${contact.isActive ? 'active' : 'offline'}`} style={{ position: 'absolute', bottom: '0', right: '0', width: '12px', height: '12px', borderRadius: '50%', border: '2px solid var(--panel-bg)', backgroundColor: contact.isActive ? 'var(--accent-light)' : '#9ca3af' }} />
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: 'white' }}>{contact.name}</h4>
+                        <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>{contact.lastActiveText || 'Offline'}</p>
+                      </div>
+                    </div>
+                    <button 
+                      className="admin-btn admin-btn-ghost"
+                      style={{ padding: '6px 12px', fontSize: '12px' }}
+                    >
+                      Chat
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
         {activeTab === 'status' && (
           <StatusSection 
             contacts={contacts} 
@@ -467,6 +553,13 @@ export default function App() {
           >
             <MessageSquare size={20} />
             <span>Chats</span>
+          </button>
+          <button 
+            className={`mobile-nav-btn ${activeTab === 'contacts' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('contacts'); setIsMobileSidebarOpen(false); }}
+          >
+            <Users size={20} />
+            <span>Contacts</span>
           </button>
           <button 
             className={`mobile-nav-btn ${activeTab === 'status' ? 'active' : ''}`}

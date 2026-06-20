@@ -82,9 +82,6 @@ export default function Sidebar({
         <div className="sidebar-header">
           <div className="sidebar-brand-row">
             <h2 className="brand-text">Aahat <span className="brand-hindi">आहट</span></h2>
-            <button className="btn-icon add-chat-btn" title="New Chat" onClick={onNewChat} id="btn-new-chat">
-              <Plus size={16} />
-            </button>
           </div>
 
           {/* User profile card */}
