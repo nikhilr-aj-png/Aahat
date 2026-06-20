@@ -14,6 +14,9 @@ export default function CallingOverlay({ callState, onHangup }) {
   const [duration, setDuration] = useState(0);
   const timerRef = useRef(null);
 
+  const localVideoRef = useRef(null);
+  const localStreamRef = useRef(null);
+
   // Sound generator using Web Audio API for ringing and disconnects
   useEffect(() => {
     let audioCtx = null;
@@ -72,6 +75,36 @@ export default function CallingOverlay({ callState, onHangup }) {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [isRinging]);
+
+  // Local Video Capture in Call
+  useEffect(() => {
+    let activeStream = null;
+    const startLocalVideo = async () => {
+      if (type === 'video' && !isCameraOff && !isRinging) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: 320, height: 240 },
+            audio: false
+          });
+          activeStream = stream;
+          localStreamRef.current = stream;
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = stream;
+          }
+        } catch (err) {
+          console.warn("Failed to get local camera for call:", err);
+        }
+      }
+    };
+
+    startLocalVideo();
+
+    return () => {
+      if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [type, isCameraOff, isRinging]);
 
   const formatDuration = (sec) => {
     const mins = Math.floor(sec / 60);
@@ -138,8 +171,14 @@ export default function CallingOverlay({ callState, onHangup }) {
                     <p>Sharing your screen</p>
                   </div>
                 ) : !isCameraOff ? (
-                  <div className="simulated-feed local-feed-graphic">
-                    <div className="local-user-silhouette">Local User</div>
+                  <div className="simulated-feed local-feed-graphic" style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
+                    <video 
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
                   </div>
                 ) : (
                   <div className="video-feed-placeholder">

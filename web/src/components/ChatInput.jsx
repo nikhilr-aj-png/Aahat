@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Paperclip, Send, X, Camera, Mic, MicOff, Sparkles, Smile } from 'lucide-react';
+import { Paperclip, Send, X, Camera, Mic, MicOff, Sparkles, Smile, RefreshCw, FileText } from 'lucide-react';
 
 const POPULAR_EMOJIS = ['😊', '😂', '🔥', '👍', '❤️', '👏', '🙌', '🎉', '✨', '💡'];
 const AI_SUGGESTIONS = [
@@ -21,6 +21,7 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
+  const [facingMode, setFacingMode] = useState('user'); // user (front) or environment (back)
   const recordingTimerRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -72,8 +73,11 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
     const startCamera = async () => {
       if (showCameraFeed) {
         try {
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+          }
           const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: 'user', width: 640, height: 480 } 
+            video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } } 
           });
           activeStream = stream;
           streamRef.current = stream;
@@ -95,7 +99,7 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
         activeStream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [showCameraFeed]);
+  }, [showCameraFeed, facingMode]);
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -123,7 +127,12 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
   };
 
   const handleCameraOpen = () => {
+    setFacingMode('user'); // Reset to front camera by default
     setShowCameraFeed(true);
+  };
+
+  const toggleFacingMode = () => {
+    setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
   };
 
   const capturePhoto = () => {
@@ -292,14 +301,21 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
           type="file"
           ref={fileInputRef}
           style={{ display: 'none' }}
-          accept="image/*,video/*"
+          accept="image/*,video/*,application/pdf"
           onChange={handleFileChange}
         />
 
         {/* Attachment Preview */}
         {selectedImage && (
           <div className="attachment-preview">
-            <img src={selectedImage} alt="Attachment preview" />
+            {selectedImage.toLowerCase().includes('.pdf') ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--panel-border)', borderRadius: '8px', marginRight: '10px' }}>
+                <FileText size={16} style={{ color: '#ef4444' }} />
+                <span style={{ fontSize: '11px', color: 'white' }}>Document.pdf</span>
+              </div>
+            ) : (
+              <img src={selectedImage} alt="Attachment preview" />
+            )}
             <button type="button" className="attachment-remove" onClick={clearAttachment}>
               <X size={14} />
             </button>
@@ -416,12 +432,17 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
                 autoPlay 
                 playsInline 
                 muted 
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
               />
             </div>
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+              <button type="button" className="admin-btn admin-btn-ghost" onClick={toggleFacingMode} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+                <RefreshCw size={14} /> Flip Camera
+              </button>
+              <button type="button" className="admin-btn admin-btn-primary" onClick={capturePhoto} style={{ width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }} title="Capture Photo">
+                <div style={{ width: '42px', height: '42px', borderRadius: '50%', border: '4px solid white', background: 'rgba(255,255,255,0.2)' }} />
+              </button>
               <button type="button" className="admin-btn admin-btn-ghost" onClick={closeCamera}>Cancel</button>
-              <button type="button" className="admin-btn admin-btn-primary" onClick={capturePhoto}>Capture Photo</button>
             </div>
           </div>
         </div>

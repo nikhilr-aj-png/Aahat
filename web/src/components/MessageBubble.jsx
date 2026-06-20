@@ -1,5 +1,5 @@
 import React, { memo, useState } from 'react';
-import { Smile, Trash2, Check, CheckCheck, Reply, Share2, Play, Pause, Volume2 } from 'lucide-react';
+import { Smile, Trash2, Check, CheckCheck, Reply, Share2, Play, Pause, Volume2, FileText } from 'lucide-react';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
@@ -74,6 +74,9 @@ function MessageBubble({
 
   // Determine if it's a voice note
   const isVoiceNote = msg.attachmentUrl && msg.attachmentUrl.includes('voice-note');
+  
+  // Determine if it's a PDF document
+  const isPdf = msg.attachmentUrl && msg.attachmentUrl.toLowerCase().includes('.pdf');
 
   return (
     <div
@@ -100,10 +103,24 @@ function MessageBubble({
             </div>
           )}
 
-          {/* Attachment (Images) */}
-          {msg.attachmentUrl && !isVoiceNote && (
+          {/* Attachment (Images/Videos) */}
+          {msg.attachmentUrl && !isVoiceNote && !isPdf && (
             <div className="message-attachment">
               <img src={msg.attachmentUrl} alt="Attachment" loading="lazy" />
+            </div>
+          )}
+
+          {/* Attachment (PDF) */}
+          {msg.attachmentUrl && !isVoiceNote && isPdf && (
+            <div className="message-attachment pdf-attachment" style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '12px', border: '1px solid var(--panel-border)', display: 'flex', alignItems: 'center', gap: '12px', minWidth: '200px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
+                <FileText size={20} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+                <span style={{ fontSize: '13px', fontWeight: '600', color: 'white', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>Document.pdf</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>PDF Document</span>
+              </div>
+              <a href={msg.attachmentUrl} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', fontSize: '11.5px', color: 'white', background: 'rgba(255,255,255,0.08)', border: '1px solid var(--panel-border)', borderRadius: '6px', textDecoration: 'none' }}>Open</a>
             </div>
           )}
 
