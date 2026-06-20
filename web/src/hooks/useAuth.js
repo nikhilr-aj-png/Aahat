@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabase';
+import { supabase, supabaseUrl } from '../supabase';
 
 /**
  * useAuth — Handles authentication state, session management,
@@ -102,7 +102,7 @@ export function useAuth() {
     const handleUnload = () => {
       if (user) {
         // Use sendBeacon for reliable offline status
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}`;
+        const url = `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}`;
         const body = JSON.stringify({ is_online: false, last_seen: new Date().toISOString() });
         navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
       }

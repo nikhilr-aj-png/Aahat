@@ -1,10 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://jxyobyinvflojrhrdcrf.supabase.co';
+export const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_cZCSK2WrC9Y-8nC9vwJzLw_o8LRjIlY';
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing Supabase environment variables. Check your .env file.');
+if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+  console.warn('Missing Supabase environment variables. Using default fallback configuration.');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
