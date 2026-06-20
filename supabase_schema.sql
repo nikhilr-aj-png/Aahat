@@ -134,6 +134,12 @@ ON users FOR UPDATE
 TO authenticated 
 USING (auth.jwt()->>'email' = email);
 
+DROP POLICY IF EXISTS "Allow users to insert their own profile data" ON users;
+CREATE POLICY "Allow users to insert their own profile data" 
+ON users FOR INSERT 
+TO authenticated 
+WITH CHECK (true);
+
 -- B. Contacts RLS Policies
 DROP POLICY IF EXISTS "Allow authenticated users to read contacts" ON contacts;
 CREATE POLICY "Allow authenticated users to read contacts" 
