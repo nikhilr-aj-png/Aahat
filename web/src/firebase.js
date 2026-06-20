@@ -20,9 +20,18 @@ export const requestNotificationPermission = async () => {
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'granted') {
-      const token = await getToken(messaging, {
+      let tokenOptions = {
         vapidKey: 'BOjhzHnDpy795rds-XG-oegvdOUmV3XlrfoRWiCBROCsfno8k3-IGzvvSO49l-juXCxhHdpAC9lPZuxhQuOsRI'
-      });
+      };
+      if ('serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          tokenOptions.serviceWorkerRegistration = registration;
+        } catch (swErr) {
+          console.warn("Service Worker not ready for FCM registration:", swErr);
+        }
+      }
+      const token = await getToken(messaging, tokenOptions);
       return token;
     } else {
       console.warn("Notification permission denied.");
