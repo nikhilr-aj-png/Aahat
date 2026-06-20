@@ -196,14 +196,7 @@ export default function App() {
   const [activeToast, setActiveToast] = useState(null);
 
   const selectedContactIdRef = React.useRef(null);
-  React.useEffect(() => {
-    selectedContactIdRef.current = selectedContactId;
-  }, [selectedContactId]);
-
   const contactsRef = React.useRef([]);
-  React.useEffect(() => {
-    contactsRef.current = contacts;
-  }, [contacts]);
 
   const handleMessageReceived = useCallback((msg) => {
     // Only show toast if we are not currently viewing the sender's chat conversation
@@ -218,6 +211,27 @@ export default function App() {
       });
     }
   }, []);
+
+  // Data layer
+  const {
+    contacts, messages, isLoading,
+    selectedContactId, typingStatus,
+    activeContact, activeMessages,
+    sendMessage, addReaction, deleteMessage,
+    selectContact, uploadFile,
+    setSelectedContactId,
+    toggleArchive, togglePin, toggleMute, toggleFavorite,
+    clearChat, deleteChat,
+    updateProfile, postStory
+  } = useSupabase(user, handleMessageReceived);
+
+  React.useEffect(() => {
+    selectedContactIdRef.current = selectedContactId;
+  }, [selectedContactId]);
+
+  React.useEffect(() => {
+    contactsRef.current = contacts;
+  }, [contacts]);
 
   useEffect(() => {
     if (activeToast) {
@@ -246,19 +260,6 @@ export default function App() {
       alert("Error enabling notifications: " + e.message);
     }
   }, [user]);
-
-  // Data layer
-  const {
-    contacts, messages, isLoading,
-    selectedContactId, typingStatus,
-    activeContact, activeMessages,
-    sendMessage, addReaction, deleteMessage,
-    selectContact, uploadFile,
-    setSelectedContactId,
-    toggleArchive, togglePin, toggleMute, toggleFavorite,
-    clearChat, deleteChat,
-    updateProfile, postStory
-  } = useSupabase(user, handleMessageReceived);
 
   // Handlers
   const handleLogin = useCallback((userData) => setUser(userData), []);
