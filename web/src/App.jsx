@@ -77,24 +77,6 @@ export default function App() {
       }
     };
 
-    const helperGenerateVirtualNumber = async () => {
-      let num;
-      let exists = true;
-      let attempts = 0;
-      while (exists && attempts < 10) {
-        attempts++;
-        num = '700' + Math.floor(1000000 + Math.random() * 9000000).toString();
-        const { data, error } = await supabase
-          .from('users')
-          .select('virtual_number')
-          .eq('virtual_number', num);
-        if (!error && (!data || data.length === 0)) {
-          exists = false;
-        }
-      }
-      return num;
-    };
-
     const handleUserSession = async (session) => {
       if (!session) {
         setUser(null);
@@ -119,36 +101,53 @@ export default function App() {
           if (data.virtual_number) {
             loggedUser.virtual_number = data.virtual_number;
           } else {
-            const vNum = await helperGenerateVirtualNumber();
-            await supabase.from('users').update({ virtual_number: vNum }).eq('email', loggedUser.email);
-            loggedUser.virtual_number = vNum;
+            // Trigger will generate it on insert. If missing on existing, fetch updated
+            const { data: updated } = await supabase
+              .from('users')
+              .select('virtual_number')
+              .eq('email', loggedUser.email)
+              .single();
+            if (updated) {
+              loggedUser.virtual_number = updated.virtual_number;
+            }
           }
         } else {
           // If profile is missing in the users table, auto-create/sync it
-          const vNum = await helperGenerateVirtualNumber();
-          await supabase.from('users').upsert({
+          // Trigger automatically generates virtual_number
+          await supabase.from('users').insert({
             email: loggedUser.email,
             name: loggedUser.name,
             passwordHash: '••••••••',
             isSessionActive: true,
-            role: 'user',
-            virtual_number: vNum
+            role: 'user'
           });
-          loggedUser.virtual_number = vNum;
+          const { data: updated } = await supabase
+            .from('users')
+            .select('virtual_number')
+            .eq('email', loggedUser.email)
+            .single();
+          if (updated) {
+            loggedUser.virtual_number = updated.virtual_number;
+          }
         }
       } catch (e) {
-        // Fallback: Try to upsert in case of RLS missing insert policy or network issues
+        // Fallback: Try to insert/upsert
         try {
-          const vNum = '700' + Math.floor(1000000 + Math.random() * 9000000).toString();
           await supabase.from('users').upsert({
             email: loggedUser.email,
             name: loggedUser.name,
             passwordHash: '••••••••',
             isSessionActive: true,
-            role: 'user',
-            virtual_number: vNum
+            role: 'user'
           });
-          loggedUser.virtual_number = vNum;
+          const { data: updated } = await supabase
+            .from('users')
+            .select('virtual_number')
+            .eq('email', loggedUser.email)
+            .single();
+          if (updated) {
+            loggedUser.virtual_number = updated.virtual_number;
+          }
         } catch (err) {}
       }
 
