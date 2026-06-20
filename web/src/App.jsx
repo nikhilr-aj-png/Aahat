@@ -228,7 +228,7 @@ export default function App() {
   }, [newChatName, selectContact]);
 
   const handleAdminTabClick = useCallback(() => {
-    if (isAdminAuthenticated) {
+    if (isAdminAuthenticated || user?.role === 'super_admin') {
       setActiveTab('admin');
       setIsMobileSidebarOpen(false);
     } else {
@@ -236,7 +236,7 @@ export default function App() {
       setAdminPasswordError('');
       setAdminPasswordInput('');
     }
-  }, [isAdminAuthenticated]);
+  }, [isAdminAuthenticated, user]);
 
   const handleAdminPasswordSubmit = useCallback((e) => {
     e?.preventDefault();
