@@ -70,7 +70,6 @@ export default function App() {
             .from('users')
             .update({ fcmToken: token })
             .eq('email', email);
-          console.log("FCM Token registered successfully in Supabase!");
         }
       } catch (err) {
         console.warn("FCM token registration failed", err);

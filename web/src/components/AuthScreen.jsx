@@ -32,11 +32,7 @@ export default function AuthScreen({ onLogin }) {
         name: data.user.user_metadata?.name || data.user.email.split('@')[0]
       });
     } catch (e) {
-      if (password === 'password123') {
-        onLogin({ email, name: email.split('@')[0] });
-      } else {
-        setAuthError("Invalid credentials. Use 'password123' for offline demo.");
-      }
+      setAuthError(e.message || "Invalid credentials.");
     } finally {
       setIsAuthenticating(false);
     }
@@ -84,20 +80,12 @@ export default function AuthScreen({ onLogin }) {
       onLogin(loggedUser);
       setIsOtpMode(false);
     } catch (e) {
-      if (otp === '123456') {
-        onLogin({ email, name });
-        setIsOtpMode(false);
-      } else {
-        setAuthError("Invalid code. Use '123456' for offline demo.");
-      }
+      setAuthError(e.message || "Invalid code.");
     } finally {
       setIsAuthenticating(false);
     }
   };
 
-  const handleDemoMode = () => {
-    onLogin({ email: 'demo@aahat.app', name: 'Demo User' });
-  };
 
   // --- OTP Screen ---
   if (isOtpMode) {
@@ -254,13 +242,6 @@ export default function AuthScreen({ onLogin }) {
         </div>
         <button type="submit" className="btn-primary" disabled={isAuthenticating}>
           {isAuthenticating ? <span className="btn-loading">Signing in...</span> : "Sign In"}
-        </button>
-        <div className="auth-divider">
-          <span>or</span>
-        </div>
-        <button type="button" className="btn-demo" onClick={handleDemoMode}>
-          <Sparkles size={16} />
-          Try Demo Mode
         </button>
         <div className="auth-toggle">
           Don't have an account?{' '}
