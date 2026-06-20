@@ -15,7 +15,8 @@ export function useSupabase(user) {
   // Helper mapping functions to isolate tenant records using email-prefixed IDs
   const getDbContactId = useCallback((clientId) => {
     if (!user) return clientId;
-    return clientId.includes(':') ? clientId : `${user.email}:${clientId}`;
+    const cleanEmail = user.email.toLowerCase();
+    return clientId.includes(':') ? clientId : `${cleanEmail}:${clientId}`;
   }, [user]);
 
   const getClientId = useCallback((dbId) => {
@@ -26,8 +27,10 @@ export function useSupabase(user) {
 
   // Helper to generate a shared 1-to-1 conversation ID
   const getConversationId = useCallback((clientId) => {
-    if (!user || clientId === 'me') return `${user.email}:me`;
-    const users = [user.email.split('@')[0], clientId].sort();
+    if (!user || clientId === 'me') return `${user.email.toLowerCase()}:me`;
+    const userPart = user.email.split('@')[0].toLowerCase();
+    const clientPart = clientId.toLowerCase();
+    const users = [userPart, clientPart].sort();
     return `conversation:${users[0]}_${users[1]}`;
   }, [user]);
 
@@ -40,7 +43,7 @@ export function useSupabase(user) {
       let { data: dbContacts, error: cErr } = await supabase
         .from('contacts')
         .select('*')
-        .like('id', `${user.email}:%`);
+        .like('id', `${user.email.toLowerCase()}:%`);
       if (cErr) throw cErr;
 
       // Fetch all users to dynamically join name, avatar, bio (description)
@@ -49,8 +52,8 @@ export function useSupabase(user) {
         .select('email, name, avatarUrl, description');
 
       let finalContacts = (dbContacts || []).map(c => {
-        const clientId = getClientId(c.id);
-        const matchingUser = (dbUsers || []).find(u => u.email.split('@')[0] === clientId);
+        const clientId = getClientId(c.id).toLowerCase();
+        const matchingUser = (dbUsers || []).find(u => u.email.toLowerCase().split('@')[0] === clientId);
         if (matchingUser && clientId !== 'me') {
           return {
             ...c,
@@ -68,7 +71,7 @@ export function useSupabase(user) {
 
       // Ensure 'me' (Message Yourself) contact exists
       const hasSelf = finalContacts.some(c => c.id === 'me');
-      const currentUserProfile = (dbUsers || []).find(u => u.email === user.email);
+      const currentUserProfile = (dbUsers || []).find(u => u.email.toLowerCase() === user.email.toLowerCase());
       const userBio = currentUserProfile?.description || '';
 
       if (!hasSelf) {
@@ -105,11 +108,11 @@ export function useSupabase(user) {
       }
 
       // Fetch Messages isolated to this user (either self-chat or shared conversation)
-      const username = user.email.split('@')[0];
+      const username = user.email.split('@')[0].toLowerCase();
       let { data: dbMessages, error: mErr } = await supabase
         .from('messages')
         .select('*')
-        .or(`contactId.eq.${user.email}:me,conversationId.like.conversation:%${username}%`);
+        .or(`contactId.eq.${user.email.toLowerCase()}:me,conversationId.like.conversation:%${username}%`);
       if (mErr) throw mErr;
 
       const mappedMessages = (dbMessages || []).map(m => {
@@ -121,7 +124,7 @@ export function useSupabase(user) {
         return {
           ...m,
           contactId,
-          isFromMe: m.sender === user.email
+          isFromMe: m.sender.toLowerCase() === user.email.toLowerCase()
         };
       });
 
@@ -586,7 +589,7 @@ export function useSupabase(user) {
         name,
         avatarUrl: avatarUrl || '',
         description: bio || ''
-      }).eq('email', user.email);
+      }).eq('email', user.email.toLowerCase());
 
       await supabase.from('contacts').update({
         name: `${name} (You)`,

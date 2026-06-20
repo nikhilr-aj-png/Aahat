@@ -84,9 +84,10 @@ export default function App() {
         return;
       }
       const loggedUser = {
-        email: session.user.email,
+        email: session.user.email.toLowerCase(),
         name: session.user.user_metadata?.name || session.user.email.split('@')[0],
         avatarUrl: session.user.user_metadata?.avatarUrl || '',
+        description: '',
         role: 'user',
         virtual_number: '',
         id: ''
@@ -95,24 +96,28 @@ export default function App() {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('id, role, virtual_number')
+          .select('id, role, virtual_number, avatarUrl, description')
           .eq('email', loggedUser.email)
           .single();
         if (data) {
           loggedUser.role = data.role || 'user';
           loggedUser.id = data.id || '';
+          loggedUser.avatarUrl = data.avatarUrl || loggedUser.avatarUrl;
+          loggedUser.description = data.description || '';
           if (data.virtual_number) {
             loggedUser.virtual_number = data.virtual_number;
           } else {
             // Trigger will generate it on insert. If missing on existing, fetch updated
             const { data: updated } = await supabase
               .from('users')
-              .select('id, virtual_number')
+              .select('id, virtual_number, avatarUrl, description')
               .eq('email', loggedUser.email)
               .single();
             if (updated) {
               loggedUser.virtual_number = updated.virtual_number;
               loggedUser.id = updated.id || '';
+              loggedUser.avatarUrl = updated.avatarUrl || loggedUser.avatarUrl;
+              loggedUser.description = updated.description || '';
             }
           }
         } else {
@@ -127,12 +132,14 @@ export default function App() {
           });
           const { data: updated } = await supabase
             .from('users')
-            .select('id, virtual_number')
+            .select('id, virtual_number, avatarUrl, description')
             .eq('email', loggedUser.email)
             .single();
           if (updated) {
             loggedUser.virtual_number = updated.virtual_number;
             loggedUser.id = updated.id || '';
+            loggedUser.avatarUrl = updated.avatarUrl || loggedUser.avatarUrl;
+            loggedUser.description = updated.description || '';
           }
         }
       } catch (e) {
@@ -147,12 +154,14 @@ export default function App() {
           });
           const { data: updated } = await supabase
             .from('users')
-            .select('id, virtual_number')
+            .select('id, virtual_number, avatarUrl, description')
             .eq('email', loggedUser.email)
             .single();
           if (updated) {
             loggedUser.virtual_number = updated.virtual_number;
             loggedUser.id = updated.id || '';
+            loggedUser.avatarUrl = updated.avatarUrl || loggedUser.avatarUrl;
+            loggedUser.description = updated.description || '';
           }
         } catch (err) {}
       }
