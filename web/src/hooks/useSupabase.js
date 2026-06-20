@@ -355,22 +355,24 @@ export function useSupabase(user) {
         if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
           const updatedUser = payload.new;
           if (!updatedUser) return;
-          const contactId = updatedUser.email.split('@')[0];
+          const contactId = updatedUser.email.split('@')[0].toLowerCase();
           setContacts(prev => prev.map(c => {
             if (c.id === contactId) {
               return {
                 ...c,
                 name: updatedUser.name || c.name,
                 avatarUrl: updatedUser.avatarUrl || '',
-                description: updatedUser.description || ''
+                description: updatedUser.description || '',
+                stories: updatedUser.stories || []
               };
             }
-            if (c.id === 'me' && updatedUser.email === user.email) {
+            if (c.id === 'me' && updatedUser.email.toLowerCase() === user.email.toLowerCase()) {
               return {
                 ...c,
                 name: `${updatedUser.name} (You)`,
                 avatarUrl: updatedUser.avatarUrl || '',
-                description: updatedUser.description || ''
+                description: updatedUser.description || '',
+                stories: updatedUser.stories || []
               };
             }
             return c;
@@ -614,6 +616,41 @@ export function useSupabase(user) {
     }
   }, [getDbContactId, user]);
 
+  const postStory = useCallback(async (type, contentOrUrl, bgGradient = '') => {
+    if (!user) return;
+    
+    // Fetch the current user's profile to get existing stories
+    const { data: profile } = await supabase
+      .from('users')
+      .select('stories')
+      .eq('email', user.email.toLowerCase())
+      .single();
+      
+    const currentStories = profile?.stories || [];
+    const newStory = {
+      id: `m-${Date.now()}`,
+      type,
+      content: type === 'text' ? contentOrUrl : undefined,
+      url: type === 'video' ? contentOrUrl : undefined,
+      bgGradient: type === 'text' ? bgGradient : undefined,
+      timestamp: Date.now(),
+      views: 0
+    };
+    
+    const updatedStories = [newStory, ...currentStories];
+    
+    try {
+      await supabase
+        .from('users')
+        .update({ stories: updatedStories })
+        .eq('email', user.email.toLowerCase());
+        
+      setContacts(prev => prev.map(c => c.id === 'me' ? { ...c, stories: updatedStories } : c));
+    } catch (e) {
+      console.error("Failed to post story:", e);
+    }
+  }, [user]);
+
   // --- Derived Data ---
   const activeContact = useMemo(
     () => contacts.find(c => c.id === selectedContactId),
@@ -634,6 +671,6 @@ export function useSupabase(user) {
     setSelectedContactId,
     toggleArchive, togglePin, toggleMute, toggleFavorite,
     clearChat, deleteChat,
-    updateProfile
+    updateProfile, postStory
   };
 }

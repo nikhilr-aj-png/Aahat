@@ -201,7 +201,7 @@ export default function App() {
     setSelectedContactId,
     toggleArchive, togglePin, toggleMute, toggleFavorite,
     clearChat, deleteChat,
-    updateProfile
+    updateProfile, postStory
   } = useSupabase(user);
 
   // Handlers
@@ -564,6 +564,7 @@ export default function App() {
             user={user} 
             onSelectContact={handleSelectContact} 
             onUploadFile={uploadFile}
+            onPostStory={postStory}
           />
         )}
         {activeTab === 'settings' && (

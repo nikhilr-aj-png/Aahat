@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Camera, X, Play, Eye, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import SafeAvatar from './SafeAvatar';
 
 /**
  * StatusSection - Renders story circles and a fullscreen premium story viewer
  * with slide progress bars, text/image slide controls, and view counters.
  */
-export default function StatusSection({ contacts, user, onSelectContact, onUploadFile }) {
+export default function StatusSection({ contacts, user, onSelectContact, onUploadFile, onPostStory }) {
   const [activeStoryContact, setActiveStoryContact] = useState(null);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [myStories, setMyStories] = useState([]);
   const [showAddStoryModal, setShowAddStoryModal] = useState(false);
   const [newTextStory, setNewTextStory] = useState('');
   const [newBgGradient, setNewBgGradient] = useState('linear-gradient(135deg, #6366f1 0%, #a855f7 100%)');
@@ -19,6 +19,10 @@ export default function StatusSection({ contacts, user, onSelectContact, onUploa
   const [videoFile, setVideoFile] = useState(null);
   const [videoDuration, setVideoDuration] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+
+  const myStories = useMemo(() => {
+    return contacts.find(c => c.id === 'me')?.stories || [];
+  }, [contacts]);
 
   // Filter contacts who have stories (excluding current user)
   const contactsWithStories = useMemo(() => {
@@ -124,16 +128,9 @@ export default function StatusSection({ contacts, user, onSelectContact, onUploa
     if (storyType === 'text') {
       if (!newTextStory.trim()) return;
 
-      const newStory = {
-        id: `m-${Date.now()}`,
-        type: "text",
-        content: newTextStory,
-        bgGradient: newBgGradient,
-        timestamp: Date.now(),
-        views: 0
-      };
-
-      setMyStories(prev => [newStory, ...prev]);
+      if (onPostStory) {
+        await onPostStory('text', newTextStory, newBgGradient);
+      }
       setNewTextStory('');
       setShowAddStoryModal(false);
     } else {
@@ -145,15 +142,9 @@ export default function StatusSection({ contacts, user, onSelectContact, onUploa
       setIsUploading(true);
       try {
         const videoUrl = await onUploadFile(videoFile);
-        const newStory = {
-          id: `m-${Date.now()}`,
-          type: "video",
-          url: videoUrl,
-          timestamp: Date.now(),
-          views: 0
-        };
-
-        setMyStories(prev => [newStory, ...prev]);
+        if (onPostStory) {
+          await onPostStory('video', videoUrl);
+        }
         setVideoFile(null);
         setVideoDuration(null);
         setShowAddStoryModal(false);
@@ -185,11 +176,14 @@ export default function StatusSection({ contacts, user, onSelectContact, onUploa
 
       <div className="stories-tray">
         {/* User Story Circle */}
-        <div className="story-circle-item me" onClick={() => myStories.length > 0 && openStoryViewer({ id: 'me', name: 'My Status', avatarUrl: '' })}>
+        <div className="story-circle-item me" onClick={() => myStories.length > 0 && openStoryViewer({ id: 'me', name: 'My Status', avatarUrl: user.avatarUrl })}>
           <div className={`story-ring ${myStories.length > 0 ? 'active' : ''}`}>
-            <div className="user-story-avatar">
-              {user.name[0].toUpperCase()}
-            </div>
+            <SafeAvatar 
+              src={user.avatarUrl} 
+              name={user.name} 
+              size={50} 
+              className="user-story-avatar" 
+            />
             <button className="add-story-badge" onClick={(e) => { e.stopPropagation(); setShowAddStoryModal(true); }}>
               <Plus size={12} />
             </button>
@@ -201,7 +195,12 @@ export default function StatusSection({ contacts, user, onSelectContact, onUploa
         {contactsWithStories.map(contact => (
           <div key={contact.id} className="story-circle-item" onClick={() => openStoryViewer(contact)}>
             <div className="story-ring active">
-              <img src={contact.avatarUrl} alt={contact.name} className="story-avatar-img" />
+              <SafeAvatar 
+                src={contact.avatarUrl} 
+                name={contact.name} 
+                size={50} 
+                className="story-avatar-img" 
+              />
             </div>
             <span>{contact.name.split(' ')[0]}</span>
           </div>
@@ -224,7 +223,12 @@ export default function StatusSection({ contacts, user, onSelectContact, onUploa
                 id={`active-friend-${friend.id}`}
               >
                 <div className="avatar-wrapper">
-                  <img src={friend.avatarUrl} alt={friend.name} className="avatar-image" loading="lazy" />
+                  <SafeAvatar 
+                    src={friend.avatarUrl} 
+                    name={friend.name} 
+                    size={44} 
+                    className="avatar-image" 
+                  />
                   <div className="status-badge active" />
                 </div>
                 <span className="active-friend-name">{friend.name.split(' ')[0]}</span>
@@ -265,11 +269,12 @@ export default function StatusSection({ contacts, user, onSelectContact, onUploa
               {/* Header */}
               <div className="story-viewer-header">
                 <div className="story-viewer-user">
-                  {activeStoryContact.id === 'me' ? (
-                    <div className="story-user-avatar me">{user.name[0].toUpperCase()}</div>
-                  ) : (
-                    <img src={activeStoryContact.avatarUrl} alt="" className="story-user-avatar" />
-                  )}
+                  <SafeAvatar 
+                    src={activeStoryContact.id === 'me' ? user.avatarUrl : activeStoryContact.avatarUrl} 
+                    name={activeStoryContact.id === 'me' ? user.name : activeStoryContact.name} 
+                    size={36} 
+                    className="story-user-avatar" 
+                  />
                   <div>
                     <h4>{activeStoryContact.id === 'me' ? 'My Status' : activeStoryContact.name}</h4>
                     <span className="story-time">
