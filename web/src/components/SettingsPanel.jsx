@@ -260,7 +260,7 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
       setAvatarUrl('');
       localStorage.setItem('aahat_avatar_url', '');
       if (onUpdateProfile) {
-        await onUpdateProfile(displayName, statusMsg, '');
+        await onUpdateProfile({ display_name: displayName, bio: statusMsg, avatar_url: '' });
       }
     } catch (err) {
       console.error("Failed to remove avatar:", err);
@@ -344,7 +344,7 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
           setAvatarUrl(url);
           localStorage.setItem('aahat_avatar_url', url);
           if (onUpdateProfile) {
-            await onUpdateProfile(displayName, statusMsg, url);
+            await onUpdateProfile({ display_name: displayName, bio: statusMsg, avatar_url: url });
           }
           setShowCropModal(false);
         } catch (err) {

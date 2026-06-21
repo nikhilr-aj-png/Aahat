@@ -35,15 +35,42 @@ export function useAuth() {
       prof = await fetchProfile(authUser.id);
     }
 
+    // If profile still doesn't exist, create it manually (trigger may not have fired)
+    if (!prof) {
+      console.warn('Profile not found for user, creating manually:', authUser.id);
+      const metaName = authUser.user_metadata?.name;
+      const displayName = (typeof metaName === 'string' ? metaName : null) ||
+                          authUser.email?.split('@')[0] || 'User';
+
+      const { data: created, error: createErr } = await supabase
+        .from('profiles')
+        .upsert({
+          id: authUser.id,
+          email: authUser.email,
+          display_name: displayName,
+          username: authUser.email?.split('@')[0] || authUser.id.substring(0, 8),
+          avatar_url: authUser.user_metadata?.avatarUrl || '',
+        }, { onConflict: 'id' })
+        .select()
+        .single();
+
+      if (createErr) {
+        console.error('Error creating profile:', createErr);
+      } else {
+        prof = created;
+      }
+    }
+
     if (prof) {
       // Sync display name and avatar from auth metadata if different
       const metaName = authUser.user_metadata?.name;
       const metaAvatar = authUser.user_metadata?.avatarUrl;
-      const needsSync = (metaName && metaName !== prof.display_name) ||
+      const nameStr = typeof metaName === 'string' ? metaName : null;
+      const needsSync = (nameStr && nameStr !== prof.display_name) ||
                         (metaAvatar && metaAvatar !== prof.avatar_url);
       if (needsSync) {
         const updates = {};
-        if (metaName && metaName !== prof.display_name) updates.display_name = metaName;
+        if (nameStr && nameStr !== prof.display_name) updates.display_name = nameStr;
         if (metaAvatar && metaAvatar !== prof.avatar_url) updates.avatar_url = metaAvatar;
 
         const { data: updated } = await supabase

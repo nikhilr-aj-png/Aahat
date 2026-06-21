@@ -273,12 +273,10 @@ export default function App() {
     }
   }, [newGroupName, newGroupDesc, createGroup]);
 
-  const handleUpdateProfile = useCallback(async (displayName, bio, avatarUrl) => {
-    return updateProfile({
-      display_name: displayName,
-      bio,
-      avatar_url: avatarUrl
-    });
+  const handleUpdateProfile = useCallback(async (updates) => {
+    // SettingsPanel calls this with an object like { display_name, bio, avatar_url }
+    // or { privacy_settings: {...} } etc.
+    return updateProfile(updates);
   }, [updateProfile]);
 
   const handleLogout = useCallback(async () => {
