@@ -7,6 +7,17 @@ import {
 import SafeAvatar from './SafeAvatar';
 import { supabase } from '../supabase';
 
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+const AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
+const storagePathFromPublicUrl = (url, bucketName) => {
+  if (!url || !url.includes('/storage/v1/object/public/')) return null;
+  const [, objectPath] = url.split('/storage/v1/object/public/');
+  if (!objectPath) return null;
+  const [bucket, ...pathParts] = objectPath.split('/');
+  return bucket === bucketName ? pathParts.join('/') : null;
+};
+
 /**
  * SettingsPanel - Modular settings page inside Aahat messaging client.
  * Features profile customization, notification preferences, privacy toggles,
@@ -123,6 +134,9 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
         setPrivacyLastSeen(profile.privacy_settings.last_seen !== false);
         setPrivacyReceipts(profile.privacy_settings.read_receipts !== false);
         setStatusAudience(profile.privacy_settings.status || 'contacts');
+        setProfilePhotoAudience(profile.privacy_settings.profile_photo || 'everyone');
+        setPrivacyOnline(profile.privacy_settings.online !== false);
+        setDiscoverByAahatId(profile.privacy_settings.discover_by_aahat_id !== false);
       }
       
       if (profile.notification_settings) {
@@ -148,42 +162,48 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
     }
   };
 
+  const persistPrivacySetting = async (key, value) => {
+    if (!onUpdateProfile || !profile) return;
+    await onUpdateProfile({
+      privacy_settings: {
+        ...(profile.privacy_settings || {}),
+        [key]: value
+      }
+    });
+  };
+
   const handleTogglePrivacyLastSeen = async () => {
     const newVal = !privacyLastSeen;
     setPrivacyLastSeen(newVal);
-    if (onUpdateProfile && profile) {
-      await onUpdateProfile({
-        privacy_settings: {
-          ...(profile.privacy_settings || {}),
-          last_seen: newVal
-        }
-      });
-    }
+    await persistPrivacySetting('last_seen', newVal);
   };
 
   const handleTogglePrivacyReceipts = async () => {
     const newVal = !privacyReceipts;
     setPrivacyReceipts(newVal);
-    if (onUpdateProfile && profile) {
-      await onUpdateProfile({
-        privacy_settings: {
-          ...(profile.privacy_settings || {}),
-          read_receipts: newVal
-        }
-      });
-    }
+    await persistPrivacySetting('read_receipts', newVal);
   };
 
   const handleChangeStatusAudience = async (val) => {
     setStatusAudience(val);
-    if (onUpdateProfile && profile) {
-      await onUpdateProfile({
-        privacy_settings: {
-          ...(profile.privacy_settings || {}),
-          status: val
-        }
-      });
-    }
+    await persistPrivacySetting('status', val);
+  };
+
+  const handleChangeProfilePhotoAudience = async (val) => {
+    setProfilePhotoAudience(val);
+    await persistPrivacySetting('profile_photo', val);
+  };
+
+  const handleTogglePrivacyOnline = async () => {
+    const newVal = !privacyOnline;
+    setPrivacyOnline(newVal);
+    await persistPrivacySetting('online', newVal);
+  };
+
+  const handleToggleDiscoverByAahatId = async () => {
+    const newVal = !discoverByAahatId;
+    setDiscoverByAahatId(newVal);
+    await persistPrivacySetting('discover_by_aahat_id', newVal);
   };
 
   const handleToggleNotifSound = async () => {
@@ -215,8 +235,12 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
   const handleAvatarChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 1024 * 1024) {
-      alert("Image size must be less than 1MB.");
+    if (!AVATAR_TYPES.has(file.type)) {
+      alert('Please choose a JPG, PNG, WEBP, or GIF image.');
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      alert('Image size must be less than 2MB.');
       return;
     }
     setSelectedFile(file);
@@ -238,31 +262,24 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
   const handleRemoveAvatar = async () => {
     if (!confirm("Are you sure you want to remove your profile picture?")) return;
     setIsUploadingAvatar(true);
-    
-    // Delete from Supabase Storage
-    if (avatarUrl && avatarUrl.includes('supabase.co/storage/v1/object/public/')) {
+
+    const oldPath = storagePathFromPublicUrl(avatarUrl, 'avatars');
+    if (oldPath) {
       try {
-        const parts = avatarUrl.split('/storage/v1/object/public/');
-        if (parts.length > 1) {
-          const pathParts = parts[1].split('/');
-          const bucket = pathParts[0];
-          const filePath = pathParts.slice(1).join('/');
-          await supabase.storage.from(bucket).remove([filePath]);
-        }
+        await supabase.storage.from('avatars').remove([oldPath]);
       } catch (err) {
-        console.warn("Failed to remove avatar from storage:", err);
+        console.warn('Failed to remove avatar from storage:', err);
       }
     }
 
-    // Clear state, localStorage, and update profile
     try {
       setAvatarUrl('');
-      localStorage.setItem('aahat_avatar_url', '');
       if (onUpdateProfile) {
         await onUpdateProfile({ display_name: displayName, bio: statusMsg, avatar_url: '' });
       }
     } catch (err) {
-      console.error("Failed to remove avatar:", err);
+      console.error('Failed to remove avatar:', err);
+      alert('Could not remove profile photo. Please try again.');
     } finally {
       setIsUploadingAvatar(false);
     }
@@ -339,11 +356,23 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
         }
         const croppedFile = new File([blob], selectedFile.name, { type: 'image/png' });
         try {
-          const url = await onUploadFile(croppedFile, avatarUrl);
-          setAvatarUrl(url);
-          localStorage.setItem('aahat_avatar_url', url);
+          const oldPath = storagePathFromPublicUrl(avatarUrl, 'avatars');
+          const filePath = `${user.id}/avatar-${Date.now()}.png`;
+          const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(filePath, croppedFile, { contentType: 'image/png', upsert: false });
+          if (uploadError) throw uploadError;
+
+          if (oldPath) {
+            await supabase.storage.from('avatars').remove([oldPath]).catch(err => {
+              console.warn('Failed to remove old avatar:', err);
+            });
+          }
+
+          const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
+          setAvatarUrl(publicUrl);
           if (onUpdateProfile) {
-            await onUpdateProfile({ display_name: displayName, bio: statusMsg, avatar_url: url });
+            await onUpdateProfile({ display_name: displayName, bio: statusMsg, avatar_url: publicUrl });
           }
           setShowCropModal(false);
         } catch (err) {
@@ -612,6 +641,37 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
                 <option value="contacts">My Contacts Only</option>
                 <option value="private">Private (Only selected users)</option>
               </select>
+            </div>
+
+            <div className="form-group" style={{ marginTop: '10px' }}>
+              <label>Profile Photo Visibility</label>
+              <select value={profilePhotoAudience} onChange={e => handleChangeProfilePhotoAudience(e.target.value)}>
+                <option value="everyone">Everyone</option>
+                <option value="contacts">My Contacts Only</option>
+                <option value="nobody">Nobody</option>
+              </select>
+            </div>
+
+            <div className="setting-toggle-row">
+              <div>
+                <h4>Show Online Status</h4>
+                <p>Allow allowed contacts to see when you are online.</p>
+              </div>
+              <label className="switch">
+                <input type="checkbox" checked={privacyOnline} onChange={handleTogglePrivacyOnline} />
+                <span className="slider" />
+              </label>
+            </div>
+
+            <div className="setting-toggle-row">
+              <div>
+                <h4>Discoverable by Aahat ID</h4>
+                <p>Allow people to find your basic profile with your 10-digit Aahat ID.</p>
+              </div>
+              <label className="switch">
+                <input type="checkbox" checked={discoverByAahatId} onChange={handleToggleDiscoverByAahatId} />
+                <span className="slider" />
+              </label>
             </div>
           </div>
         )}
@@ -1102,4 +1162,3 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
     </div>
   );
 }
-

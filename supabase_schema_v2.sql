@@ -1209,3 +1209,214 @@ DROP TRIGGER IF EXISTS trg_user_contacts_updated ON user_contacts;
 CREATE TRIGGER trg_user_contacts_updated BEFORE UPDATE ON user_contacts FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 DROP TRIGGER IF EXISTS trg_reports_updated ON reports;
 CREATE TRIGGER trg_reports_updated BEFORE UPDATE ON reports FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+
+-- =====================================================
+
+-- =====================================================
+-- AAHAT V2.2 PROFILE PRIVACY AND CONTACT DISCOVERY
+-- Stable 10-digit Aahat IDs, privacy-safe discovery,
+-- contact requests, settings, push tokens, storage audit.
+-- =====================================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'profiles_virtual_number_10_digits'
+  ) THEN
+    ALTER TABLE profiles
+      ADD CONSTRAINT profiles_virtual_number_10_digits
+      CHECK (virtual_number IS NULL OR virtual_number ~ '^\d{10}$');
+  END IF;
+END $$;
+
+ALTER TABLE profiles
+  ALTER COLUMN privacy_settings SET DEFAULT '{"last_seen": true, "online": true, "read_receipts": true, "profile_photo": "everyone", "status": "contacts", "discover_by_aahat_id": true}'::jsonb;
+
+UPDATE profiles
+SET privacy_settings = '{"last_seen": true, "online": true, "read_receipts": true, "profile_photo": "everyone", "status": "contacts", "discover_by_aahat_id": true}'::jsonb || COALESCE(privacy_settings, '{}'::jsonb)
+WHERE privacy_settings IS NULL
+   OR NOT (privacy_settings ? 'discover_by_aahat_id')
+   OR NOT (privacy_settings ? 'profile_photo')
+   OR NOT (privacy_settings ? 'online');
+
+CREATE OR REPLACE FUNCTION generate_virtual_number()
+RETURNS TRIGGER AS $$
+DECLARE
+    candidate TEXT;
+BEGIN
+    IF NEW.virtual_number IS NULL OR NEW.virtual_number = '' THEN
+        LOOP
+            candidate := lpad(floor(random() * 10000000000)::text, 10, '0');
+            EXIT WHEN NOT EXISTS (SELECT 1 FROM profiles WHERE virtual_number = candidate);
+        END LOOP;
+        NEW.virtual_number := candidate;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TABLE IF NOT EXISTS contact_requests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    requester_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    recipient_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'cancelled')),
+    message TEXT DEFAULT '',
+    responded_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    UNIQUE(requester_id, recipient_id)
+);
+
+CREATE TABLE IF NOT EXISTS privacy_settings (
+    user_id UUID PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+    profile_photo TEXT DEFAULT 'everyone' CHECK (profile_photo IN ('everyone', 'contacts', 'nobody')),
+    last_seen BOOLEAN DEFAULT true,
+    online BOOLEAN DEFAULT true,
+    read_receipts BOOLEAN DEFAULT true,
+    status_visibility TEXT DEFAULT 'contacts' CHECK (status_visibility IN ('everyone', 'contacts', 'private')),
+    discover_by_aahat_id BOOLEAN DEFAULT true,
+    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS push_tokens (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    device_id UUID REFERENCES user_devices(id) ON DELETE SET NULL,
+    token TEXT NOT NULL,
+    provider TEXT DEFAULT 'fcm' CHECK (provider IN ('fcm', 'apns', 'webpush')),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    UNIQUE(user_id, token)
+);
+
+CREATE TABLE IF NOT EXISTS profile_audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    changed_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    change_type TEXT NOT NULL,
+    old_values JSONB DEFAULT '{}'::jsonb,
+    new_values JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS storage_files (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    bucket_id TEXT NOT NULL,
+    object_path TEXT NOT NULL,
+    public_url TEXT,
+    mime_type TEXT,
+    file_size BIGINT CHECK (file_size IS NULL OR file_size >= 0),
+    entity_type TEXT,
+    entity_id UUID,
+    deleted_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    UNIQUE(bucket_id, object_path)
+);
+
+CREATE TABLE IF NOT EXISTS call_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    call_id UUID REFERENCES calls(id) ON DELETE SET NULL,
+    conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL,
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    peer_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    call_type TEXT CHECK (call_type IN ('voice', 'video')),
+    direction TEXT CHECK (direction IN ('incoming', 'outgoing')),
+    status TEXT CHECK (status IN ('ringing', 'active', 'ended', 'missed', 'rejected', 'busy', 'failed')),
+    duration_seconds INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_contact_requests_recipient ON contact_requests(recipient_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_contact_requests_requester ON contact_requests(requester_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id, is_active, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_profile_audit_user ON profile_audit_logs(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_storage_files_owner ON storage_files(owner_id, bucket_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_call_logs_user ON call_logs(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_contacts_contact ON user_contacts(contact_id, status, created_at DESC);
+
+ALTER TABLE contact_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE privacy_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profile_audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE storage_files ENABLE ROW LEVEL SECURITY;
+ALTER TABLE call_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "contact_requests_participants" ON contact_requests;
+CREATE POLICY "contact_requests_participants" ON contact_requests FOR ALL TO authenticated
+  USING (requester_id = auth.uid() OR recipient_id = auth.uid() OR public.is_super_admin())
+  WITH CHECK (requester_id = auth.uid() OR public.is_super_admin());
+
+DROP POLICY IF EXISTS "privacy_settings_own" ON privacy_settings;
+CREATE POLICY "privacy_settings_own" ON privacy_settings FOR ALL TO authenticated
+  USING (user_id = auth.uid() OR public.is_super_admin())
+  WITH CHECK (user_id = auth.uid() OR public.is_super_admin());
+
+DROP POLICY IF EXISTS "push_tokens_own" ON push_tokens;
+CREATE POLICY "push_tokens_own" ON push_tokens FOR ALL TO authenticated
+  USING (user_id = auth.uid() OR public.is_super_admin())
+  WITH CHECK (user_id = auth.uid() OR public.is_super_admin());
+
+DROP POLICY IF EXISTS "profile_audit_own_or_admin" ON profile_audit_logs;
+CREATE POLICY "profile_audit_own_or_admin" ON profile_audit_logs FOR SELECT TO authenticated
+  USING (user_id = auth.uid() OR public.is_super_admin());
+
+DROP POLICY IF EXISTS "profile_audit_insert_own" ON profile_audit_logs;
+CREATE POLICY "profile_audit_insert_own" ON profile_audit_logs FOR INSERT TO authenticated
+  WITH CHECK (changed_by = auth.uid() OR public.is_super_admin());
+
+DROP POLICY IF EXISTS "storage_files_own_or_admin" ON storage_files;
+CREATE POLICY "storage_files_own_or_admin" ON storage_files FOR ALL TO authenticated
+  USING (owner_id = auth.uid() OR public.is_super_admin())
+  WITH CHECK (owner_id = auth.uid() OR public.is_super_admin());
+
+DROP POLICY IF EXISTS "call_logs_own_or_admin" ON call_logs;
+CREATE POLICY "call_logs_own_or_admin" ON call_logs FOR SELECT TO authenticated
+  USING (user_id = auth.uid() OR public.is_super_admin());
+
+CREATE OR REPLACE FUNCTION public.search_profile_by_aahat_id(p_aahat_id TEXT)
+RETURNS TABLE (
+    id UUID,
+    virtual_number TEXT,
+    display_name TEXT,
+    avatar_url TEXT,
+    bio TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    p.id,
+    p.virtual_number,
+    p.display_name,
+    CASE
+      WHEN COALESCE(p.privacy_settings->>'profile_photo', 'everyone') = 'everyone'
+        OR EXISTS (
+          SELECT 1 FROM user_contacts uc
+          WHERE uc.owner_id = p.id
+            AND uc.contact_id = auth.uid()
+            AND uc.status = 'accepted'
+        )
+      THEN p.avatar_url
+      ELSE ''
+    END AS avatar_url,
+    p.bio
+  FROM profiles p
+  WHERE p.virtual_number = p_aahat_id
+    AND p.id <> auth.uid()
+    AND COALESCE((p.privacy_settings->>'discover_by_aahat_id')::boolean, true) = true
+  LIMIT 1;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.search_profile_by_aahat_id(TEXT) TO authenticated;
+
+DROP TRIGGER IF EXISTS trg_contact_requests_updated ON contact_requests;
+CREATE TRIGGER trg_contact_requests_updated BEFORE UPDATE ON contact_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+DROP TRIGGER IF EXISTS trg_privacy_settings_updated ON privacy_settings;
+CREATE TRIGGER trg_privacy_settings_updated BEFORE UPDATE ON privacy_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+DROP TRIGGER IF EXISTS trg_push_tokens_updated ON push_tokens;
+CREATE TRIGGER trg_push_tokens_updated BEFORE UPDATE ON push_tokens FOR EACH ROW EXECUTE FUNCTION update_updated_at();

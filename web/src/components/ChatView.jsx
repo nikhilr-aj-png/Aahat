@@ -434,14 +434,18 @@ export default function ChatView({
                       if (!newMemberAahatId.trim() || isAddingMember) return;
                       setIsAddingMember(true);
                       try {
-                        const { data: profileToQuery, error } = await supabase
-                          .from('profiles')
-                          .select('id, display_name')
-                          .eq('virtual_number', newMemberAahatId.trim())
-                          .single();
+                        const normalizedAahatId = newMemberAahatId.trim();
+                        if (!/^\d{10}$/.test(normalizedAahatId)) {
+                          alert('Enter a valid 10-digit Aahat ID.');
+                          return;
+                        }
+
+                        const { data: matches, error } = await supabase
+                          .rpc('search_profile_by_aahat_id', { p_aahat_id: normalizedAahatId });
+                        const profileToQuery = Array.isArray(matches) ? matches[0] : null;
                         
                         if (error || !profileToQuery) {
-                          alert(`No user found with Aahat ID: ${newMemberAahatId}`);
+                          alert(`No user found with Aahat ID: ${normalizedAahatId}`);
                         } else {
                           const isAlreadyMember = groupMembers.some(m => m.id === profileToQuery.id);
                           if (isAlreadyMember) {

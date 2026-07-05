@@ -181,7 +181,7 @@ export default function Sidebar({
         <div className="sidebar-header">
           <div className="sidebar-brand">
             <img src="/logo.png" alt="Aahat" className="sidebar-logo" />
-            <span className="brand-text">Aahat <span className="brand-hindi">à¤†à¤¹à¤Ÿ</span></span>
+            <span className="brand-text">Aahat <span className="brand-hindi">{'\u0906\u0939\u091F'}</span></span>
           </div>
 
           {/* Profile Card */}
@@ -300,4 +300,3 @@ export default function Sidebar({
     </div>
   );
 }
-

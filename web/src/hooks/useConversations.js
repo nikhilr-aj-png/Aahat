@@ -334,22 +334,46 @@ export function useConversations(user) {
   const startDirectChatByVirtualNumber = useCallback(async (virtualNumber) => {
     if (!user) throw new Error('Not authenticated');
 
-    // Find user by virtual number
-    const { data: targetUser, error: findErr } = await supabase
-      .from('profiles')
-      .select('id, virtual_number')
-      .eq('virtual_number', virtualNumber)
-      .single();
+    const normalizedId = (virtualNumber || '').trim();
+    if (!/^\d{10}$/.test(normalizedId)) {
+      throw new Error('Enter a valid 10-digit Aahat ID.');
+    }
 
-    if (findErr || !targetUser) {
-      throw new Error(`No user found with Aahat ID: ${virtualNumber}`);
+    let targetUser = null;
+    const { data: rpcRows, error: rpcErr } = await supabase
+      .rpc('search_profile_by_aahat_id', { p_aahat_id: normalizedId });
+
+    if (!rpcErr && Array.isArray(rpcRows) && rpcRows.length > 0) {
+      targetUser = rpcRows[0];
+    } else {
+      const { data: fallbackUser, error: findErr } = await supabase
+        .from('profiles')
+        .select('id, virtual_number')
+        .eq('virtual_number', normalizedId)
+        .maybeSingle();
+
+      if (!findErr && fallbackUser) targetUser = fallbackUser;
+    }
+
+    if (!targetUser) {
+      throw new Error('No user found with this Aahat ID, or their privacy settings prevent discovery.');
     }
 
     if (targetUser.id === user.id) {
       throw new Error("You cannot start a chat with yourself using your own Aahat ID.");
     }
 
-    return startDirectChat(targetUser.id);
+    const convId = await startDirectChat(targetUser.id);
+
+    await supabase.from('user_contacts').upsert({
+      owner_id: user.id,
+      contact_id: targetUser.id,
+      status: 'accepted'
+    }, { onConflict: 'owner_id,contact_id' }).catch(err => {
+      console.warn('Could not save contact after Aahat ID lookup:', err);
+    });
+
+    return convId;
   }, [user, startDirectChat]);
 
   const createGroup = useCallback(async (name, description = '', avatarUrl = '', memberIds = []) => {

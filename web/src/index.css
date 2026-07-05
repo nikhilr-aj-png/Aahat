@@ -1,9 +1,9 @@
 /* ============================================================
-   Aahat (आहट) — Production Design System
+   Aahat (???) — Production Design System
    Premium dark glassmorphic messaging interface
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Devanagari:wght@500;600;700&display=swap');
 
 /* === Design Tokens === */
 :root {
@@ -464,18 +464,24 @@ body {
 }
 
 .brand-text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
   font-size: 17px;
   font-weight: 800;
   background: var(--accent-gradient);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 
 .brand-hindi {
-  font-weight: 600;
-  font-size: 14px;
+  font-family: 'Noto Sans Devanagari', 'Inter', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 0;
 }
 
 /* Profile Card */

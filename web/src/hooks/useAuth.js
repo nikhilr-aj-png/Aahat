@@ -62,20 +62,13 @@ export function useAuth() {
     }
 
     if (prof) {
-      // Sync display name and avatar from auth metadata if different
+      // Sync only display name from auth metadata. Avatar URL in profiles is the database source of truth.
       const metaName = authUser.user_metadata?.name;
-      const metaAvatar = authUser.user_metadata?.avatarUrl;
       const nameStr = typeof metaName === 'string' ? metaName : null;
-      const needsSync = (nameStr && nameStr !== prof.display_name) ||
-                        (metaAvatar && metaAvatar !== prof.avatar_url);
-      if (needsSync) {
-        const updates = {};
-        if (nameStr && nameStr !== prof.display_name) updates.display_name = nameStr;
-        if (metaAvatar && metaAvatar !== prof.avatar_url) updates.avatar_url = metaAvatar;
-
+      if (nameStr && nameStr !== prof.display_name) {
         const { data: updated } = await supabase
           .from('profiles')
-          .update(updates)
+          .update({ display_name: nameStr })
           .eq('id', authUser.id)
           .select()
           .single();
@@ -123,6 +116,27 @@ export function useAuth() {
 
     return () => subscription.unsubscribe();
   }, [handleSession]);
+
+  // Keep this device synced when the same account updates profile/settings elsewhere.
+  useEffect(() => {
+    if (!user?.id) return undefined;
+
+    const channel = supabase
+      .channel(`profile-sync-${user.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles',
+        filter: `id=eq.${user.id}`
+      }, (payload) => {
+        if (payload.new) setProfile(payload.new);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   // Set offline on page unload
   useEffect(() => {
@@ -197,16 +211,20 @@ export function useAuth() {
     // Update auth metadata
     const authUpdates = {};
     if (updates.display_name) authUpdates.name = updates.display_name;
-    if (updates.avatar_url !== undefined) authUpdates.avatarUrl = updates.avatar_url;
 
     if (Object.keys(authUpdates).length > 0) {
       await supabase.auth.updateUser({ data: authUpdates });
     }
 
+    const nextUpdates = { ...updates };
+    delete nextUpdates.email;
+    delete nextUpdates.virtual_number;
+    delete nextUpdates.role;
+
     // Update profiles table
     const { data, error } = await supabase
       .from('profiles')
-      .update(updates)
+      .update(nextUpdates)
       .eq('id', user.id)
       .select()
       .single();
