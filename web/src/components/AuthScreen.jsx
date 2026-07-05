@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { Mail, User, Lock, Sparkles, ArrowLeft, Shield } from 'lucide-react';
+﻿import { useState } from 'react';
+import { Mail, User, Lock, ArrowLeft, Shield } from 'lucide-react';
 import { supabase } from '../supabase';
 
 /**
- * AuthScreen — Handles login, registration, and OTP verification (V2).
- * No longer takes onLogin prop — the useAuth hook's onAuthStateChange
+ * AuthScreen â€” Handles login, registration, and OTP verification (V2).
+ * No longer takes onLogin prop â€” the useAuth hook's onAuthStateChange
  * listener automatically detects session changes and sets the user.
  */
 export default function AuthScreen() {
@@ -168,7 +168,7 @@ export default function AuthScreen() {
               <input
                 id="register-password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 autoComplete="new-password"
@@ -222,7 +222,7 @@ export default function AuthScreen() {
             <input
               id="login-password"
               type="password"
-              placeholder="••••••••"
+              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
               value={password}
               onChange={e => setPassword(e.target.value)}
               autoComplete="current-password"
@@ -242,3 +242,4 @@ export default function AuthScreen() {
     </div>
   );
 }
+

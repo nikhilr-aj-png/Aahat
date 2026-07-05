@@ -1,22 +1,21 @@
-import React, { useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { 
-  Search, LogOut, RefreshCw, MessageSquare, Settings, 
-  Pin, VolumeX, Star, Archive, Shield, Plus, CircleDot, Users 
+  Search, RefreshCw, MessageSquare,
+  Pin, VolumeX, Star, Archive, Plus, Users
 } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 
 /**
- * Sidebar — Chat conversations list with search, filters, and quick actions.
+ * Sidebar â€” Chat conversations list with search, filters, and quick actions.
  * Updated for V2 normalized conversation model.
  */
 export default function Sidebar({
   user, profile, conversations,
   selectedConversationId,
-  onSelectConversation, onLogout,
-  isMobileOpen, onCloseMobile,
-  activeTab, setActiveTab,
+  onSelectConversation,
+  isMobileOpen,
   toggleArchive, togglePin, toggleMute, toggleFavorite,
-  onNewChat, onNewGroup,
+  onNewChat,
   isUserOnline, isLoading
 }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -73,24 +72,6 @@ export default function Sidebar({
     setContextMenuId(contextMenuId === convId ? null : convId);
   };
 
-  // Helper: Format "last active" text
-  const getActiveText = (conv) => {
-    if (conv.type === 'self') return 'Message yourself';
-    if (conv.type === 'group') return `${conv.memberCount || 0} members`;
-    if (conv.otherMemberId && isUserOnline?.(conv.otherMemberId)) return 'Online';
-    if (conv.lastSeen) {
-      const d = new Date(conv.lastSeen);
-      const now = new Date();
-      const diffMs = now - d;
-      const diffMins = Math.floor(diffMs / 60000);
-      if (diffMins < 1) return 'Just now';
-      if (diffMins < 60) return `${diffMins}m ago`;
-      const diffHrs = Math.floor(diffMins / 60);
-      if (diffHrs < 24) return `${diffHrs}h ago`;
-      return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    }
-    return 'Offline';
-  };
 
   const renderConversationItem = (conv) => {
     const isSelected = conv.id === selectedConversationId;
@@ -185,7 +166,7 @@ export default function Sidebar({
   };
 
   // Close context menu when clicking outside
-  React.useEffect(() => {
+  useEffect(() => {
     if (contextMenuId) {
       const handleClick = () => setContextMenuId(null);
       document.addEventListener('click', handleClick);
@@ -200,7 +181,7 @@ export default function Sidebar({
         <div className="sidebar-header">
           <div className="sidebar-brand">
             <img src="/logo.png" alt="Aahat" className="sidebar-logo" />
-            <span className="brand-text">Aahat <span className="brand-hindi">आहट</span></span>
+            <span className="brand-text">Aahat <span className="brand-hindi">à¤†à¤¹à¤Ÿ</span></span>
           </div>
 
           {/* Profile Card */}
@@ -319,3 +300,4 @@ export default function Sidebar({
     </div>
   );
 }
+

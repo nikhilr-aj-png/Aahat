@@ -1,27 +1,26 @@
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
+﻿try {
+  importScripts('/firebase-config.js');
+} catch (error) {
+  console.warn('Firebase service worker config not found. Background notifications disabled.', error);
+}
 
-firebase.initializeApp({
-  apiKey: "AIza" + "Sy" + "DpFIzMghS94ujM7tiMgymw7SfPJe1icT8",
-  authDomain: "aahat-e1351.firebaseapp.com",
-  projectId: "aahat-e1351",
-  storageBucket: "aahat-e1351.firebasestorage.app",
-  messagingSenderId: "993575117808",
-  appId: "1:993575117808:web:3e4d7fd6a0395c5f83b335",
-  measurementId: "G-YLPP2VGNJZ"
-});
+if (self.FIREBASE_CONFIG) {
+  importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
-const messaging = firebase.messaging();
+  firebase.initializeApp(self.FIREBASE_CONFIG);
 
-messaging.onBackgroundMessage((payload) => {
-  console.log('Received background message ', payload);
-  const notificationTitle = payload.notification.title || "Aahat Message";
-  const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/logo.png',
-    badge: '/badge.png',
-    data: payload.data
-  };
+  const messaging = firebase.messaging();
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
-});
+  messaging.onBackgroundMessage((payload) => {
+    const notificationTitle = payload.notification?.title || 'Aahat Message';
+    const notificationOptions = {
+      body: payload.notification?.body || 'You have a new message.',
+      icon: '/logo.png',
+      badge: '/logo.png',
+      data: payload.data || {}
+    };
+
+    self.registration.showNotification(notificationTitle, notificationOptions);
+  });
+}

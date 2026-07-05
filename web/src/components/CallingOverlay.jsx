@@ -1,9 +1,9 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume2, VolumeX, Monitor, X } from 'lucide-react';
+﻿import { useRef, useEffect } from 'react';
+import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume2, VolumeX, Monitor } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 
 /**
- * CallingOverlay — Full-screen overlay for voice/video calls (V2).
+ * CallingOverlay â€” Full-screen overlay for voice/video calls (V2).
  * Supports real WebRTC streams, call controls, screen sharing, and incoming call UI.
  */
 export default function CallingOverlay({
@@ -313,3 +313,4 @@ export default function CallingOverlay({
     </div>
   );
 }
+

@@ -1,199 +1,292 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Users, UserCheck, MessageSquare, Plus, Activity, 
-  Trash2, Radio, Shield, Search, X, AlertTriangle,
-  LogOut, ChevronRight, Menu
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Activity,
+  AlertTriangle,
+  ChevronRight,
+  LogOut,
+  Menu,
+  MessageSquare,
+  RefreshCw,
+  Search,
+  Shield,
+  Trash2,
+  UserCheck,
+  Users
 } from 'lucide-react';
-import { supabase } from './supabase';
+import { isSupabaseConfigured, supabase } from './supabase';
 
-/**
- * Admin Panel — Dashboard for managing contacts, users, and audit logs.
- * Includes simple password-protected gate, responsive layout, and confirmation dialogs.
- */
 export default function App() {
-  // Admin auth gate
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
+  const [sessionUser, setSessionUser] = useState(null);
+  const [adminProfile, setAdminProfile] = useState(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState('overview');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-
-  // DB States
-  const [contacts, setContacts] = useState([]);
+  const [profiles, setProfiles] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [members, setMembers] = useState([]);
   const [messages, setMessages] = useState([]);
-  const [users, setUsers] = useState([]);
-
-  // UI states
-  const [selectedAuditContactId, setSelectedAuditContactId] = useState(null);
-  const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [searchFilter, setSearchFilter] = useState('');
-
-  // Form fields
-  const [newContactId, setNewContactId] = useState('');
-  const [newContactName, setNewContactName] = useState('');
-  const [newContactAvatar, setNewContactAvatar] = useState('');
+  const [isDataLoading, setIsDataLoading] = useState(false);
 
   const messagesEndRef = useRef(null);
 
-  // Admin auth check
-  const handleAdminLogin = (e) => {
-    e.preventDefault();
-    // Simple admin password check
-    if (adminPassword === 'admin123' || adminPassword === 'aahat-admin') {
-      setIsAuthenticated(true);
-      setAuthError('');
-    } else {
-      setAuthError('Invalid admin password. Try: admin123');
+  const verifyAdmin = useCallback(async (user) => {
+    if (!user) {
+      setSessionUser(null);
+      setAdminProfile(null);
+      setIsAuthLoading(false);
+      return false;
     }
-  };
 
-  // Fetch data
-  const fetchData = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, email, display_name, role')
+      .eq('id', user.id)
+      .single();
+
+    if (error || data?.role !== 'super_admin') {
+      await supabase.auth.signOut();
+      setSessionUser(null);
+      setAdminProfile(null);
+      setAuthError('This account does not have super admin access.');
+      setIsAuthLoading(false);
+      return false;
+    }
+
+    setSessionUser(user);
+    setAdminProfile(data);
+    setAuthError('');
+    setIsAuthLoading(false);
+    return true;
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    if (!sessionUser) return;
+    setIsDataLoading(true);
     try {
-      const { data: dbContacts } = await supabase.from('contacts').select('*');
-      const { data: dbMessages } = await supabase.from('messages').select('*');
-      const { data: dbUsers } = await supabase.from('users').select('*');
-      if (dbContacts) setContacts(dbContacts);
-      if (dbMessages) setMessages(dbMessages);
-      if (dbUsers) setUsers(dbUsers);
-    } catch (e) {
-      console.error("Data fetch error:", e);
+      const [profilesRes, conversationsRes, membersRes, messagesRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, email, display_name, avatar_url, is_online, last_seen, role, virtual_number, created_at')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('conversations')
+          .select('id, type, name, description, created_by, created_at, updated_at')
+          .order('updated_at', { ascending: false }),
+        supabase
+          .from('conversation_members')
+          .select('id, conversation_id, user_id, role, joined_at'),
+        supabase
+          .from('messages')
+          .select('id, conversation_id, sender_id, content, message_type, attachment_url, created_at, is_deleted_for_everyone, sender:profiles!messages_sender_id_fkey(display_name)')
+          .eq('is_deleted_for_everyone', false)
+          .order('created_at', { ascending: false })
+          .limit(500)
+      ]);
+
+      if (profilesRes.error) throw profilesRes.error;
+      if (conversationsRes.error) throw conversationsRes.error;
+      if (membersRes.error) throw membersRes.error;
+      if (messagesRes.error) throw messagesRes.error;
+
+      setProfiles(profilesRes.data || []);
+      setConversations(conversationsRes.data || []);
+      setMembers(membersRes.data || []);
+      setMessages(messagesRes.data || []);
+    } catch (error) {
+      console.error('Admin data fetch error:', error);
+      setAuthError(error.message || 'Unable to load admin data. Check RLS admin policies.');
+    } finally {
+      setIsDataLoading(false);
     }
-  };
+  }, [sessionUser]);
 
   useEffect(() => {
-    if (isAuthenticated) fetchData();
-  }, [isAuthenticated]);
+    supabase.auth.getSession().then(({ data }) => verifyAdmin(data.session?.user || null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      verifyAdmin(session?.user || null);
+    });
+    return () => subscription.unsubscribe();
+  }, [verifyAdmin]);
 
-  // Real-time sync
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (sessionUser) fetchData();
+  }, [sessionUser, fetchData]);
+
+  useEffect(() => {
+    if (!sessionUser) return;
     const channel = supabase
-      .channel('admin-dashboard-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => fetchData())
+      .channel('admin-v2-dashboard-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversation_members' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, fetchData)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [isAuthenticated]);
+  }, [sessionUser, fetchData]);
 
-  // Scroll audit messages to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [selectedAuditContactId, messages]);
+  }, [selectedConversationId, messages]);
 
-  // Handlers
-  const handleToggleContactActive = async (contactId, currentStatus) => {
-    const updatedStatus = !currentStatus;
-    setContacts(prev => prev.map(c => c.id === contactId ? { ...c, isActive: updatedStatus, lastActiveText: updatedStatus ? "Active now" : "Offline" } : c));
-    try {
-      await supabase.from('contacts').update({ isActive: updatedStatus, lastActiveText: updatedStatus ? "Active now" : "Offline" }).eq('id', contactId);
-    } catch (e) { console.error(e); }
+  const handleAdminLogin = async (event) => {
+    event.preventDefault();
+    setAuthError('');
+    setIsAuthLoading(true);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setAuthError(error.message);
+      setIsAuthLoading(false);
+      return;
+    }
+    await verifyAdmin(data.user);
   };
 
-  const handleAddContactSubmit = async (e) => {
-    e.preventDefault();
-    if (!newContactId || !newContactName) return;
-    const newContact = {
-      id: newContactId.toLowerCase().replace(/\s+/g, '-'),
-      name: newContactName,
-      avatarUrl: newContactAvatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150",
-      isActive: true, lastActiveText: "Active now",
-      isRecent: false, recentMessageText: "", recentMessageTime: "", recentMessageIsUnread: false
-    };
-    try {
-      await supabase.from('contacts').insert([newContact]);
-      fetchData();
-      setShowAddContactModal(false);
-      setNewContactId(''); setNewContactName(''); setNewContactAvatar('');
-    } catch (e) { console.error(e); }
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setSessionUser(null);
+    setAdminProfile(null);
+    setProfiles([]);
+    setConversations([]);
+    setMembers([]);
+    setMessages([]);
   };
 
-  const handleDeleteContact = async (contactId) => {
-    setConfirmDialog({
-      title: 'Delete Contact',
-      message: `Are you sure you want to delete the contact "${contacts.find(c => c.id === contactId)?.name}"? This will also delete all their messages.`,
-      onConfirm: async () => {
-        try {
-          await supabase.from('messages').delete().eq('contactId', contactId);
-          await supabase.from('contacts').delete().eq('id', contactId);
-          fetchData();
-        } catch (e) { console.error(e); }
-        setConfirmDialog(null);
-      },
-      onCancel: () => setConfirmDialog(null)
-    });
-  };
-
-  const handleDeleteMessage = async (msgId) => {
+  const handleDeleteMessage = (messageId) => {
     setConfirmDialog({
       title: 'Delete Message',
-      message: 'Are you sure you want to permanently delete this message?',
+      message: 'Delete this message for everyone? This is a moderation action.',
       onConfirm: async () => {
-        try { await supabase.from('messages').delete().eq('id', msgId); }
-        catch (e) { console.error(e); }
-        setMessages(prev => prev.filter(m => m.id !== msgId));
+        try {
+          const { error } = await supabase
+            .from('messages')
+            .update({ is_deleted_for_everyone: true, content: 'This message was deleted by an admin' })
+            .eq('id', messageId);
+          if (error) throw error;
+          setMessages(prev => prev.filter(message => message.id !== messageId));
+        } catch (error) {
+          setAuthError(error.message || 'Unable to delete message.');
+        }
         setConfirmDialog(null);
       },
       onCancel: () => setConfirmDialog(null)
     });
   };
 
-  // Computations
-  const activeFriendsCount = contacts.filter(c => c.isActive).length;
-  const auditMessages = messages
-    .filter(m => m.contactId === selectedAuditContactId)
-    .sort((a, b) => a.timestamp - b.timestamp);
+  const profileMap = useMemo(() => {
+    const map = new Map();
+    profiles.forEach(profile => map.set(profile.id, profile));
+    return map;
+  }, [profiles]);
 
-  const filteredContacts = contacts.filter(c =>
-    c.name.toLowerCase().includes(searchFilter.toLowerCase()) ||
-    c.id.toLowerCase().includes(searchFilter.toLowerCase())
+  const filteredProfiles = useMemo(() => {
+    const query = searchFilter.toLowerCase();
+    return profiles.filter(profile =>
+      (profile.display_name || '').toLowerCase().includes(query) ||
+      (profile.email || '').toLowerCase().includes(query) ||
+      (profile.virtual_number || '').toLowerCase().includes(query)
+    );
+  }, [profiles, searchFilter]);
+
+  const conversationRows = useMemo(() => {
+    const query = searchFilter.toLowerCase();
+    return conversations
+      .map(conversation => {
+        const conversationMembers = members.filter(member => member.conversation_id === conversation.id);
+        const lastMessage = messages.find(message => message.conversation_id === conversation.id);
+        const fallbackName = conversationMembers
+          .map(member => profileMap.get(member.user_id)?.display_name || 'Unknown')
+          .join(', ');
+        const name = conversation.name || fallbackName || conversation.type;
+        return {
+          ...conversation,
+          name,
+          memberCount: conversationMembers.length,
+          messageCount: messages.filter(message => message.conversation_id === conversation.id).length,
+          lastMessage
+        };
+      })
+      .filter(conversation => conversation.name.toLowerCase().includes(query) || conversation.type.includes(query));
+  }, [conversations, members, messages, profileMap, searchFilter]);
+
+  const auditMessages = useMemo(
+    () => messages
+      .filter(message => message.conversation_id === selectedConversationId)
+      .slice()
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at)),
+    [messages, selectedConversationId]
   );
 
-  const getMessageCount = (contactId) => messages.filter(m => m.contactId === contactId).length;
+  const onlineUsers = profiles.filter(profile => profile.is_online).length;
+  const directConversations = conversations.filter(conversation => conversation.type === 'direct').length;
+  const groupConversations = conversations.filter(conversation => conversation.type === 'group').length;
 
-  // --- Auth Gate ---
-  if (!isAuthenticated) {
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="admin-auth-wrapper">
+        <div className="admin-auth-card">
+          <div className="admin-auth-header">
+            <img src="/logo.png" alt="Aahat" className="admin-auth-logo" />
+            <h2>Supabase is not configured</h2>
+            <p>Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to admin/.env before opening the admin panel.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isAuthLoading && !sessionUser) {
     return (
       <div className="admin-auth-wrapper">
         <div className="admin-auth-card">
           <div className="admin-auth-header">
             <img src="/logo.png" alt="Aahat" className="admin-auth-logo" />
             <h2>Admin Panel</h2>
-            <p>Enter the admin password to continue</p>
+            <p>Checking admin session...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!sessionUser) {
+    return (
+      <div className="admin-auth-wrapper">
+        <div className="admin-auth-card">
+          <div className="admin-auth-header">
+            <img src="/logo.png" alt="Aahat" className="admin-auth-logo" />
+            <h2>Admin Panel</h2>
+            <p>Sign in with a Supabase account whose profile role is super_admin.</p>
           </div>
           {authError && <div className="admin-auth-error"><AlertTriangle size={14} /> {authError}</div>}
           <form onSubmit={handleAdminLogin} className="admin-auth-form">
             <div className="admin-input-group">
-              <Shield size={16} />
-              <input
-                type="password"
-                placeholder="Admin password"
-                value={adminPassword}
-                onChange={e => setAdminPassword(e.target.value)}
-                autoFocus
-              />
+              <UserCheck size={16} />
+              <input type="email" placeholder="Admin email" value={email} onChange={event => setEmail(event.target.value)} autoFocus required />
             </div>
-            <button type="submit" className="admin-btn-primary">Access Dashboard</button>
+            <div className="admin-input-group">
+              <Shield size={16} />
+              <input type="password" placeholder="Password" value={password} onChange={event => setPassword(event.target.value)} required />
+            </div>
+            <button type="submit" className="admin-btn-primary" disabled={isAuthLoading}>Access Dashboard</button>
           </form>
         </div>
       </div>
     );
   }
 
-  // --- Dashboard ---
   return (
     <div className="admin-layout">
-      {/* Mobile Menu Toggle */}
-      <button
-        className="mobile-menu-toggle"
-        onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
-      >
+      <button className="mobile-menu-toggle" onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}>
         <Menu size={20} />
       </button>
 
-      {/* Sidebar */}
       <div className={`admin-sidebar ${isMobileSidebarOpen ? 'mobile-open' : ''}`}>
         <div className="logo-section">
           <img src="/logo.png" alt="Aahat" className="admin-logo" />
@@ -202,15 +295,11 @@ export default function App() {
         <ul className="nav-menu">
           {[
             { key: 'overview', icon: <Activity size={16} />, label: 'Overview' },
-            { key: 'contacts', icon: <Users size={16} />, label: 'Contacts' },
-            { key: 'users', icon: <UserCheck size={16} />, label: 'Users' },
-            { key: 'audit', icon: <MessageSquare size={16} />, label: 'Audit Logs' },
+            { key: 'users', icon: <Users size={16} />, label: 'Profiles' },
+            { key: 'conversations', icon: <MessageSquare size={16} />, label: 'Conversations' },
+            { key: 'audit', icon: <Shield size={16} />, label: 'Audit Logs' }
           ].map(tab => (
-            <li
-              key={tab.key}
-              className={`nav-item ${activeTab === tab.key ? 'active' : ''}`}
-              onClick={() => { setActiveTab(tab.key); setIsMobileSidebarOpen(false); }}
-            >
+            <li key={tab.key} className={`nav-item ${activeTab === tab.key ? 'active' : ''}`} onClick={() => { setActiveTab(tab.key); setIsMobileSidebarOpen(false); }}>
               {tab.icon}
               <span>{tab.label}</span>
               <ChevronRight size={14} className="nav-arrow" />
@@ -218,104 +307,56 @@ export default function App() {
           ))}
         </ul>
         <div className="admin-sidebar-footer">
-          <button className="admin-logout-btn" onClick={() => setIsAuthenticated(false)}>
+          <button className="admin-logout-btn" onClick={handleLogout}>
             <LogOut size={14} /> Sign Out
           </button>
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="main-content">
         <div className="header-row">
           <div>
             <h1>
               {activeTab === 'overview' && 'System Analytics'}
-              {activeTab === 'contacts' && 'Contacts Manager'}
-              {activeTab === 'users' && 'User Database'}
+              {activeTab === 'users' && 'User Profiles'}
+              {activeTab === 'conversations' && 'Conversation Monitor'}
               {activeTab === 'audit' && 'Chat Audit Logs'}
             </h1>
             <p className="header-subtitle">
-              Connection: <span className="status-live">● Connected</span>
+              Signed in as {adminProfile?.display_name || adminProfile?.email || 'super admin'}
             </p>
           </div>
-          {(activeTab === 'contacts' || activeTab === 'users') && (
-            <div className="header-search">
-              <Search size={14} />
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchFilter}
-                onChange={e => setSearchFilter(e.target.value)}
-              />
-            </div>
-          )}
+          <div className="header-search">
+            <Search size={14} />
+            <input type="text" placeholder="Search..." value={searchFilter} onChange={event => setSearchFilter(event.target.value)} />
+          </div>
         </div>
 
-        {/* === Overview === */}
+        {authError && <div className="admin-auth-error"><AlertTriangle size={14} /> {authError}</div>}
+
         {activeTab === 'overview' && (
           <>
             <div className="stats-grid">
-              <div className="stat-card">
-                <div className="stat-icon purple"><Users size={22} /></div>
-                <div className="stat-info">
-                  <h3>{users.length}</h3>
-                  <p>Registered Users</p>
-                </div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-icon indigo"><Activity size={22} /></div>
-                <div className="stat-info">
-                  <h3>{contacts.length}</h3>
-                  <p>Total Contacts</p>
-                </div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-icon green"><UserCheck size={22} /></div>
-                <div className="stat-info">
-                  <h3>{activeFriendsCount}</h3>
-                  <p>Active Online</p>
-                </div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-icon rose"><MessageSquare size={22} /></div>
-                <div className="stat-info">
-                  <h3>{messages.length}</h3>
-                  <p>Total Messages</p>
-                </div>
-              </div>
+              <div className="stat-card"><div className="stat-icon purple"><Users size={22} /></div><div className="stat-info"><h3>{profiles.length}</h3><p>Registered Profiles</p></div></div>
+              <div className="stat-card"><div className="stat-icon green"><UserCheck size={22} /></div><div className="stat-info"><h3>{onlineUsers}</h3><p>Online Now</p></div></div>
+              <div className="stat-card"><div className="stat-icon indigo"><MessageSquare size={22} /></div><div className="stat-info"><h3>{directConversations + groupConversations}</h3><p>Conversations</p></div></div>
+              <div className="stat-card"><div className="stat-icon rose"><Activity size={22} /></div><div className="stat-info"><h3>{messages.length}</h3><p>Recent Messages</p></div></div>
             </div>
-
             <div className="table-container">
               <div className="table-header">
-                <h2>Active Connections</h2>
+                <h2>Recent Conversations</h2>
+                <button className="admin-btn admin-btn-primary" onClick={fetchData}><RefreshCw size={15} /> Refresh</button>
               </div>
               <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Contact</th>
-                    <th>ID</th>
-                    <th>Status</th>
-                    <th>Messages</th>
-                    <th>Last Activity</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>Name</th><th>Type</th><th>Members</th><th>Messages</th><th>Last Activity</th></tr></thead>
                 <tbody>
-                  {contacts.map(c => (
-                    <tr key={c.id}>
-                      <td>
-                        <div className="table-user">
-                          <img src={c.avatarUrl} alt="" className="avatar-img" />
-                          <span className="table-user-name">{c.name}</span>
-                        </div>
-                      </td>
-                      <td><code className="id-tag">{c.id}</code></td>
-                      <td>
-                        <span className={`badge ${c.isActive ? 'success' : 'muted'}`}>
-                          {c.isActive ? 'Online' : 'Offline'}
-                        </span>
-                      </td>
-                      <td>{getMessageCount(c.id)}</td>
-                      <td className="text-muted">{c.recentMessageTime || '—'}</td>
+                  {conversationRows.slice(0, 10).map(conversation => (
+                    <tr key={conversation.id}>
+                      <td className="text-bold">{conversation.name}</td>
+                      <td><code className="id-tag">{conversation.type}</code></td>
+                      <td>{conversation.memberCount}</td>
+                      <td>{conversation.messageCount}</td>
+                      <td className="text-muted">{conversation.updated_at ? new Date(conversation.updated_at).toLocaleString() : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -324,182 +365,87 @@ export default function App() {
           </>
         )}
 
-        {/* === Contacts === */}
-        {activeTab === 'contacts' && (
-          <div className="table-container">
-            <div className="table-header">
-              <h2>Contacts ({filteredContacts.length})</h2>
-              <button className="admin-btn admin-btn-primary" onClick={() => setShowAddContactModal(true)}>
-                <Plus size={15} /> Add Contact
-              </button>
-            </div>
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Contact</th>
-                  <th>ID</th>
-                  <th>Status</th>
-                  <th>Messages</th>
-                  <th>Last Sync</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredContacts.map(c => (
-                  <tr key={c.id}>
-                    <td>
-                      <div className="table-user">
-                        <img src={c.avatarUrl} alt="" className="avatar-img" />
-                        <span className="table-user-name">{c.name}</span>
-                      </div>
-                    </td>
-                    <td><code className="id-tag">{c.id}</code></td>
-                    <td>
-                      <label className="switch">
-                        <input type="checkbox" checked={c.isActive} onChange={() => handleToggleContactActive(c.id, c.isActive)} />
-                        <span className="slider" />
-                      </label>
-                    </td>
-                    <td>{getMessageCount(c.id)}</td>
-                    <td className="text-muted">{c.recentMessageTime || '—'}</td>
-                    <td>
-                      <button className="admin-btn admin-btn-danger-ghost" onClick={() => handleDeleteContact(c.id)} title="Delete Contact">
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* === Users === */}
         {activeTab === 'users' && (
           <div className="table-container">
-            <div className="table-header">
-              <h2>Registered Users ({users.length})</h2>
-            </div>
+            <div className="table-header"><h2>Profiles ({filteredProfiles.length})</h2></div>
             <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Password</th>
-                  <th>Session</th>
-                </tr>
-              </thead>
+              <thead><tr><th>User</th><th>Email</th><th>Aahat ID</th><th>Role</th><th>Status</th></tr></thead>
               <tbody>
-                {users.map(u => (
-                  <tr key={u.email}>
-                    <td className="text-bold">{u.name}</td>
-                    <td>{u.email}</td>
-                    <td className="text-muted">••••••••</td>
-                    <td>
-                      <span className={`badge ${u.isSessionActive ? 'success' : 'muted'}`}>
-                        {u.isSessionActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
+                {filteredProfiles.map(profile => (
+                  <tr key={profile.id}>
+                    <td><div className="table-user"><img src={profile.avatar_url || '/logo.png'} alt="" className="avatar-img" /><span className="table-user-name">{profile.display_name || 'Unnamed'}</span></div></td>
+                    <td>{profile.email || '-'}</td>
+                    <td><code className="id-tag">{profile.virtual_number || '-'}</code></td>
+                    <td>{profile.role || 'user'}</td>
+                    <td><span className={`badge ${profile.is_online ? 'success' : 'muted'}`}>{profile.is_online ? 'Online' : 'Offline'}</span></td>
                   </tr>
                 ))}
-                {users.length === 0 && (
-                  <tr><td colSpan={4} className="empty-table-cell">No registered users yet</td></tr>
-                )}
               </tbody>
             </table>
           </div>
         )}
 
-        {/* === Audit Logs === */}
+        {activeTab === 'conversations' && (
+          <div className="table-container">
+            <div className="table-header"><h2>Conversations ({conversationRows.length})</h2></div>
+            <table className="admin-table">
+              <thead><tr><th>Name</th><th>ID</th><th>Type</th><th>Members</th><th>Messages</th></tr></thead>
+              <tbody>
+                {conversationRows.map(conversation => (
+                  <tr key={conversation.id} onClick={() => { setSelectedConversationId(conversation.id); setActiveTab('audit'); }} style={{ cursor: 'pointer' }}>
+                    <td className="text-bold">{conversation.name}</td>
+                    <td><code className="id-tag">{conversation.id.slice(0, 8)}</code></td>
+                    <td>{conversation.type}</td>
+                    <td>{conversation.memberCount}</td>
+                    <td>{conversation.messageCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {activeTab === 'audit' && (
           <div className="audit-grid">
             <div className="audit-contact-list">
-              <div className="audit-list-header">
-                <h3>Contacts</h3>
-              </div>
-              {contacts.map(c => (
-                <div
-                  key={c.id}
-                  className={`audit-contact-item ${selectedAuditContactId === c.id ? 'selected' : ''}`}
-                  onClick={() => setSelectedAuditContactId(c.id)}
-                >
-                  <img src={c.avatarUrl} alt="" className="avatar-img" />
+              <div className="audit-list-header"><h3>Conversations</h3></div>
+              {conversationRows.map(conversation => (
+                <div key={conversation.id} className={`audit-contact-item ${selectedConversationId === conversation.id ? 'selected' : ''}`} onClick={() => setSelectedConversationId(conversation.id)}>
                   <div className="audit-contact-info">
-                    <h4>{c.name}</h4>
-                    <span>{getMessageCount(c.id)} messages</span>
+                    <h4>{conversation.name}</h4>
+                    <span>{conversation.messageCount} messages</span>
                   </div>
                 </div>
               ))}
             </div>
-
             <div className="audit-chat-window">
-              {selectedAuditContactId ? (
+              {selectedConversationId ? (
                 <div className="audit-messages-container">
-                  {auditMessages.length === 0 && (
-                    <div className="audit-empty">No messages for this contact</div>
-                  )}
-                  {auditMessages.map(m => (
-                    <div key={m.id} className={`audit-message-row ${m.isFromMe ? 'me' : 'other'}`}>
+                  {auditMessages.length === 0 && <div className="audit-empty">No visible messages for this conversation</div>}
+                  {auditMessages.map(message => (
+                    <div key={message.id} className={`audit-message-row ${message.sender_id === sessionUser.id ? 'me' : 'other'}`}>
                       <div className="audit-bubble">
-                        <p>{m.text}</p>
-                        <button className="audit-delete-btn" title="Delete" onClick={() => handleDeleteMessage(m.id)}>
-                          <Trash2 size={12} />
-                        </button>
+                        <p>{message.content || `[${message.message_type}]`}</p>
+                        <button className="audit-delete-btn" title="Delete" onClick={() => handleDeleteMessage(message.id)}><Trash2 size={12} /></button>
                       </div>
-                      <span className="audit-meta">
-                        {m.isFromMe ? 'User' : 'Contact'} • {m.timeText}
-                      </span>
+                      <span className="audit-meta">{message.sender?.display_name || profileMap.get(message.sender_id)?.display_name || 'Unknown'} - {new Date(message.created_at).toLocaleString()}</span>
                     </div>
                   ))}
                   <div ref={messagesEndRef} />
                 </div>
               ) : (
-                <div className="audit-placeholder">
-                  <MessageSquare size={28} />
-                  <p>Select a contact to view message history</p>
-                </div>
+                <div className="audit-placeholder"><MessageSquare size={28} /><p>Select a conversation to view message history</p></div>
               )}
             </div>
           </div>
         )}
+
+        {isDataLoading && <div className="audit-placeholder"><RefreshCw size={20} /> <p>Refreshing data...</p></div>}
       </div>
 
-      {/* Add Contact Modal */}
-      {showAddContactModal && (
-        <div className="modal-overlay" onClick={() => setShowAddContactModal(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>Add New Contact</h3>
-              <button className="modal-close" onClick={() => setShowAddContactModal(false)}>
-                <X size={18} />
-              </button>
-            </div>
-            <form onSubmit={handleAddContactSubmit}>
-              <div className="form-group">
-                <label>Contact ID</label>
-                <input type="text" placeholder="e.g. david" required value={newContactId} onChange={e => setNewContactId(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Display Name</label>
-                <input type="text" placeholder="e.g. David Beckham" required value={newContactName} onChange={e => setNewContactName(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Avatar URL <span className="optional-tag">optional</span></label>
-                <input type="url" placeholder="https://images.unsplash.com/..." value={newContactAvatar} onChange={e => setNewContactAvatar(e.target.value)} />
-              </div>
-              <div className="form-actions">
-                <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setShowAddContactModal(false)}>Cancel</button>
-                <button type="submit" className="admin-btn admin-btn-primary">Create Contact</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Dialog */}
       {confirmDialog && (
         <div className="modal-overlay" onClick={confirmDialog.onCancel}>
-          <div className="modal-card confirm-dialog" onClick={e => e.stopPropagation()}>
+          <div className="modal-card confirm-dialog" onClick={event => event.stopPropagation()}>
             <div className="confirm-icon"><AlertTriangle size={24} /></div>
             <h3>{confirmDialog.title}</h3>
             <p>{confirmDialog.message}</p>
@@ -513,3 +459,5 @@ export default function App() {
     </div>
   );
 }
+
+

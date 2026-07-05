@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aahat-v2';
+﻿const CACHE_NAME = 'aahat-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -6,82 +6,69 @@ const ASSETS_TO_CACHE = [
   '/manifest.json'
 ];
 
-// Install Service Worker and cache resources
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    }).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(ASSETS_TO_CACHE))
+      .then(() => self.skipWaiting())
   );
 });
 
-// Activate Service Worker and clean old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            return caches.delete(cache);
-          }
-        })
-      );
-    }).then(() => self.clients.claim())
+    caches.keys()
+      .then((cacheNames) => Promise.all(
+        cacheNames.map((cache) => (cache !== CACHE_NAME ? caches.delete(cache) : undefined))
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
-// Fetch events: Stale-While-Revalidate Strategy
 self.addEventListener('fetch', (event) => {
-  // Only cache GET requests
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.match(event.request).then((cachedResponse) => {
-        const fetchPromise = fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            cache.put(event.request, networkResponse.clone());
-          }
-          return networkResponse;
-        }).catch(() => {
-          // Offline fallback for navigation requests
-          if (event.request.mode === 'navigate') {
-            return cache.match('/index.html');
-          }
-        });
-
-        // Return cached response immediately, fallback to network fetch
-        return cachedResponse || fetchPromise;
+    caches.open(CACHE_NAME).then((cache) => cache.match(event.request).then((cachedResponse) => {
+      const fetchPromise = fetch(event.request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+          cache.put(event.request, networkResponse.clone());
+        }
+        return networkResponse;
+      }).catch(() => {
+        if (event.request.mode === 'navigate') {
+          return cache.match('/index.html');
+        }
+        return undefined;
       });
-    })
+
+      return cachedResponse || fetchPromise;
+    }))
   );
 });
 
-// Import Firebase scripts for FCM compatibility inside PWA service worker
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
+try {
+  importScripts('/firebase-config.js');
+} catch (error) {
+  console.warn('Firebase service worker config not found. Background notifications disabled.', error);
+}
 
-firebase.initializeApp({
-  apiKey: "AIza" + "Sy" + "DpFIzMghS94ujM7tiMgymw7SfPJe1icT8",
-  authDomain: "aahat-e1351.firebaseapp.com",
-  projectId: "aahat-e1351",
-  storageBucket: "aahat-e1351.firebasestorage.app",
-  messagingSenderId: "993575117808",
-  appId: "1:993575117808:web:3e4d7fd6a0395c5f83b335",
-  measurementId: "G-YLPP2VGNJZ"
-});
+if (self.FIREBASE_CONFIG) {
+  importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
-const messaging = firebase.messaging();
+  firebase.initializeApp(self.FIREBASE_CONFIG);
 
-messaging.onBackgroundMessage((payload) => {
-  console.log('Received background message ', payload);
-  const notificationTitle = payload.notification.title || "Aahat Message";
-  const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/logo.png',
-    badge: '/badge.png',
-    data: payload.data
-  };
+  const messaging = firebase.messaging();
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
-});
+  messaging.onBackgroundMessage((payload) => {
+    const notificationTitle = payload.notification?.title || 'Aahat Message';
+    const notificationOptions = {
+      body: payload.notification?.body || 'You have a new message.',
+      icon: '/logo.png',
+      badge: '/logo.png',
+      data: payload.data || {}
+    };
+
+    self.registration.showNotification(notificationTitle, notificationOptions);
+  });
+}

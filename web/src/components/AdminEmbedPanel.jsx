@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Users, Activity, MessageSquare, ShieldAlert, Server, Trash2, Ban, ShieldCheck, CheckCircle } from 'lucide-react';
+﻿import { useState } from 'react';
+import { Users, Activity, MessageSquare, ShieldAlert, Server, Ban, ShieldCheck, CheckCircle } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 
 /**
@@ -8,7 +8,6 @@ import SafeAvatar from './SafeAvatar';
  */
 export default function AdminEmbedPanel({ conversations = [], messages = [] }) {
   const [adminTab, setAdminTab] = useState('overview');
-  const [blockedCount, setBlockedCount] = useState(1);
   const [suspendList, setSuspendList] = useState({});
   const [reports, setReports] = useState([
     { id: "r1", sender: "Alex", reportedUser: "Elena R.", message: "Send the final files immediately", reason: "Spam behavior", timestamp: "10m ago" },
@@ -136,7 +135,7 @@ export default function AdminEmbedPanel({ conversations = [], messages = [] }) {
                     <SafeAvatar src={user.avatarUrl} name={user.name} size={32} className="user-avatar-sm" />
                     <div>
                       <h4>{user.name}</h4>
-                      <span>ID: <code>{user.id}</code> {user.type === 'group' && "• GROUP"}</span>
+                      <span>ID: <code>{user.id}</code> {user.type === 'group' && "â€¢ GROUP"}</span>
                     </div>
                   </div>
                   <div className="user-actions-side">
@@ -179,7 +178,7 @@ export default function AdminEmbedPanel({ conversations = [], messages = [] }) {
                       "<em>{rep.message}</em>"
                     </p>
                     <div className="reporter-info">
-                      Reported user: <strong>{rep.reportedUser}</strong> • Filed by: {rep.sender}
+                      Reported user: <strong>{rep.reportedUser}</strong> â€¢ Filed by: {rep.sender}
                     </div>
                     <div className="report-actions-row">
                       <button className="btn-resolve" onClick={() => handleResolveReport(rep.id)}>
@@ -233,3 +232,5 @@ export default function AdminEmbedPanel({ conversations = [], messages = [] }) {
     </div>
   );
 }
+
+

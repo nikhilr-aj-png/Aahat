@@ -1,7 +1,7 @@
-import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
+import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { 
-  MessageSquare, ArrowLeft, ChevronDown, Phone, Video, Search, 
-  MoreVertical, Info, Users, Shield, Image, Sparkles, X, Send 
+  ArrowLeft, ChevronDown, Phone, Video, Search,
+  MoreVertical, Info, Users, Image, X
 } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
@@ -10,19 +10,20 @@ import SafeAvatar from './SafeAvatar';
 import { supabase } from '../supabase';
 
 /**
- * ChatView — Main chat area (V2).
+ * ChatView â€” Main chat area (V2).
  * Uses conversation + messages from normalized hooks.
  */
 export default function ChatView({
   conversation, messages, typingUsers,
-  onSend, onAddReaction, onRemoveReaction,
+  onSend, onAddReaction,
   onDeleteForMe, onDeleteForEveryone, onEditMessage,
   onTogglePinMessage, onToggleStarMessage,
+  onRetryMessage,
   onUploadFile,
   onBack,
   onStartCall,
   conversations,
-  onClearChat, onDeleteChat,
+  onClearChat, onDeleteChat, onToggleArchive, onToggleMute,
   onSetTyping,
   currentUserId,
   isUserOnline,
@@ -47,12 +48,16 @@ export default function ChatView({
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState(null);
   const [forwardingMessage, setForwardingMessage] = useState(null);
-  const [editingMessage, setEditingMessage] = useState(null);
+  const [visibleMessageLimit, setVisibleMessageLimit] = useState(140);
 
   const [groupMembers, setGroupMembers] = useState([]);
   const [isFetchingMembers, setIsFetchingMembers] = useState(false);
   const [newMemberAahatId, setNewMemberAahatId] = useState('');
   const [isAddingMember, setIsAddingMember] = useState(false);
+
+  useEffect(() => {
+    setVisibleMessageLimit(140);
+  }, [conversation?.id]);
 
   // Fetch group members dynamically
   const loadGroupMembers = useCallback(async () => {
@@ -139,6 +144,9 @@ export default function ChatView({
     return groups;
   }, [searchedMessages]);
 
+  const hiddenMessageCount = Math.max(0, groupedMessages.length - visibleMessageLimit);
+  const visibleGroupedMessages = groupedMessages.slice(-visibleMessageLimit);
+
   const isTyping = typingUsers && typingUsers.length > 0;
 
   // Shared media for details panel
@@ -156,7 +164,6 @@ export default function ChatView({
 
     onSend(text, image, replyPayload);
     setReplyingToMessage(null);
-    setEditingMessage(null);
   };
 
   const handleForwardToContact = (targetConvId) => {
@@ -195,7 +202,7 @@ export default function ChatView({
             </div>
           </div>
           <h3>Welcome to Aahat</h3>
-          <p className="security-note">🔒 End-to-end encrypted messaging. Sound waves of thoughts.</p>
+          <p className="security-note">ðŸ”’ End-to-end encrypted messaging. Sound waves of thoughts.</p>
           <span className="start-prompt">Select a conversation to start chatting</span>
         </div>
       </div>
@@ -274,8 +281,8 @@ export default function ChatView({
               </button>
               {showMoreMenu && (
                 <div className="chat-dropdown-menu" ref={moreMenuRef}>
-                  <button onClick={() => { togglePinMessage?.(null); setShowMoreMenu(false); }}>Archive Chat</button>
-                  <button onClick={() => { setShowMoreMenu(false); }}>Mute Notifications</button>
+                  <button onClick={() => { onToggleArchive?.(conversation.id); setShowMoreMenu(false); }}>{conversation.isArchived ? 'Unarchive Chat' : 'Archive Chat'}</button>
+                  <button onClick={() => { onToggleMute?.(conversation.id); setShowMoreMenu(false); }}>{conversation.isMuted ? 'Unmute Notifications' : 'Mute Notifications'}</button>
                   <button className="danger" onClick={() => { onClearChat?.(); setShowMoreMenu(false); }}>Clear Chat</button>
                   <button className="danger" onClick={() => { onDeleteChat?.(); setShowMoreMenu(false); }}>Delete Chat</button>
                 </div>
@@ -303,16 +310,26 @@ export default function ChatView({
 
         {/* Messages */}
         <div className="messages-list" ref={messagesListRef} onScroll={handleScroll} id="messages-list">
-          {groupedMessages.length === 0 ? (
+          {visibleGroupedMessages.length === 0 ? (
             <div className="chat-start-hint">
               {chatSearchQuery ? (
                 <p>No messages match your search criteria</p>
               ) : (
-                <p>Say hello to <strong>{conversation.name}</strong> 👋</p>
+                <p>Say hello to <strong>{conversation.name}</strong> ðŸ‘‹</p>
               )}
             </div>
           ) : (
-            groupedMessages.map(item => {
+            <>
+              {hiddenMessageCount > 0 && (
+                <button
+                  type="button"
+                  className="load-more-messages"
+                  onClick={() => setVisibleMessageLimit(limit => Math.min(groupedMessages.length, limit + 160))}
+                >
+                  Load earlier messages
+                </button>
+              )}
+              {visibleGroupedMessages.map(item => {
               if (item.type === 'date') {
                 return (
                   <div key={item.key} className="date-separator">
@@ -334,10 +351,12 @@ export default function ChatView({
                   onForward={() => setForwardingMessage(item.data)}
                   onTogglePin={onTogglePinMessage}
                   onToggleStar={onToggleStarMessage}
+                  onRetry={onRetryMessage}
                   currentUserId={currentUserId}
                 />
               );
-            })
+            })}
+            </>
           )}
 
           {/* Typing indicator */}
@@ -479,7 +498,7 @@ export default function ChatView({
                                 {member.display_name} {member.id === currentUserId && '(You)'}
                               </span>
                               <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-                                {member.role === 'admin' ? '👑 Admin' : 'Member'}
+                                {member.role === 'admin' ? 'ðŸ‘‘ Admin' : 'Member'}
                               </span>
                             </div>
                           </div>

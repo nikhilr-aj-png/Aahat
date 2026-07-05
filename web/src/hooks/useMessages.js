@@ -1,5 +1,23 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabase';
+
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const ALLOWED_UPLOAD_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+  'video/mp4', 'video/webm',
+  'audio/mpeg', 'audio/mp4', 'audio/webm', 'audio/wav', 'audio/ogg',
+  'application/pdf', 'application/zip', 'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+]);
+
+const getMessageStatus = (msg, userId) => {
+  if (msg.sender_id !== userId) return undefined;
+  const statuses = msg.statuses || msg.message_status || [];
+  if (statuses.some(row => row.status === 'read')) return 'read';
+  if (statuses.some(row => row.status === 'delivered')) return 'delivered';
+  if (statuses.some(row => row.status === 'sent')) return 'sent';
+  return 'sent';
+};
 
 /**
  * useMessages — Manages messages for a specific conversation,
@@ -28,11 +46,12 @@ export function useMessages(user, conversationId) {
           *,
           sender:profiles!messages_sender_id_fkey(id, display_name, avatar_url),
           reply_to:messages!messages_reply_to_id_fkey(id, content, sender_id, message_type),
-          reactions:message_reactions(id, emoji, user_id)
+          reactions:message_reactions(id, emoji, user_id),
+          statuses:message_status(id, user_id, status, status_at)
         `)
         .eq('conversation_id', conversationId)
         .eq('is_deleted_for_everyone', false)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: false });
 
       if (!append) {
         // Initial load — get last PAGE_SIZE messages
@@ -42,7 +61,8 @@ export function useMessages(user, conversationId) {
       const { data, error } = await query;
       if (error) throw error;
 
-      const mapped = (data || []).map(msg => ({
+      const rows = append ? (data || []) : [...(data || [])].reverse();
+      const mapped = rows.map(msg => ({
         ...msg,
         isFromMe: msg.sender_id === user.id,
         senderName: msg.sender?.display_name || 'Unknown',
@@ -51,6 +71,7 @@ export function useMessages(user, conversationId) {
         replyToSenderName: msg.reply_to?.sender_id === user.id ? 'You' : null,
         replyToType: msg.reply_to?.message_type || null,
         reactionList: msg.reactions || [],
+        _status: getMessageStatus(msg, user.id),
         // Check if deleted for current user
         isDeletedForMe: (msg.deleted_for_users || []).includes(user.id),
       })).filter(msg => !msg.isDeletedForMe);
@@ -265,12 +286,12 @@ export function useMessages(user, conversationId) {
       ));
 
       // Insert message_status for sender (sent)
-      await supabase.from('message_status').insert({
+      await supabase.from('message_status').upsert({
         message_id: data.id,
         user_id: user.id,
         status: 'sent',
         status_at: new Date().toISOString()
-      });
+      }, { onConflict: 'message_id,user_id' });
 
       return data;
     } catch (err) {
@@ -282,6 +303,22 @@ export function useMessages(user, conversationId) {
       throw err;
     }
   }, [user, conversationId]);
+
+  const retryMessage = useCallback(async (messageId) => {
+    const failed = messages.find(m => m.id === messageId && m._status === 'failed');
+    if (!failed) return;
+
+    setMessages(prev => prev.filter(m => m.id !== messageId));
+    return sendMessage(failed.content, {
+      messageType: failed.message_type,
+      attachmentUrl: failed.attachment_url,
+      attachmentName: failed.attachment_name,
+      attachmentSize: failed.attachment_size,
+      attachmentMimeType: failed.attachment_mime_type,
+      replyToId: failed.reply_to_id,
+      forwardedFromId: failed.forwarded_from_id,
+    });
+  }, [messages, sendMessage]);
 
   const editMessage = useCallback(async (messageId, newContent) => {
     if (!user) return;
@@ -436,6 +473,14 @@ export function useMessages(user, conversationId) {
 
   // Upload a file and return the public URL
   const uploadFile = useCallback(async (file, oldUrl = null) => {
+    if (!file) throw new Error('No file selected.');
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new Error(`File is too large. Maximum upload size is ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)}MB.`);
+    }
+    if (file.type && !ALLOWED_UPLOAD_TYPES.has(file.type)) {
+      throw new Error(`Unsupported file type: ${file.type}`);
+    }
+
     // Delete old file if replacing
     if (oldUrl && oldUrl.includes('supabase.co/storage/v1/object/public/')) {
       try {
@@ -468,12 +513,8 @@ export function useMessages(user, conversationId) {
 
       return publicUrl;
     } catch (err) {
-      console.warn('Upload failed, using base64 fallback:', err);
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
-        reader.readAsDataURL(file);
-      });
+      console.warn('Upload failed:', err);
+      throw err;
     }
   }, [user]);
 
@@ -483,6 +524,7 @@ export function useMessages(user, conversationId) {
     hasMore,
 
     sendMessage,
+    retryMessage,
     editMessage,
     deleteForMe,
     deleteForEveryone,

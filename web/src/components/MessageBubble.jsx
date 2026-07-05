@@ -1,10 +1,17 @@
-import React, { memo, useState } from 'react';
-import { Smile, Trash2, Check, CheckCheck, Reply, Share2, Play, Pause, Volume2, FileText, Edit3, Pin, Star } from 'lucide-react';
+import { memo, useState } from 'react';
+import { Smile, Trash2, Check, CheckCheck, Reply, Share2, Play, Pause, FileText, Edit3, Pin, Star, RefreshCw, Download, Film } from 'lucide-react';
 
-const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+const formatBytes = (bytes) => {
+  if (!bytes) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / (1024 ** index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+};
+
+const REACTION_EMOJIS = ['ðŸ‘', 'â¤ï¸', 'ðŸ˜‚', 'ðŸ˜®', 'ðŸ˜¢', 'ðŸ™'];
 
 /**
- * MessageBubble — Renders a single message (V2).
+ * MessageBubble â€” Renders a single message (V2).
  * Supports text, images, voice notes, PDFs, reactions, reply preview,
  * edit, delete for me/everyone, pin, and star.
  */
@@ -20,7 +27,7 @@ function MessageBubble({
   onForward,
   onTogglePin,
   onToggleStar,
-  currentUserId
+  onRetry
 }) {
   const isMe = msg.isFromMe;
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -95,7 +102,7 @@ function MessageBubble({
   if (isSystem) {
     return (
       <div className="date-separator system-message" id={`msg-${msg.id}`}>
-        <span style={{ fontStyle: 'italic', fontSize: '11px' }}>🔔 {msg.content}</span>
+        <span style={{ fontStyle: 'italic', fontSize: '11px' }}>ðŸ”” {msg.content}</span>
       </div>
     );
   }
@@ -142,6 +149,18 @@ function MessageBubble({
                 <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>PDF Document</span>
               </div>
               <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', fontSize: '11.5px', color: 'white', background: 'rgba(255,255,255,0.08)', border: '1px solid var(--panel-border)', borderRadius: '6px', textDecoration: 'none' }}>Open</a>
+            </div>
+          )}
+
+          {/* Generic file attachment */}
+          {isFile && msg.attachment_url && !isPdf && (
+            <div className="message-file-card">
+              <div className="file-card-icon"><Film size={18} /></div>
+              <div className="file-card-copy">
+                <strong>{attachmentName}</strong>
+                <span>{mimeType || 'File'} {formatBytes(msg.attachment_size)}</span>
+              </div>
+              <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="file-download-btn" title="Download attachment"><Download size={15} /></a>
             </div>
           )}
 

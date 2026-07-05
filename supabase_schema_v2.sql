@@ -900,3 +900,312 @@ ALTER PUBLICATION supabase_realtime ADD TABLE user_notifications;
 -- INSERT: authenticated users can upload (path must start with their user ID)
 -- UPDATE: owner only (path starts with user ID)
 -- DELETE: owner only (path starts with user ID)
+
+-- =====================================================
+-- SUPER ADMIN DASHBOARD POLICIES
+-- Apply after the base policies above. These let users with
+-- profiles.role = 'super_admin' manage the v2 admin dashboard via Supabase Auth.
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE id = auth.uid()
+      AND role = 'super_admin'
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_super_admin() TO authenticated;
+
+DROP POLICY IF EXISTS "profiles_select_super_admin" ON profiles;
+CREATE POLICY "profiles_select_super_admin" ON profiles
+  FOR SELECT USING (public.is_super_admin());
+
+DROP POLICY IF EXISTS "profiles_update_super_admin" ON profiles;
+CREATE POLICY "profiles_update_super_admin" ON profiles
+  FOR UPDATE USING (public.is_super_admin()) WITH CHECK (public.is_super_admin());
+
+DROP POLICY IF EXISTS "conversations_select_super_admin" ON conversations;
+CREATE POLICY "conversations_select_super_admin" ON conversations
+  FOR SELECT USING (public.is_super_admin());
+
+DROP POLICY IF EXISTS "conversations_update_super_admin" ON conversations;
+CREATE POLICY "conversations_update_super_admin" ON conversations
+  FOR UPDATE USING (public.is_super_admin()) WITH CHECK (public.is_super_admin());
+
+DROP POLICY IF EXISTS "conv_members_select_super_admin" ON conversation_members;
+CREATE POLICY "conv_members_select_super_admin" ON conversation_members
+  FOR SELECT USING (public.is_super_admin());
+
+DROP POLICY IF EXISTS "conv_members_update_super_admin" ON conversation_members;
+CREATE POLICY "conv_members_update_super_admin" ON conversation_members
+  FOR UPDATE USING (public.is_super_admin()) WITH CHECK (public.is_super_admin());
+
+DROP POLICY IF EXISTS "messages_select_super_admin" ON messages;
+CREATE POLICY "messages_select_super_admin" ON messages
+  FOR SELECT USING (public.is_super_admin());
+
+DROP POLICY IF EXISTS "messages_update_super_admin" ON messages;
+CREATE POLICY "messages_update_super_admin" ON messages
+  FOR UPDATE USING (public.is_super_admin()) WITH CHECK (public.is_super_admin());
+
+DROP POLICY IF EXISTS "calls_select_super_admin" ON calls;
+CREATE POLICY "calls_select_super_admin" ON calls
+  FOR SELECT USING (public.is_super_admin());
+
+DROP POLICY IF EXISTS "statuses_select_super_admin" ON statuses;
+CREATE POLICY "statuses_select_super_admin" ON statuses
+  FOR SELECT USING (public.is_super_admin());
+
+DROP POLICY IF EXISTS "channels_select_super_admin" ON channels;
+CREATE POLICY "channels_select_super_admin" ON channels
+  FOR SELECT USING (public.is_super_admin());
+
+-- =====================================================
+-- STORAGE BUCKETS AND POLICIES
+-- Requires Supabase Storage extension/schema. Safe to re-run.
+-- =====================================================
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES
+  ('avatars', 'avatars', true, 5242880, ARRAY['image/jpeg','image/png','image/webp','image/gif']),
+  ('attachments', 'attachments', true, 52428800, ARRAY['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm','application/pdf','application/zip','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document']),
+  ('voice-notes', 'voice-notes', true, 10485760, ARRAY['audio/mpeg','audio/mp4','audio/webm','audio/wav','audio/ogg']),
+  ('status-media', 'status-media', true, 52428800, ARRAY['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm']),
+  ('channel-media', 'channel-media', true, 52428800, ARRAY['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm','application/pdf'])
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+DROP POLICY IF EXISTS "storage_public_read_aahat" ON storage.objects;
+CREATE POLICY "storage_public_read_aahat" ON storage.objects
+  FOR SELECT USING (bucket_id IN ('avatars','attachments','voice-notes','status-media','channel-media'));
+
+DROP POLICY IF EXISTS "storage_user_upload_aahat" ON storage.objects;
+CREATE POLICY "storage_user_upload_aahat" ON storage.objects
+  FOR INSERT WITH CHECK (
+    auth.role() = 'authenticated'
+    AND bucket_id IN ('avatars','attachments','voice-notes','status-media','channel-media')
+    AND split_part(name, '/', 1) = auth.uid()::text
+  );
+
+DROP POLICY IF EXISTS "storage_user_update_aahat" ON storage.objects;
+CREATE POLICY "storage_user_update_aahat" ON storage.objects
+  FOR UPDATE USING (
+    auth.role() = 'authenticated'
+    AND bucket_id IN ('avatars','attachments','voice-notes','status-media','channel-media')
+    AND (split_part(name, '/', 1) = auth.uid()::text OR public.is_super_admin())
+  ) WITH CHECK (
+    auth.role() = 'authenticated'
+    AND bucket_id IN ('avatars','attachments','voice-notes','status-media','channel-media')
+    AND (split_part(name, '/', 1) = auth.uid()::text OR public.is_super_admin())
+  );
+
+DROP POLICY IF EXISTS "storage_user_delete_aahat" ON storage.objects;
+CREATE POLICY "storage_user_delete_aahat" ON storage.objects
+  FOR DELETE USING (
+    auth.role() = 'authenticated'
+    AND bucket_id IN ('avatars','attachments','voice-notes','status-media','channel-media')
+    AND (split_part(name, '/', 1) = auth.uid()::text OR public.is_super_admin())
+  );
+
+
+-- =====================================================
+-- AAHAT V2.1 PRODUCTION HARDENING
+-- Adds moderation, device/session, attachment, edit-history,
+-- report, saved-message, and audit tables requested for a
+-- production messaging platform. Safe to re-run.
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS user_contacts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    owner_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    contact_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    nickname TEXT,
+    status TEXT DEFAULT 'accepted' CHECK (status IN ('pending', 'accepted', 'rejected')),
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    UNIQUE(owner_id, contact_id)
+);
+
+CREATE TABLE IF NOT EXISTS message_attachments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    bucket_id TEXT NOT NULL,
+    object_path TEXT NOT NULL,
+    public_url TEXT,
+    file_name TEXT NOT NULL,
+    file_size BIGINT NOT NULL CHECK (file_size >= 0),
+    mime_type TEXT NOT NULL,
+    width INTEGER,
+    height INTEGER,
+    duration_seconds INTEGER,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS message_edit_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    editor_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    old_content TEXT DEFAULT '',
+    new_content TEXT DEFAULT '',
+    edited_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS reports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    reporter_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    reported_user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL,
+    message_id UUID REFERENCES messages(id) ON DELETE SET NULL,
+    channel_id UUID REFERENCES channels(id) ON DELETE SET NULL,
+    reason TEXT NOT NULL,
+    details TEXT DEFAULT '',
+    status TEXT DEFAULT 'open' CHECK (status IN ('open', 'reviewing', 'resolved', 'dismissed')),
+    assigned_admin_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    resolved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS moderation_actions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    admin_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    target_user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    report_id UUID REFERENCES reports(id) ON DELETE SET NULL,
+    action_type TEXT NOT NULL CHECK (action_type IN ('warn', 'ban', 'unban', 'delete_message', 'dismiss_report', 'resolve_report')),
+    reason TEXT DEFAULT '',
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_devices (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    device_name TEXT DEFAULT 'Unknown device',
+    platform TEXT DEFAULT 'web',
+    push_token TEXT,
+    last_seen_at TIMESTAMPTZ DEFAULT now(),
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    UNIQUE(user_id, push_token)
+);
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    device_id UUID REFERENCES user_devices(id) ON DELETE SET NULL,
+    ip_hash TEXT,
+    user_agent TEXT,
+    revoked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    last_seen_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actor_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+    action TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id UUID,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS pinned_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    pinned_by UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    UNIQUE(conversation_id, message_id)
+);
+
+CREATE TABLE IF NOT EXISTS starred_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    UNIQUE(user_id, message_id)
+);
+
+CREATE TABLE IF NOT EXISTS saved_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    note TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+    UNIQUE(user_id, message_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_contacts_owner ON user_contacts(owner_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_message_attachments_message ON message_attachments(message_id);
+CREATE INDEX IF NOT EXISTS idx_message_edit_history_message ON message_edit_history(message_id, edited_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reports_status_created ON reports(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_reports_reported_user ON reports(reported_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_moderation_actions_admin ON moderation_actions(admin_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_devices_user ON user_devices(user_id, last_seen_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id, last_seen_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs(actor_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pinned_messages_conversation ON pinned_messages(conversation_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_starred_messages_user ON starred_messages(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_saved_messages_user ON saved_messages(user_id, created_at DESC);
+
+ALTER TABLE user_contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE message_attachments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE message_edit_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE moderation_actions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_devices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pinned_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE starred_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE saved_messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "contacts_own_access" ON user_contacts;
+CREATE POLICY "contacts_own_access" ON user_contacts FOR ALL TO authenticated USING (owner_id = auth.uid() OR public.is_super_admin()) WITH CHECK (owner_id = auth.uid() OR public.is_super_admin());
+DROP POLICY IF EXISTS "attachments_member_select" ON message_attachments;
+CREATE POLICY "attachments_member_select" ON message_attachments FOR SELECT TO authenticated USING (message_id IN (SELECT m.id FROM messages m JOIN conversation_members cm ON cm.conversation_id = m.conversation_id WHERE cm.user_id = auth.uid()) OR public.is_super_admin());
+DROP POLICY IF EXISTS "attachments_sender_insert" ON message_attachments;
+CREATE POLICY "attachments_sender_insert" ON message_attachments FOR INSERT TO authenticated WITH CHECK (message_id IN (SELECT id FROM messages WHERE sender_id = auth.uid()) OR public.is_super_admin());
+DROP POLICY IF EXISTS "edit_history_member_select" ON message_edit_history;
+CREATE POLICY "edit_history_member_select" ON message_edit_history FOR SELECT TO authenticated USING (message_id IN (SELECT m.id FROM messages m JOIN conversation_members cm ON cm.conversation_id = m.conversation_id WHERE cm.user_id = auth.uid()) OR public.is_super_admin());
+DROP POLICY IF EXISTS "edit_history_sender_insert" ON message_edit_history;
+CREATE POLICY "edit_history_sender_insert" ON message_edit_history FOR INSERT TO authenticated WITH CHECK (editor_id = auth.uid() OR public.is_super_admin());
+DROP POLICY IF EXISTS "reports_insert_own" ON reports;
+CREATE POLICY "reports_insert_own" ON reports FOR INSERT TO authenticated WITH CHECK (reporter_id = auth.uid());
+DROP POLICY IF EXISTS "reports_select_own_or_admin" ON reports;
+CREATE POLICY "reports_select_own_or_admin" ON reports FOR SELECT TO authenticated USING (reporter_id = auth.uid() OR public.is_super_admin());
+DROP POLICY IF EXISTS "reports_update_admin" ON reports;
+CREATE POLICY "reports_update_admin" ON reports FOR UPDATE TO authenticated USING (public.is_super_admin()) WITH CHECK (public.is_super_admin());
+DROP POLICY IF EXISTS "moderation_actions_admin" ON moderation_actions;
+CREATE POLICY "moderation_actions_admin" ON moderation_actions FOR ALL TO authenticated USING (public.is_super_admin()) WITH CHECK (public.is_super_admin());
+DROP POLICY IF EXISTS "devices_own" ON user_devices;
+CREATE POLICY "devices_own" ON user_devices FOR ALL TO authenticated USING (user_id = auth.uid() OR public.is_super_admin()) WITH CHECK (user_id = auth.uid() OR public.is_super_admin());
+DROP POLICY IF EXISTS "sessions_own" ON user_sessions;
+CREATE POLICY "sessions_own" ON user_sessions FOR ALL TO authenticated USING (user_id = auth.uid() OR public.is_super_admin()) WITH CHECK (user_id = auth.uid() OR public.is_super_admin());
+DROP POLICY IF EXISTS "audit_logs_admin_select" ON audit_logs;
+CREATE POLICY "audit_logs_admin_select" ON audit_logs FOR SELECT TO authenticated USING (public.is_super_admin());
+DROP POLICY IF EXISTS "audit_logs_admin_insert" ON audit_logs;
+CREATE POLICY "audit_logs_admin_insert" ON audit_logs FOR INSERT TO authenticated WITH CHECK (public.is_super_admin() OR actor_id = auth.uid());
+DROP POLICY IF EXISTS "pinned_messages_member_select" ON pinned_messages;
+CREATE POLICY "pinned_messages_member_select" ON pinned_messages FOR SELECT TO authenticated USING (conversation_id IN (SELECT conversation_id FROM conversation_members WHERE user_id = auth.uid()) OR public.is_super_admin());
+DROP POLICY IF EXISTS "pinned_messages_member_insert" ON pinned_messages;
+CREATE POLICY "pinned_messages_member_insert" ON pinned_messages FOR INSERT TO authenticated WITH CHECK (conversation_id IN (SELECT conversation_id FROM conversation_members WHERE user_id = auth.uid()) OR public.is_super_admin());
+DROP POLICY IF EXISTS "starred_messages_own" ON starred_messages;
+CREATE POLICY "starred_messages_own" ON starred_messages FOR ALL TO authenticated USING (user_id = auth.uid() OR public.is_super_admin()) WITH CHECK (user_id = auth.uid() OR public.is_super_admin());
+DROP POLICY IF EXISTS "saved_messages_own" ON saved_messages;
+CREATE POLICY "saved_messages_own" ON saved_messages FOR ALL TO authenticated USING (user_id = auth.uid() OR public.is_super_admin()) WITH CHECK (user_id = auth.uid() OR public.is_super_admin());
+
+DROP TRIGGER IF EXISTS trg_user_contacts_updated ON user_contacts;
+CREATE TRIGGER trg_user_contacts_updated BEFORE UPDATE ON user_contacts FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+DROP TRIGGER IF EXISTS trg_reports_updated ON reports;
+CREATE TRIGGER trg_reports_updated BEFORE UPDATE ON reports FOR EACH ROW EXECUTE FUNCTION update_updated_at();

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useMemo } from 'react';
-import { Plus, Eye, X, ChevronLeft, ChevronRight, Image, Play, Trash2, Clock } from 'lucide-react';
+﻿import React, { useState, useRef, useMemo } from 'react';
+import { Plus, Eye, X, ChevronLeft, ChevronRight, Image, Trash2, Clock, Users } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 
 const GRADIENT_OPTIONS = [
@@ -12,15 +12,14 @@ const GRADIENT_OPTIONS = [
 ];
 
 /**
- * StatusSection — Manages stories (V2).
+ * StatusSection â€” Manages stories (V2).
  * Uses separate statuses/status_views tables with 24-hour expiry.
  */
 export default function StatusSection({
   myStatuses, otherStatuses,
   user, profile,
   onPostStatus, onViewStatus, onDeleteStatus,
-  onSelectConversation, onUploadFile,
-  isUserOnline, conversations,
+  onUploadFile,
   channels = [], myChannels = [], activeChannelId, activeChannelPosts = [],
   setActiveChannelId, onCreateChannel, onSubscribeToChannel, onUnsubscribeFromChannel, onCreateChannelPost
 }) {
@@ -46,6 +45,11 @@ export default function StatusSection({
   const activeChannel = useMemo(() => {
     return channels.find(c => c.id === activeChannelId) || myChannels.find(c => c.id === activeChannelId);
   }, [channels, myChannels, activeChannelId]);
+
+  const openChannelViewer = (channelId) => {
+    setActiveChannelId(channelId);
+    setShowChannelPostsModal(true);
+  };
 
   // Status viewer state
   const [viewingUser, setViewingUser] = useState(null);
@@ -203,7 +207,7 @@ export default function StatusSection({
             <div style={{ flex: 1 }}>
               <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>My Status</h4>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-                {myStatuses.length > 0 ? `${myStatuses.length} update(s) · ${timeAgo(myStatuses[0].created_at)}` : 'Tap to add a status update'}
+                {myStatuses.length > 0 ? `${myStatuses.length} update(s) Â· ${timeAgo(myStatuses[0].created_at)}` : 'Tap to add a status update'}
               </p>
             </div>
             {myStatuses.length > 0 && (
@@ -242,7 +246,7 @@ export default function StatusSection({
                   <div style={{ flex: 1 }}>
                     <h4 style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>{userGroup.userName}</h4>
                     <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-                      {userGroup.statuses.length} update(s) · {timeAgo(userGroup.statuses[0].created_at)}
+                      {userGroup.statuses.length} update(s) Â· {timeAgo(userGroup.statuses[0].created_at)}
                     </p>
                   </div>
                 </div>
@@ -432,7 +436,7 @@ export default function StatusSection({
               <SafeAvatar src={activeChannel.avatar_url} name={activeChannel.name} size={36} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeChannel.name}</h3>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{activeChannel.subscriber_count} followers · {activeChannel.description || 'No description.'}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{activeChannel.subscriber_count} followers Â· {activeChannel.description || 'No description.'}</span>
               </div>
               <button className="modal-close" onClick={() => { setShowChannelPostsModal(false); setActiveChannelId(null); }} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}><X size={18} /></button>
             </div>
@@ -460,7 +464,7 @@ export default function StatusSection({
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-light)' }}>📢 {activeChannel.name}</span>
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-light)' }}>ðŸ“¢ {activeChannel.name}</span>
                       <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     <p style={{ margin: 0, fontSize: '13px', color: 'white', whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{post.content}</p>
@@ -531,7 +535,7 @@ export default function StatusSection({
                     color: createType === t ? 'white' : 'var(--text-secondary)'
                   }}
                 >
-                  {t === 'text' ? '✏️ Text' : '📷 Photo/Video'}
+                  {t === 'text' ? 'âœï¸ Text' : 'ðŸ“· Photo/Video'}
                 </button>
               ))}
             </div>
@@ -700,3 +704,5 @@ export default function StatusSection({
     </div>
   );
 }
+
+

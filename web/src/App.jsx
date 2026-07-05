@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useConversations } from './hooks/useConversations';
 import { useMessages } from './hooks/useMessages';
@@ -6,7 +6,7 @@ import { usePresence } from './hooks/usePresence';
 import { useCalling } from './hooks/useCalling';
 import { useStatuses } from './hooks/useStatuses';
 import { useChannels } from './hooks/useChannels';
-import { supabase } from './supabase';
+import { supabase, isSupabaseConfigured } from './supabase';
 
 import AuthScreen from './components/AuthScreen';
 import Sidebar from './components/Sidebar';
@@ -31,7 +31,7 @@ const SoundWaveLogo = () => (
 );
 
 /**
- * App — Root component for Aahat messaging application (V2).
+ * App â€” Root component for Aahat messaging application (V2).
  * Uses normalized database hooks for auth, conversations, messages,
  * presence, calling, and statuses.
  */
@@ -39,25 +39,25 @@ export default function App() {
   // --- Auth ---
   const {
     user, profile, isLoading: isAuthLoading,
-    signOut, updateProfile, fetchProfile
+    signOut, updateProfile
   } = useAuth();
 
   // --- Conversations ---
   const {
     conversations, selectedConversationId, activeConversation,
     selectConversation, setSelectedConversationId,
-    startDirectChat, startDirectChatByVirtualNumber, createGroup,
+    startDirectChatByVirtualNumber, createGroup,
     fetchGroupMembers, addGroupMember, removeGroupMember,
     updateGroupMemberRole, leaveGroup,
     toggleMute, togglePin, toggleArchive, toggleFavorite,
-    clearChat, deleteChat, refetch: refetchConversations,
+    clearChat, deleteChat,
     isLoading: isConvLoading
   } = useConversations(user);
 
   // --- Messages (for the active conversation) ---
   const {
-    messages: activeMessages, isLoading: isMsgLoading,
-    sendMessage, editMessage, deleteForMe, deleteForEveryone,
+    messages: activeMessages,
+    sendMessage, retryMessage, editMessage, deleteForMe, deleteForEveryone,
     addReaction, removeReaction, togglePinMessage, toggleStarMessage,
     markAsRead, uploadFile
   } = useMessages(user, selectedConversationId);
@@ -75,8 +75,7 @@ export default function App() {
 
   // --- Statuses ---
   const {
-    myStatuses, otherStatuses, postStatus, viewStatus, deleteStatus,
-    isLoading: isStatusLoading
+    myStatuses, otherStatuses, postStatus, viewStatus, deleteStatus
   } = useStatuses(user);
 
   // --- Channels ---
@@ -204,20 +203,27 @@ export default function App() {
     }
   }, [setSelectedConversationId]);
 
-  const handleSend = useCallback(async (text, attachmentUrl, replyPayload) => {
+  const handleSend = useCallback(async (text, attachmentPayload, replyPayload) => {
     const options = {};
+    const attachmentUrl = typeof attachmentPayload === 'string' ? attachmentPayload : attachmentPayload?.url;
+    if (attachmentPayload && typeof attachmentPayload === 'object') {
+      options.attachmentName = attachmentPayload.name || null;
+      options.attachmentSize = attachmentPayload.size || null;
+      options.attachmentMimeType = attachmentPayload.mimeType || null;
+    }
     if (attachmentUrl) {
-      // Determine type from URL
-      if (typeof attachmentUrl === 'string' && attachmentUrl.includes('voice-note')) {
+      const mimeType = options.attachmentMimeType || '';
+      // Determine type from MIME metadata first, then URL fallback
+      if (mimeType.startsWith('audio/') || (typeof attachmentUrl === 'string' && attachmentUrl.includes('voice-note'))) {
         options.messageType = 'voice_note';
         options.attachmentUrl = attachmentUrl;
-      } else if (typeof attachmentUrl === 'string' && attachmentUrl.match(/\.(jpg|jpeg|png|gif|webp)/i)) {
+      } else if (mimeType.startsWith('image/') || (typeof attachmentUrl === 'string' && attachmentUrl.match(/\.(jpg|jpeg|png|gif|webp)/i))) {
         options.messageType = 'image';
         options.attachmentUrl = attachmentUrl;
-      } else if (typeof attachmentUrl === 'string' && attachmentUrl.match(/\.(mp4|webm|mov)/i)) {
+      } else if (mimeType.startsWith('video/') || (typeof attachmentUrl === 'string' && attachmentUrl.match(/\.(mp4|webm|mov)/i))) {
         options.messageType = 'video';
         options.attachmentUrl = attachmentUrl;
-      } else if (typeof attachmentUrl === 'string' && attachmentUrl.match(/\.(pdf|doc|docx|zip)/i)) {
+      } else if (mimeType || (typeof attachmentUrl === 'string' && attachmentUrl.match(/\.(pdf|doc|docx|zip)/i))) {
         options.messageType = 'file';
         options.attachmentUrl = attachmentUrl;
       } else if (typeof attachmentUrl === 'string' && attachmentUrl.startsWith('data:')) {
@@ -293,6 +299,18 @@ export default function App() {
     : [];
 
   // --- Render ---
+  if (!isSupabaseConfigured) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '24px', background: 'var(--bg-gradient)', color: 'var(--text-primary)', textAlign: 'center' }}>
+        <SoundWaveLogo />
+        <h2 style={{ margin: 0 }}>Supabase is not configured</h2>
+        <p style={{ margin: 0, maxWidth: '520px', color: 'var(--text-secondary)' }}>
+          Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to web/.env before running Aahat.
+        </p>
+      </div>
+    );
+  }
+
   if (isAuthLoading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg-gradient)', color: 'var(--text-primary)' }}>
@@ -408,18 +426,32 @@ export default function App() {
               onEditMessage={editMessage}
               onTogglePinMessage={togglePinMessage}
               onToggleStarMessage={toggleStarMessage}
+              onRetryMessage={retryMessage}
               onUploadFile={uploadFile}
               onBack={selectedConversationId ? handleMobileBack : undefined}
               onStartCall={handleStartCall}
               conversations={conversations}
               onClearChat={() => clearChat(selectedConversationId)}
               onDeleteChat={() => deleteChat(selectedConversationId)}
+              onToggleArchive={toggleArchive}
+              onToggleMute={toggleMute}
               onSetTyping={setTyping}
               currentUserId={user?.id}
               isUserOnline={isUserOnline}
-              onForwardMessage={(text, attachmentUrl, targetConvId) => {
-                // Temporarily switch context to forward
-                sendMessage(text, { attachmentUrl, messageType: attachmentUrl ? 'image' : 'text' });
+              onForwardMessage={async (text, attachmentUrl, targetConvId) => {
+                if (!user || !targetConvId) return;
+                const messageType = attachmentUrl
+                  ? (attachmentUrl.match(/\.(mp4|webm|mov)/i) ? 'video'
+                    : attachmentUrl.match(/\.(pdf|doc|docx|zip)/i) ? 'file'
+                    : 'image')
+                  : 'text';
+                await supabase.from('messages').insert({
+                  conversation_id: targetConvId,
+                  sender_id: user.id,
+                  content: text || '',
+                  attachment_url: attachmentUrl || null,
+                  message_type: messageType
+                });
               }}
               onFetchGroupMembers={fetchGroupMembers}
               onAddGroupMember={addGroupMember}

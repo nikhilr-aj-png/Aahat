@@ -1,43 +1,94 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+﻿# Aahat Messaging Platform
 
-# Run and deploy your AI Studio app
+Aahat is a Supabase-backed messaging platform with a user web app and a separate authenticated admin dashboard.
 
-This contains everything you need to run your app locally.
+## Apps
 
-View your app in AI Studio: https://ai.studio/apps/079601da-4428-4915-b4a1-c4305d08a68c
+- `web`: user-facing chat app with auth, direct chats, groups, statuses/stories, channels, media uploads, notifications, and calls.
+- `admin`: Supabase Auth protected dashboard for `super_admin` users to inspect profiles, conversations, and message audit logs.
 
-## Run Locally
+## Required Environment
 
-The project consists of two web applications:
-- **`web`**: The main user-facing web app.
-- **`admin`**: The administrator dashboard web app.
+Create `.env` files from the templates:
 
-### Prerequisites:
-- [Node.js](https://nodejs.org/) (v18 or higher recommended)
-- npm or yarn
+```bash
+copy web\.env.example web\.env
+copy admin\.env.example admin\.env
+```
 
-### Steps to Run:
+Required values:
 
-1. **Setup Environment Variables**:
-   Create a `.env` file in either the `web` or `admin` directories (or both) as needed based on `.env.example`.
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-2. **Install dependencies and start development server**:
+For push notifications in `web`, also set the `VITE_FIREBASE_*` values from `web/.env.example`.
 
-   For the main web app:
-   ```bash
-   cd web
-   npm install
-   npm run dev
-   ```
+Never put a Supabase personal access token or service role key in `web/.env` or `admin/.env`. Browser apps must use the anon/publishable key only.
 
-   For the admin dashboard:
-   ```bash
-   cd admin
-   npm install
-   npm run dev
-   ```
+## Supabase Setup
 
-3. Open the local address shown in your terminal (typically `http://localhost:5173`) in your browser.
+1. Open the Supabase SQL editor for the production project.
+2. Run `supabase_schema_v2.sql` fully.
+3. Confirm these buckets exist: `avatars`, `attachments`, `voice-notes`, `status-media`, `channel-media`.
+4. Create your first admin account through the app or Supabase Auth.
+5. Promote that profile:
+
+```sql
+UPDATE public.profiles
+SET role = 'super_admin'
+WHERE email = 'admin@example.com';
+```
+
+6. In Supabase Realtime, enable replication for the realtime tables used by the app: `messages`, `conversation_members`, `profiles`, `statuses`, `calls`, `call_signaling`, `channels`, `channel_posts`.
+
+## Local Development
+
+Install and run the user app:
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Install and run the admin dashboard:
+
+```bash
+cd admin
+npm install
+npm run dev
+```
+
+## Production Verification
+
+Run these before deploy:
+
+```bash
+cd web
+npm run lint
+npm run build
+
+cd ..\admin
+npm run lint
+npm run build
+```
+
+Both apps should lint without errors and produce a Vite `dist` directory.
+
+## Deployment
+
+Deploy `web` and `admin` as separate Vite static apps. Set each app's environment variables in the hosting dashboard. Recommended hosting options: Vercel, Netlify, Cloudflare Pages, or Supabase static hosting.
+
+For production calls, configure a TURN server in the WebRTC layer before relying on voice/video calls across restrictive networks. The app currently includes public STUN servers, which are useful for development but not enough for all production networks.
+
+## Security Checklist
+
+- Rotate any Supabase personal access token that was shared outside a secret manager.
+- Keep service role keys server-side only.
+- Use `profiles.role = 'super_admin'` for admin access.
+- Keep RLS enabled on all app tables.
+- Review storage policies before making buckets private.
+- Enable Supabase email confirmation and rate limits for public production traffic.
 

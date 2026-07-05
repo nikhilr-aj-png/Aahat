@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Paperclip, Send, X, Camera, Mic, MicOff, Sparkles, Smile, RefreshCw, FileText } from 'lucide-react';
 
 const POPULAR_EMOJIS = ['😊', '😂', '🔥', '👍', '❤️', '👏', '🙌', '🎉', '✨', '💡'];
@@ -65,7 +65,10 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
     e?.preventDefault();
     if (!inputText.trim() && !selectedImage && !isRecording) return;
     
-    onSend(inputText, selectedImage);
+    const attachmentPayload = selectedImage
+      ? (typeof selectedImage === 'string' ? selectedImage : selectedImage)
+      : null;
+    onSend(inputText, attachmentPayload);
     setInputText('');
     setSelectedImage(null);
     if (onCancelReply) onCancelReply();
@@ -138,7 +141,12 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
     setIsUploading(true);
     try {
       const url = await onUploadFile(file);
-      setSelectedImage(url);
+      setSelectedImage({
+        url,
+        name: file.name,
+        size: file.size,
+        mimeType: file.type
+      });
     } catch (err) {
       console.error("Upload failed:", err);
     } finally {
@@ -177,7 +185,12 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
       setIsUploading(true);
       try {
         const url = await onUploadFile(file);
-        setSelectedImage(url);
+        setSelectedImage({
+          url,
+          name: file.name,
+          size: file.size,
+          mimeType: file.type
+        });
       } catch (err) {
         console.error("Upload captured photo failed:", err);
       } finally {
@@ -216,7 +229,12 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
         setIsUploading(true);
         try {
           const url = await onUploadFile(audioFile);
-          onSend("", url);
+          onSend("", {
+            url,
+            name: audioFile.name,
+            size: audioFile.size,
+            mimeType: audioFile.type
+          });
         } catch (err) {
           console.error("Voice note upload failed:", err);
         } finally {
@@ -329,13 +347,13 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
         {/* Attachment Preview */}
         {selectedImage && (
           <div className="attachment-preview">
-            {selectedImage.toLowerCase().includes('.pdf') ? (
+            {(typeof selectedImage === 'object' ? selectedImage.mimeType === 'application/pdf' : selectedImage.toLowerCase().includes('.pdf')) ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--panel-border)', borderRadius: '8px', marginRight: '10px' }}>
                 <FileText size={16} style={{ color: '#ef4444' }} />
-                <span style={{ fontSize: '11px', color: 'white' }}>Document.pdf</span>
+                <span style={{ fontSize: '11px', color: 'white' }}>{typeof selectedImage === 'object' ? selectedImage.name : 'Document.pdf'}</span>
               </div>
             ) : (
-              <img src={selectedImage} alt="Attachment preview" />
+              <img src={typeof selectedImage === 'object' ? selectedImage.url : selectedImage} alt="Attachment preview" />
             )}
             <button type="button" className="attachment-remove" onClick={clearAttachment}>
               <X size={14} />

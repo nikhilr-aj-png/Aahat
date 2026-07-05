@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState } from 'react';
 import { 
-  User, Shield, Bell, Palette, Ban, Laptop, Check, LogOut, 
-  ChevronRight, Lock, FileText, HelpCircle, AlertTriangle, 
-  Download, Trash2, Key, HelpCircle as HelpIcon, Search, FileSignature
+  User, Shield, Bell, Palette, Ban, Laptop, LogOut,
+  ChevronRight, Lock, FileText, HelpCircle,
+  Download, Trash2, Key, Search
 } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 import { supabase } from '../supabase';
@@ -16,7 +16,7 @@ import { supabase } from '../supabase';
 export default function SettingsPanel({ user, profile, onLogout, onUploadFile, onUpdateProfile, onRequestNotificationPermission }) {
   const [activeSubTab, setActiveSubTab] = useState('profile');
   
-  // Profile States — initialized from V2 profile model
+  // Profile States â€” initialized from V2 profile model
   const [displayName, setDisplayName] = useState(() => {
     return profile?.display_name || user?.email?.split('@')[0] || '';
   });
@@ -38,7 +38,7 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
   const [selectedFile, setSelectedFile] = useState(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   
-  // Privacy States — initialized from profile JSONB
+  // Privacy States â€” initialized from profile JSONB
   const [privacyLastSeen, setPrivacyLastSeen] = useState(() => {
     return profile?.privacy_settings?.last_seen !== false;
   });
@@ -49,7 +49,7 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
     return profile?.privacy_settings?.status || 'contacts';
   });
   
-  // Notification States — initialized from profile JSONB
+  // Notification States â€” initialized from profile JSONB
   const [notifSound, setNotifSound] = useState(() => {
     return profile?.notification_settings?.sound !== false;
   });
@@ -70,7 +70,7 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
     ];
   });
   const [devices, setDevices] = useState([
-    { id: "d1", name: "Windows Desktop • Active Now", location: "Mumbai, India", type: "desktop" },
+    { id: "d1", name: "Windows Desktop â€¢ Active Now", location: "Mumbai, India", type: "desktop" },
     { id: "d2", name: "iPhone 15 Pro", location: "Delhi, India", type: "mobile", lastSeen: "Active 2h ago" }
   ]);
 
@@ -83,13 +83,12 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [loginLogs, setLoginLogs] = useState([
+  const [loginLogs] = useState([
     { id: 1, device: "Windows desktop", ip: "192.168.1.12", date: "June 19, 2026, 06:45 AM", location: "Mumbai, India" },
     { id: 2, device: "iPhone 15 Pro", ip: "103.45.210.4", date: "June 18, 2026, 11:20 PM", location: "Delhi, India" }
   ]);
 
   // Support Tab States
-  const [supportQuery, setSupportQuery] = useState('');
   const [faqSearchQuery, setFaqSearchQuery] = useState('');
   const [activeFaqIndex, setActiveFaqIndex] = useState(null);
   
@@ -447,13 +446,10 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
     { q: "What happens when I block a user?", a: "Blocked contacts can no longer send you messages, trigger video/audio calls, or view your status stories. They will see your online status as persistently offline." }
   ];
 
-  const filteredFaqs = useMemo(() => {
-    if (!faqSearchQuery.trim()) return faqs;
-    return faqs.filter(f => 
-      f.q.toLowerCase().includes(faqSearchQuery.toLowerCase()) || 
-      f.a.toLowerCase().includes(faqSearchQuery.toLowerCase())
-    );
-  }, [faqSearchQuery]);
+  const filteredFaqs = !faqSearchQuery.trim() ? faqs : faqs.filter(f =>
+    f.q.toLowerCase().includes(faqSearchQuery.toLowerCase()) ||
+    f.a.toLowerCase().includes(faqSearchQuery.toLowerCase())
+  );
 
   return (
     <div className="settings-panel-container" id="settings-panel">
@@ -760,15 +756,15 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
               <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid var(--panel-border)', paddingBottom: '10px', marginBottom: '4px' }}><Lock size={16} style={{ color: 'var(--accent-light)' }} /> Update Password</h4>
               <div className="form-group">
                 <label>Old Password</label>
-                <input type="password" value={oldPassword} onChange={e => setOldPassword(e.target.value)} required placeholder="••••••••" />
+                <input type="password" value={oldPassword} onChange={e => setOldPassword(e.target.value)} required placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
               </div>
               <div className="form-group">
                 <label>New Password</label>
-                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required placeholder="••••••••" />
+                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
               </div>
               <div className="form-group">
                 <label>Confirm New Password</label>
-                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required placeholder="••••••••" />
+                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
               </div>
               <button type="submit" className="admin-btn admin-btn-primary" style={{ alignSelf: 'flex-start', gap: '6px' }}>
                 <Key size={14} /> Update Password
@@ -844,7 +840,7 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
                 <div key={device.id} className="device-item">
                   <div className="device-info">
                     <h4>{device.name}</h4>
-                    <span>{device.location} {device.lastSeen && `• ${device.lastSeen}`}</span>
+                    <span>{device.location} {device.lastSeen && `â€¢ ${device.lastSeen}`}</span>
                   </div>
                   {device.id !== 'd1' && (
                     <button 
@@ -1106,3 +1102,4 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
     </div>
   );
 }
+
