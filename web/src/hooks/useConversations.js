@@ -591,26 +591,10 @@ export function useConversations(user) {
 
   const clearChat = useCallback(async (conversationId) => {
     if (!user) return;
-    // Delete all messages in the conversation (soft delete for user)
-    // For simplicity we add user to deleted_for_users array on each message
-    // In practice you might use a separate table
-    const { data: msgs } = await supabase
-      .from('messages')
-      .select('id')
-      .eq('conversation_id', conversationId);
-
-    if (msgs?.length) {
-      for (const msg of msgs) {
-        await supabase.rpc('array_append_if_not_exists', {
-          p_table: 'messages',
-          p_id: msg.id,
-          p_column: 'deleted_for_users',
-          p_value: user.id
-        }).catch(() => {
-          // Fallback: just mark read
-        });
-      }
-    }
+    const { error } = await supabase.rpc('clear_conversation_for_me', {
+      p_conversation_id: conversationId
+    });
+    if (error) throw error;
 
     // Reset unread
     await supabase

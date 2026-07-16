@@ -56,6 +56,15 @@ export default function SettingsPanel({ user, profile, onLogout, onUploadFile, o
   const [privacyReceipts, setPrivacyReceipts] = useState(() => {
     return profile?.privacy_settings?.read_receipts !== false;
   });
+  const [profilePhotoAudience, setProfilePhotoAudience] = useState(() => {
+    return profile?.privacy_settings?.profile_photo || 'everyone';
+  });
+  const [privacyOnline, setPrivacyOnline] = useState(() => {
+    return profile?.privacy_settings?.online !== false;
+  });
+  const [discoverByAahatId, setDiscoverByAahatId] = useState(() => {
+    return profile?.privacy_settings?.discover_by_aahat_id !== false;
+  });
   const [statusAudience, setStatusAudience] = useState(() => {
     return profile?.privacy_settings?.status || 'contacts';
   });

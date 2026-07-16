@@ -79,10 +79,18 @@ function MessageBubble({
     }
   };
 
+  const attachmentName = msg.attachment_name || 'Attachment';
+  const mimeType = msg.attachment_mime_type || '';
+  const attachmentUrl = typeof msg.attachment_url === 'string' ? msg.attachment_url : '';
   const isVoiceNote = msg.message_type === 'voice_note' || msg.message_type === 'audio' ||
-    (msg.attachment_url && msg.attachment_url.includes('voice-note'));
-  const isPdf = msg.message_type === 'file' || (msg.attachment_url && msg.attachment_url.toLowerCase().includes('.pdf'));
-  const isImage = msg.message_type === 'image' || (msg.attachment_url && !isVoiceNote && !isPdf);
+    attachmentUrl.includes('voice-note');
+  const isPdf = mimeType === 'application/pdf' ||
+    attachmentName.toLowerCase().endsWith('.pdf') ||
+    attachmentUrl.toLowerCase().includes('.pdf');
+  const isImage = msg.message_type === 'image' ||
+    mimeType.startsWith('image/') ||
+    /\.(jpe?g|png|gif|webp)(?:[?#]|$)/i.test(attachmentUrl);
+  const isFile = msg.message_type === 'file' && !isPdf;
   const isSystem = msg.message_type === 'system';
   const isOptimistic = msg._optimistic;
   const isFailed = msg._status === 'failed';
