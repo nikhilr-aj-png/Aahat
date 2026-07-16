@@ -12,6 +12,14 @@ const newStableId = (key) => {
   return value;
 };
 
+const friendlyError = (error) => {
+  const text = error?.message || '';
+  if (/schema cache|PGRST20[25]|user_devices|user_sessions|get_my_blocked_users/i.test(text)) {
+    return 'Security services are being upgraded. Your profile settings are still available.';
+  }
+  return text || 'We could not complete that action. Please try again.';
+};
+
 const deviceName = () => `${navigator.platform || 'Web'} · ${/Mobile/i.test(navigator.userAgent) ? 'Mobile' : 'Browser'}`;
 
 export default function SettingsPanelProduction({ user, profile, onLogout, onUpdateProfile, onRequestNotificationPermission }) {
@@ -70,13 +78,13 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
       if (sessionError) throw sessionError;
       await loadSecurityData();
     };
-    register().catch(error => notify('error', error.message));
+    register().catch(error => notify('error', friendlyError(error)));
   }, [loadSecurityData, user]);
 
   const run = async (operation, success) => {
     setBusy(true); setMessage(null);
     try { await operation(); if (success) notify('success', success); }
-    catch (error) { notify('error', error.message || 'Operation failed.'); }
+    catch (error) { notify('error', friendlyError(error)); }
     finally { setBusy(false); }
   };
 
