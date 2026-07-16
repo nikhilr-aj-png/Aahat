@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, supabaseUrl } from '../supabase';
+import { supabase } from '../supabase';
 
 /**
  * useAuth — Handles authentication state, session management,
@@ -90,8 +90,15 @@ export function useAuth() {
       return;
     }
 
+    const currentProfile = await ensureProfile(session.user);
+    if (currentProfile?.account_status && currentProfile.account_status !== 'active') {
+      await supabase.auth.signOut();
+      setUser(null);
+      setProfile(null);
+      setIsLoading(false);
+      return;
+    }
     setUser(session.user);
-    await ensureProfile(session.user);
 
     // Update online status
     await supabase
@@ -138,20 +145,22 @@ export function useAuth() {
     };
   }, [user?.id]);
 
-  // Set offline on page unload
+  // Presence is synchronized while the page is visible. Realtime presence remains
+  // authoritative for instant UI; these profile fields provide a durable fallback.
   useEffect(() => {
-    const handleUnload = () => {
-      if (user) {
-        // Use sendBeacon for reliable offline status
-        const url = `${supabaseUrl}/rest/v1/profiles?id=eq.${user.id}`;
-        const body = JSON.stringify({ is_online: false, last_seen: new Date().toISOString() });
-        navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
-      }
+    if (!user?.id) return undefined;
+    const syncPresence = (online) => supabase.from('profiles').update({
+      is_online: online, last_seen: new Date().toISOString()
+    }).eq('id', user.id).then(() => undefined);
+    const handleVisibility = () => syncPresence(document.visibilityState === 'visible');
+    const handlePageHide = () => syncPresence(false);
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', handlePageHide);
     };
-
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, [user]);
+  }, [user?.id]);
 
   // Auth actions
   const signUp = useCallback(async (email, password, name) => {

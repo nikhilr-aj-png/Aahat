@@ -19,6 +19,7 @@ export default function ChatView({
   onDeleteForMe, onDeleteForEveryone, onEditMessage,
   onTogglePinMessage, onToggleStarMessage,
   onRetryMessage,
+  onLoadMoreMessages, hasMoreMessages, isLoadingMoreMessages,
   onUploadFile,
   onBack,
   onStartCall,
@@ -320,13 +321,20 @@ export default function ChatView({
             </div>
           ) : (
             <>
-              {hiddenMessageCount > 0 && (
+              {(hasMoreMessages || hiddenMessageCount > 0) && (
                 <button
                   type="button"
                   className="load-more-messages"
-                  onClick={() => setVisibleMessageLimit(limit => Math.min(groupedMessages.length, limit + 160))}
+                  disabled={isLoadingMoreMessages}
+                  onClick={() => {
+                    if (hiddenMessageCount > 0) {
+                      setVisibleMessageLimit(limit => Math.min(groupedMessages.length, limit + 160));
+                    } else {
+                      onLoadMoreMessages?.();
+                    }
+                  }}
                 >
-                  Load earlier messages
+                  {isLoadingMoreMessages ? 'Loading…' : 'Load earlier messages'}
                 </button>
               )}
               {visibleGroupedMessages.map(item => {

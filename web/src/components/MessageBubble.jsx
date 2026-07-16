@@ -200,6 +200,12 @@ function MessageBubble({
             </p>
           )}
 
+          {isFailed && (
+            <button type="button" className="message-retry-btn" onClick={() => onRetry?.(msg.id)}>
+              <RefreshCw size={12} /> Retry sending
+            </button>
+          )}
+
           {/* Hover actions */}
           <div className="message-hover-actions">
             <button className="msg-action-btn" onClick={() => onReply(msg)} title="Reply" id={`btn-reply-${msg.id}`}>
@@ -222,8 +228,8 @@ function MessageBubble({
             <button className="msg-action-btn" onClick={() => onTogglePin?.(msg.id)} title={msg.is_pinned ? 'Unpin' : 'Pin'}>
               <Pin size={12} />
             </button>
-            <button className="msg-action-btn" onClick={() => onToggleStar?.(msg.id)} title="Star">
-              <Star size={12} />
+            <button className={`msg-action-btn ${msg.is_starred ? 'active' : ''}`} onClick={() => onToggleStar?.(msg.id)} title={msg.is_starred ? 'Unstar' : 'Star'}>
+              <Star size={12} fill={msg.is_starred ? 'currentColor' : 'none'} />
             </button>
             <button
               className="msg-action-btn danger"

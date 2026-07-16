@@ -1,20 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useConversations } from './hooks/useConversations';
-import { useMessages } from './hooks/useMessages';
+import { useMessages } from './hooks/useMessagesProduction';
 import { usePresence } from './hooks/usePresence';
 import { useCalling } from './hooks/useCalling';
 import { useStatuses } from './hooks/useStatuses';
 import { useChannels } from './hooks/useChannels';
 import { supabase, isSupabaseConfigured } from './supabase';
 
-import AuthScreen from './components/AuthScreen';
+import AuthScreen from './components/AuthScreenProduction';
+import PasswordRecoveryGate from './components/PasswordRecoveryGate';
 import Sidebar from './components/Sidebar';
 import ChatView from './components/ChatView';
 import StatusSection from './components/StatusSection';
-import SettingsPanel from './components/SettingsPanel';
+import SettingsPanel from './components/SettingsPanelProduction';
 import CallingOverlay from './components/CallingOverlay';
-import AdminEmbedPanel from './components/AdminEmbedPanel';
+import AdminEmbedPanel from './components/AdminEmbedProduction';
 import SafeAvatar from './components/SafeAvatar';
 import { requestNotificationPermission } from './firebase';
 
@@ -59,7 +60,7 @@ export default function App() {
     messages: activeMessages,
     sendMessage, retryMessage, editMessage, deleteForMe, deleteForEveryone,
     addReaction, removeReaction, togglePinMessage, toggleStarMessage,
-    markAsRead, uploadFile
+    markAsRead, uploadFile, loadMore, hasMore, isLoadingMore
   } = useMessages(user, selectedConversationId);
 
   // --- Presence ---
@@ -156,10 +157,10 @@ export default function App() {
     try {
       const token = await requestNotificationPermission();
       if (token && user) {
-        await supabase
-          .from('profiles')
-          .update({ fcm_token: token })
-          .eq('id', user.id);
+        const { error } = await supabase.from('push_tokens').upsert({
+          user_id: user.id, token, provider: 'fcm', is_active: true, updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,token' });
+        if (error) throw error;
         alert("Push notifications enabled successfully!");
       } else {
         alert("Notification permission denied or failed.");
@@ -427,6 +428,9 @@ export default function App() {
               onTogglePinMessage={togglePinMessage}
               onToggleStarMessage={toggleStarMessage}
               onRetryMessage={retryMessage}
+              onLoadMoreMessages={loadMore}
+              hasMoreMessages={hasMore}
+              isLoadingMoreMessages={isLoadingMore}
               onUploadFile={uploadFile}
               onBack={selectedConversationId ? handleMobileBack : undefined}
               onStartCall={handleStartCall}
@@ -614,6 +618,8 @@ export default function App() {
           </button>
         </div>
       )}
+
+      <PasswordRecoveryGate />
 
       {/* Calling Overlay */}
       {callState && (

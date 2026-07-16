@@ -77,7 +77,7 @@ export function useStatuses(user) {
   }, [statuses, user]);
 
   // Post a new status
-  const postStatus = useCallback(async (type, content, bgGradient = null, mediaUrl = null) => {
+  const postStatus = useCallback(async (type, content, bgGradient = null, mediaUrl = null, privacy = 'contacts') => {
     if (!user) return;
 
     const { data, error } = await supabase
@@ -88,6 +88,7 @@ export function useStatuses(user) {
         content: type === 'text' ? content : null,
         media_url: type !== 'text' ? (mediaUrl || content) : null,
         bg_gradient: bgGradient,
+        privacy,
       })
       .select()
       .single();
@@ -114,11 +115,6 @@ export function useStatuses(user) {
       viewer_id: user.id
     });
 
-    // Increment view count
-    await supabase
-      .from('statuses')
-      .update({ view_count: (status.view_count || 0) + 1 })
-      .eq('id', statusId);
   }, [user, statuses]);
 
   // Delete a status

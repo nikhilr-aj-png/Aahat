@@ -66,6 +66,7 @@ export default function CallingOverlay({
           <video
             ref={remoteVideoRef}
             autoPlay
+            muted={!isSpeakerOn}
             playsInline
             className="remote-video"
             style={{

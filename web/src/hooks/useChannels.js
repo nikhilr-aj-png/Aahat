@@ -102,12 +102,6 @@ export function useChannels(user) {
 
       if (error) throw error;
 
-      // Update subscriber count
-      const { data: channel } = await supabase.from('channels').select('subscriber_count').eq('id', channelId).single();
-      await supabase
-        .from('channels')
-        .update({ subscriber_count: (channel?.subscriber_count || 0) + 1 })
-        .eq('id', channelId);
 
       await fetchMyChannels();
       await fetchChannels();
@@ -127,12 +121,6 @@ export function useChannels(user) {
 
       if (error) throw error;
 
-      // Update subscriber count
-      const { data: channel } = await supabase.from('channels').select('subscriber_count').eq('id', channelId).single();
-      await supabase
-        .from('channels')
-        .update({ subscriber_count: Math.max(0, (channel?.subscriber_count || 0) - 1) })
-        .eq('id', channelId);
 
       await fetchMyChannels();
       await fetchChannels();

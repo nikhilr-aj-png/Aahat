@@ -6,12 +6,19 @@ import { supabase } from '../supabase';
  * Handles call initiation, answering, hanging up, and media controls.
  */
 
+const TURN_SERVER = import.meta.env.VITE_TURN_URL ? [{
+  urls: import.meta.env.VITE_TURN_URL,
+  username: import.meta.env.VITE_TURN_USERNAME,
+  credential: import.meta.env.VITE_TURN_CREDENTIAL
+}] : [];
+
 const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
   { urls: 'stun:stun2.l.google.com:19302' },
   { urls: 'stun:stun3.l.google.com:19302' },
-  { urls: 'stun:stun4.l.google.com:19302' }
+  { urls: 'stun:stun4.l.google.com:19302' },
+  ...TURN_SERVER
 ];
 
 export function useCalling(user) {
@@ -72,7 +79,9 @@ export function useCalling(user) {
         pc.addTrack(track, stream);
       });
     } catch (err) {
-      console.error('Failed to get local media:', err);
+      pc.close();
+      peerConnectionRef.current = null;
+      throw new Error(`Camera or microphone permission failed: ${err.message}`, { cause: err });
     }
 
     // Handle remote tracks
@@ -356,7 +365,8 @@ export function useCalling(user) {
         const screenTrack = screenStream.getVideoTracks()[0];
 
         const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-        if (sender) sender.replaceTrack(screenTrack);
+        if (!sender) { screenStream.getTracks().forEach(track => track.stop()); throw new Error('Screen sharing requires a video call.'); }
+        await sender.replaceTrack(screenTrack);
 
         screenTrack.onended = () => {
           toggleScreenShare(); // Auto-revert when user stops sharing
