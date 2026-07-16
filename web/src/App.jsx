@@ -21,14 +21,8 @@ import { requestNotificationPermission } from './firebase';
 
 import { MessageSquare, CircleDot, Settings, LogOut, Sparkles, X, Shield, Users, Plus } from 'lucide-react';
 
-const SoundWaveLogo = () => (
-  <div className="soundwave-logo">
-    <span className="wave-bar bar-1" />
-    <span className="wave-bar bar-2" />
-    <span className="wave-bar bar-3" />
-    <span className="wave-bar bar-4" />
-    <span className="wave-bar bar-5" />
-  </div>
+const BrandLogo = () => (
+  <img src="/logo.png" alt="Aahat" className="brand-logo-image" />
 );
 
 /**
@@ -303,7 +297,7 @@ export default function App() {
   if (!isSupabaseConfigured) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', padding: '24px', background: 'var(--bg-gradient)', color: 'var(--text-primary)', textAlign: 'center' }}>
-        <SoundWaveLogo />
+        <BrandLogo />
         <h2 style={{ margin: 0 }}>Supabase is not configured</h2>
         <p style={{ margin: 0, maxWidth: '520px', color: 'var(--text-secondary)' }}>
           Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to web/.env before running Aahat.
@@ -315,7 +309,7 @@ export default function App() {
   if (isAuthLoading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg-gradient)', color: 'var(--text-primary)' }}>
-        <SoundWaveLogo />
+        <BrandLogo />
         <span style={{ fontSize: '14px', fontWeight: '500', letterSpacing: '1px', opacity: 0.8 }}>Loading Aahat...</span>
       </div>
     );
@@ -332,7 +326,7 @@ export default function App() {
         <div className="nav-dock">
           <div className="dock-top">
             <div className="dock-logo-container" title="Aahat">
-              <SoundWaveLogo />
+              <BrandLogo />
             </div>
             <button
               className={`dock-btn ${activeTab === 'chats' ? 'active' : ''}`}
