@@ -192,9 +192,7 @@ export default function ChatView({
             <span className="logo-ring ring-1" />
             <span className="logo-ring ring-2" />
             <span className="logo-ring ring-3" />
-            <div className="empty-logo-center">
-              <img src="/logo.png" alt="Aahat" className="empty-brand-logo" />
-            </div>
+            <img src="/logo.png" alt="Aahat" className="empty-brand-logo" />
           </div>
           <h3>Welcome to Aahat</h3>
           <p className="security-note">Private conversations protected by authenticated transport.</p>
