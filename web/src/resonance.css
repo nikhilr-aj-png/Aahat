@@ -107,7 +107,7 @@ body::before {
 .sidebar { width: var(--sidebar-width); background: #151039; border-right-color: rgba(181,166,240,.1); }
 .sidebar-header { padding: 18px 18px 14px; background: linear-gradient(180deg, rgba(255,255,255,.018), transparent); }
 .sidebar-brand { margin-bottom: 14px; }
-.sidebar-logo { width: 30px; height: 30px; border: 1px solid rgba(95,52,247,.16); border-radius: 10px; }
+.sidebar-logo { width: 30px; height: 30px; border: 0; border-radius: 10px; box-shadow: none; }
 .brand-text {
   color: var(--text-primary); background: none; -webkit-background-clip: initial; -webkit-text-fill-color: currentColor;
   background-clip: initial; font-size: 18px; font-weight: 650; letter-spacing: -.035em;
@@ -238,5 +238,8 @@ body::before {
 /* Icon-derived brand marks */
 .brand-logo-image { width: 64px; height: 64px; display: block; object-fit: cover; border-radius: 13px; }
 .dock-logo-container .brand-logo-image { width: 100%; height: 100%; }
-.dock-logo-container { padding: 3px; overflow: hidden; border-color: rgba(134,89,241,.38); background: rgba(95,52,247,.12); box-shadow: 0 10px 32px rgba(38,18,123,.32); }
+.dock-logo-container { padding: 0; overflow: hidden; border: 0; background: transparent; box-shadow: none; }
 .empty-brand-logo { width: 96px; height: 96px; display: block; object-fit: cover; margin-bottom: 24px; border-radius: 26px; box-shadow: 0 16px 48px rgba(38,18,123,.42); }
+/* The source PNG has ~2% transparent padding. Scale all three placements
+   just enough to make the visible rounded square edge-to-edge. */
+.brand-logo-image, .sidebar-logo, .empty-brand-logo { transform: scale(1.045); transform-origin: center; }
