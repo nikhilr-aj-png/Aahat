@@ -191,7 +191,7 @@ export default function StatusSection({
                 src={profile?.avatar_url}
                 name={profile?.display_name || 'Me'}
                 size={52}
-                style={{ borderRadius: '50%', border: myStatuses.length > 0 ? '3px solid var(--accent)' : '3px solid var(--panel-border)' }}
+                style={{ borderRadius: '50%', border: myStatuses.length > 0 ? '3px solid var(--accent)' : 'none' }}
               />
               <button
                 onClick={() => setShowCreateModal(true)}
