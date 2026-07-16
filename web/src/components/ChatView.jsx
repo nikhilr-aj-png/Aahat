@@ -188,12 +188,7 @@ export default function ChatView({
     return (
       <div className="chat-view empty" id="chat-view">
         <div className="chat-empty-state">
-          <div className="empty-brand-wave">
-            <span className="logo-ring ring-1" />
-            <span className="logo-ring ring-2" />
-            <span className="logo-ring ring-3" />
-            <img src="/logo.png" alt="Aahat" className="empty-brand-logo" />
-          </div>
+          <img src="/logo.png" alt="Aahat" className="empty-brand-logo" />
           <h3>Welcome to Aahat</h3>
           <p className="security-note">Private conversations protected by authenticated transport.</p>
           <span className="start-prompt">Select a conversation to start chatting</span>
