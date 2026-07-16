@@ -5,14 +5,63 @@ begin;
 
 create extension if not exists pgcrypto;
 
+-- Settings device/session foundation. These tables may not exist on older
+-- projects, so create them before applying additive production changes.
+create table if not exists public.user_devices (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  device_name text not null default 'Browser',
+  platform text,
+  device_fingerprint text,
+  last_seen_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.user_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  device_id uuid references public.user_devices(id) on delete set null,
+  client_session_id text,
+  user_agent text,
+  last_seen_at timestamptz not null default now(),
+  revoked_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table public.user_devices enable row level security;
+alter table public.user_sessions enable row level security;
+
+drop policy if exists "user_devices_select_own" on public.user_devices;
+drop policy if exists "user_devices_insert_own" on public.user_devices;
+drop policy if exists "user_devices_update_own" on public.user_devices;
+drop policy if exists "user_devices_delete_own" on public.user_devices;
+create policy "user_devices_select_own" on public.user_devices for select to authenticated using (user_id = auth.uid());
+create policy "user_devices_insert_own" on public.user_devices for insert to authenticated with check (user_id = auth.uid());
+create policy "user_devices_update_own" on public.user_devices for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "user_devices_delete_own" on public.user_devices for delete to authenticated using (user_id = auth.uid());
+
+drop policy if exists "user_sessions_select_own" on public.user_sessions;
+drop policy if exists "user_sessions_insert_own" on public.user_sessions;
+drop policy if exists "user_sessions_update_own" on public.user_sessions;
+drop policy if exists "user_sessions_delete_own" on public.user_sessions;
+create policy "user_sessions_select_own" on public.user_sessions for select to authenticated using (user_id = auth.uid());
+create policy "user_sessions_insert_own" on public.user_sessions for insert to authenticated with check (user_id = auth.uid());
+create policy "user_sessions_update_own" on public.user_sessions for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "user_sessions_delete_own" on public.user_sessions for delete to authenticated using (user_id = auth.uid());
+
+revoke all on public.user_devices from anon;
+revoke all on public.user_sessions from anon;
+grant select, insert, update, delete on public.user_devices to authenticated;
+grant select, insert, update, delete on public.user_sessions to authenticated;
+
 -- Device records need a stable, non-secret browser fingerprint so repeated
 -- application starts update one row instead of creating duplicates.
 alter table public.user_devices
   add column if not exists device_fingerprint text;
 
-create unique index if not exists idx_user_devices_fingerprint
-  on public.user_devices(user_id, device_fingerprint)
-  where device_fingerprint is not null;
+drop index if exists public.idx_user_devices_fingerprint;
+create unique index idx_user_devices_fingerprint
+  on public.user_devices(user_id, device_fingerprint);
 
 -- Fix the original policy typo: it was declared as another SELECT policy,
 -- which meant users could not actually unblock somebody.

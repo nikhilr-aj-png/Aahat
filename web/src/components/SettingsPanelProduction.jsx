@@ -52,13 +52,12 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
       supabase.from('user_sessions').select('id,client_session_id,user_agent,created_at,last_seen_at,revoked_at').eq('user_id', user.id).order('last_seen_at', { ascending: false }),
       supabase.auth.mfa.listFactors()
     ]);
-    if (blockedResult.error) throw blockedResult.error;
-    if (devicesResult.error) throw devicesResult.error;
-    if (sessionsResult.error) throw sessionsResult.error;
-    setBlocked(blockedResult.data || []);
-    setDevices(devicesResult.data || []);
-    setSessions(sessionsResult.data || []);
-    setFactors(factorsResult.data?.totp || []);
+    if (!blockedResult.error) setBlocked(blockedResult.data || []);
+    if (!devicesResult.error) setDevices(devicesResult.data || []);
+    if (!sessionsResult.error) setSessions(sessionsResult.data || []);
+    if (!factorsResult.error) setFactors(factorsResult.data?.totp || []);
+    const firstError = blockedResult.error || devicesResult.error || sessionsResult.error || factorsResult.error;
+    if (firstError) throw firstError;
   }, [user]);
 
   useEffect(() => {
@@ -70,13 +69,17 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
         user_id: user.id, device_name: deviceName(), platform: 'web', device_fingerprint: fingerprint,
         last_seen_at: new Date().toISOString()
       }, { onConflict: 'user_id,device_fingerprint' }).select('id').single();
-      if (deviceError) throw deviceError;
-      const { error: sessionError } = await supabase.from('user_sessions').upsert({
-        user_id: user.id, device_id: device.id, client_session_id: clientSessionId,
-        user_agent: navigator.userAgent, last_seen_at: new Date().toISOString(), revoked_at: null
-      }, { onConflict: 'user_id,client_session_id' });
-      if (sessionError) throw sessionError;
-      await loadSecurityData();
+      let registrationError = deviceError;
+      if (!deviceError) {
+        const { error: sessionError } = await supabase.from('user_sessions').upsert({
+          user_id: user.id, device_id: device.id, client_session_id: clientSessionId,
+          user_agent: navigator.userAgent, last_seen_at: new Date().toISOString(), revoked_at: null
+        }, { onConflict: 'user_id,client_session_id' });
+        registrationError = sessionError;
+      }
+      try { await loadSecurityData(); }
+      catch (error) { registrationError ||= error; }
+      if (registrationError) throw registrationError;
     };
     register().catch(error => notify('error', friendlyError(error)));
   }, [loadSecurityData, user]);
