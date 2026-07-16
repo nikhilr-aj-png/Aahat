@@ -203,7 +203,7 @@ export default function ChatView({
             </div>
           </div>
           <h3>Welcome to Aahat</h3>
-          <Private conversations powered by secure authenticated transport.</p>
+          <p className="security-note">Private conversations protected by authenticated transport.</p>
           <span className="start-prompt">Select a conversation to start chatting</span>
         </div>
       </div>
