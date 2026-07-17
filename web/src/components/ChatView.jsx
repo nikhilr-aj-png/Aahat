@@ -395,6 +395,7 @@ export default function ChatView({
                   onReply={() => { setEditingMessage(null); setShowReactionPicker(null); setReplyingToMessage(item.data); }}
                   isActionMenuOpen={openMessageMenuId === item.data.id}
                   onToggleActionMenu={setOpenMessageMenuId}
+                  showSenderAvatar={conversation.type === 'group'}
                   onRetry={onRetryMessage}
                   selectionMode={selectedMessageIds.size > 0}
                   isSelected={selectedMessageIds.has(item.data.id)}
@@ -410,9 +411,11 @@ export default function ChatView({
           {isTyping && (
             <div className="message-bubble-wrapper other typing-bubble">
               <div className="bubble-row">
-                <div className="message-sender-avatar">
-                  {conversation.name?.[0]?.toUpperCase() || 'C'}
-                </div>
+                {conversation.type === 'group' && (
+                  <div className="message-sender-avatar">
+                    {conversation.name?.[0]?.toUpperCase() || 'C'}
+                  </div>
+                )}
                 <div className="message-bubble">
                   <div className="typing-dots large"><span /><span /><span /></div>
                 </div>

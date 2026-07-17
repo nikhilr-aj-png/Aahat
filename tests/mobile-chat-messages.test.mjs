@@ -154,3 +154,31 @@ test('mobile chat scroll stays inside the message list and actions keep premium 
   assert.match(styles, /body:has\(\.app-container\.mobile-chat-open\)[\s\S]+overflow:\s*hidden/);
   assert.match(styles, /@media \(max-width: 768px\)[\s\S]+\.message-action-menu[\s\S]+flex-direction:\s*column/);
 });
+test('message timestamps stay high contrast on every bubble', async () => {
+  const theme = await read('web/src/resonance.css');
+  assert.match(theme, /High-contrast message timestamps/);
+  assert.match(theme, /\.message-info-row \.msg-time-stamp[\s\S]+color:\s*#fff[\s\S]+opacity:\s*1/);
+});
+test('mobile uses long press while direct chats hide sender avatars', async () => {
+  const [bubble, chatView, styles] = await Promise.all([
+    read('web/src/components/MessageBubble.jsx'),
+    read('web/src/components/ChatView.jsx'),
+    read('web/src/index.css')
+  ]);
+  assert.match(bubble, /createPortal/);
+  assert.match(bubble, /longPressTimerRef/);
+  assert.match(bubble, /onContextMenu=\{handleContextMenu\}/);
+  assert.match(bubble, /showSenderAvatar && !isMe/);
+  assert.match(chatView, /showSenderAvatar=\{conversation\.type === 'group'\}/);
+  assert.match(styles, /Mobile long-press message actions[\s\S]+\.message-hover-actions[\s\S]+display:\s*none !important/);
+  assert.match(styles, /\.message-action-portal-backdrop[\s\S]+place-items:\s*center/);
+});
+test('desktop open action menu stays above neighboring messages', async () => {
+  const [bubble, theme] = await Promise.all([
+    read('web/src/components/MessageBubble.jsx'),
+    read('web/src/resonance.css')
+  ]);
+  assert.match(bubble, /isActionMenuOpen \? 'action-menu-open'/);
+  assert.match(theme, /\.message-bubble-wrapper\.action-menu-open[\s\S]+z-index:\s*240/);
+  assert.match(theme, /@media \(min-width: 769px\)[\s\S]+padding-right:\s*42px/);
+});

@@ -244,3 +244,28 @@ body::before {
 /* The source PNG has ~2% transparent padding. Scale all three placements
    just enough to make the visible rounded square edge-to-edge. */
 .brand-logo-image, .sidebar-logo, .empty-brand-logo { transform: scale(1.045); transform-origin: center; }
+
+/* High-contrast message timestamps */
+.message-info-row .msg-time-stamp,
+.message-bubble-wrapper.me .message-info-row .msg-time-stamp,
+.message-bubble-wrapper.other .message-info-row .msg-time-stamp {
+  color: #fff;
+  opacity: 1;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .72);
+}
+/* Desktop message action stacking */
+.message-bubble-wrapper.action-menu-open {
+  position: relative;
+  z-index: 240;
+}
+
+@media (min-width: 769px) {
+  .message-bubble {
+    padding-right: 42px;
+  }
+
+  .message-bubble-wrapper.action-menu-open .message-action-menu {
+    z-index: 260;
+  }
+}

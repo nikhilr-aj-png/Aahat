@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Smile, Trash2, Check, CheckCheck, Reply, Play, Pause, FileText, Edit3, ChevronDown, ChevronLeft, ListChecks, RefreshCw, Download, Film } from 'lucide-react';
 
 const formatBytes = (bytes) => {
@@ -30,6 +31,7 @@ function MessageBubble({
   isSelected,
   isActionMenuOpen,
   onToggleActionMenu,
+  showSenderAvatar,
   onToggleSelect,
   onStartSelect
 }) {
@@ -40,12 +42,53 @@ function MessageBubble({
   const [showDeleteMenu, setShowDeleteMenu] = useState(false);
   const [actionError, setActionError] = useState('');
   const actionMenuRef = useRef(null);
+  const actionTriggerRef = useRef(null);
+  const longPressTimerRef = useRef(null);
+  const longPressStartRef = useRef(null);
+  const [isMobileActions, setIsMobileActions] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+  );
 
   const closeActions = () => {
     setShowDeleteMenu(false);
     setActionError('');
     onToggleReactionPicker(null);
     onToggleActionMenu?.(null);
+  };
+
+  const openActions = () => {
+    setShowDeleteMenu(false);
+    setActionError('');
+    onToggleReactionPicker(null);
+    onToggleActionMenu?.(msg.id);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+    longPressStartRef.current = null;
+  };
+
+  const handlePointerDown = event => {
+    if (event.pointerType === 'mouse' || selectionMode || event.target.closest('button, a, input')) return;
+    longPressStartRef.current = { x: event.clientX, y: event.clientY };
+    longPressTimerRef.current = window.setTimeout(() => {
+      openActions();
+      longPressTimerRef.current = null;
+      if (navigator.vibrate) navigator.vibrate(18);
+    }, 480);
+  };
+
+  const handlePointerMove = event => {
+    const start = longPressStartRef.current;
+    if (!start) return;
+    if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) cancelLongPress();
+  };
+
+  const handleContextMenu = event => {
+    if (selectionMode || event.target.closest('button, a, input')) return;
+    event.preventDefault();
+    openActions();
   };
 
   const reactToMessage = async emoji => {
@@ -68,9 +111,19 @@ function MessageBubble({
   };
 
   useEffect(() => {
+    const media = window.matchMedia('(max-width: 768px)');
+    const update = event => setIsMobileActions(event.matches);
+    setIsMobileActions(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
     if (!isActionMenuOpen) return undefined;
     const closeMenu = event => {
-      if (!actionMenuRef.current?.contains(event.target)) onToggleActionMenu?.(null);
+      const insideMenu = actionMenuRef.current?.contains(event.target);
+      const insideTrigger = actionTriggerRef.current?.contains(event.target);
+      if (!insideMenu && !insideTrigger) onToggleActionMenu?.(null);
     };
     document.addEventListener('pointerdown', closeMenu);
     return () => document.removeEventListener('pointerdown', closeMenu);
@@ -150,6 +203,28 @@ function MessageBubble({
     reactionGroups[r.emoji].push(r.user_id);
   });
 
+
+  const renderActionMenu = () => (
+    <div ref={actionMenuRef} className={'message-action-menu ' + (isMe ? 'right' : 'left')} role="menu" aria-label="Message actions">
+      {actionError && <div className="message-action-error">{actionError}</div>}
+      {showReactionPicker === msg.id ? <>
+        <button className="message-action-back" onClick={() => { setActionError(''); onToggleReactionPicker(null); }}><ChevronLeft size={14}/>Reactions</button>
+        <div className="message-action-emoji-grid">
+          {SAFE_REACTION_EMOJIS.map(emoji => <button key={emoji} onClick={() => reactToMessage(emoji)}>{emoji}</button>)}
+        </div>
+      </> : showDeleteMenu ? <>
+        <button className="message-action-back" onClick={() => { setActionError(''); setShowDeleteMenu(false); }}><ChevronLeft size={14}/>Delete message</button>
+        <button onClick={() => deleteMessage(false)}><Trash2 size={14}/>Delete for me</button>
+        {isMe && <button className="danger" onClick={() => deleteMessage(true)}><Trash2 size={14}/>Delete for everyone</button>}
+      </> : <>
+        <button onClick={() => { onReply(msg); closeActions(); }}><Reply size={14}/>Reply</button>
+        <button onClick={() => { setShowDeleteMenu(false); setActionError(''); onToggleReactionPicker(msg.id); }}><Smile size={14}/>Emoji</button>
+        {isMe && <button onClick={() => { onStartEdit?.(msg); closeActions(); }}><Edit3 size={14}/>Edit</button>}
+        <button className="danger" onClick={() => { setActionError(''); onToggleReactionPicker(null); setShowDeleteMenu(true); }}><Trash2 size={14}/>Delete</button>
+        <button onClick={() => { onStartSelect?.(msg.id); closeActions(); }}><ListChecks size={14}/>Select</button>
+      </>}
+    </div>
+  );
   if (isSystem) {
     return (
       <div className="date-separator system-message" id={`msg-${msg.id}`}>
@@ -160,10 +235,13 @@ function MessageBubble({
 
   return (
     <div
-      className={`message-bubble-wrapper ${isMe ? 'me' : 'other'} ${msg.reply_to_id ? 'has-reply' : ''} ${isOptimistic ? 'optimistic' : ''} ${isFailed ? 'failed' : ''}`}
-      onMouseLeave={() => {
-        closeActions();
-      }}
+      className={`message-bubble-wrapper ${isMe ? 'me' : 'other'} ${msg.reply_to_id ? 'has-reply' : ''} ${isOptimistic ? 'optimistic' : ''} ${isFailed ? 'failed' : ''} ${isActionMenuOpen ? 'action-menu-open' : ''}`}
+      onMouseLeave={() => { if (!isMobileActions) closeActions(); }}
+      onContextMenu={handleContextMenu}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={cancelLongPress}
+      onPointerCancel={cancelLongPress}
       id={`msg-${msg.id}`}
     >
       <div className="bubble-row">
@@ -176,7 +254,7 @@ function MessageBubble({
             aria-pressed={isSelected}
           ><Check size={12} /></button>
         )}
-        {!isMe && (
+        {showSenderAvatar && !isMe && (
           <div className="message-sender-avatar" title={msg.senderName || 'Contact'}>
             {msg.senderName ? msg.senderName[0].toUpperCase() : 'C'}
           </div>
@@ -262,31 +340,31 @@ function MessageBubble({
           )}
 
           {/* Compact message actions */}
-          {!selectionMode && <div className="message-hover-actions" ref={actionMenuRef}>
-            <button type="button" className="msg-action-btn message-menu-trigger" onClick={() => { if (isActionMenuOpen) closeActions(); else { setActionError(''); onToggleActionMenu?.(msg.id); } }} title="Message actions" aria-expanded={isActionMenuOpen}>
-              <ChevronDown size={14} />
-            </button>
-            {isActionMenuOpen && <div className={`message-action-menu ${isMe ? 'right' : 'left'}`}>
-              {actionError && <div className="message-action-error">{actionError}</div>}
-              {showReactionPicker === msg.id ? <>
-                <button className="message-action-back" onClick={() => { setActionError(''); onToggleReactionPicker(null); }}><ChevronLeft size={14}/>Reactions</button>
-                <div className="message-action-emoji-grid">
-                  {SAFE_REACTION_EMOJIS.map(emoji => <button key={emoji} onClick={() => reactToMessage(emoji)}>{emoji}</button>)}
-                </div>
-              </> : showDeleteMenu ? <>
-                <button className="message-action-back" onClick={() => { setActionError(''); setShowDeleteMenu(false); }}><ChevronLeft size={14}/>Delete message</button>
-                <button onClick={() => deleteMessage(false)}><Trash2 size={14}/>Delete for me</button>
-                {isMe && <button className="danger" onClick={() => deleteMessage(true)}><Trash2 size={14}/>Delete for everyone</button>}
-              </> : <>
-                <button onClick={() => { onReply(msg); closeActions(); }}><Reply size={14}/>Reply</button>
-                <button onClick={() => { setShowDeleteMenu(false); setActionError(''); onToggleReactionPicker(msg.id); }}><Smile size={14}/>Emoji</button>
-                {isMe && <button onClick={() => { onStartEdit?.(msg); closeActions(); }}><Edit3 size={14}/>Edit</button>}
-                <button className="danger" onClick={() => { setActionError(''); onToggleReactionPicker(null); setShowDeleteMenu(true); }}><Trash2 size={14}/>Delete</button>
-                <button onClick={() => { onStartSelect?.(msg.id); closeActions(); }}><ListChecks size={14}/>Select</button>
-              </>}
-            </div>}
-          </div>
-          }
+          {!selectionMode && <>
+            <div className="message-hover-actions" ref={actionTriggerRef}>
+              <button
+                type="button"
+                className="msg-action-btn message-menu-trigger"
+                onClick={() => { if (isActionMenuOpen) closeActions(); else openActions(); }}
+                title="Message actions"
+                aria-label="Open message actions"
+                aria-expanded={isActionMenuOpen}
+              >
+                <ChevronDown size={14} />
+              </button>
+              {isActionMenuOpen && !isMobileActions && renderActionMenu()}
+            </div>
+            {isActionMenuOpen && isMobileActions && createPortal(
+              <div
+                className="message-action-portal-backdrop"
+                role="presentation"
+                onPointerDown={event => { if (event.target === event.currentTarget) closeActions(); }}
+              >
+                {renderActionMenu()}
+              </div>,
+              document.body
+            )}
+          </>}
         </div>
       </div>
 

@@ -4899,3 +4899,45 @@ body {
     color: #ff7774;
   }
 }
+/* Mobile long-press message actions */
+@media (max-width: 768px) {
+  .message-hover-actions {
+    display: none !important;
+  }
+
+  .message-bubble {
+    -webkit-touch-callout: none;
+  }
+
+  .message-action-portal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: center;
+    padding: max(20px, env(safe-area-inset-top)) 18px max(20px, env(safe-area-inset-bottom));
+    background: rgba(5, 3, 18, .54);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+    animation: messageActionBackdropIn .15s ease-out both;
+  }
+
+  .message-action-portal-backdrop .message-action-menu,
+  .message-action-portal-backdrop .message-action-menu.left,
+  .message-action-portal-backdrop .message-action-menu.right {
+    position: relative;
+    inset: auto !important;
+    width: min(280px, calc(100vw - 36px));
+    max-height: min(440px, calc(100dvh - 48px));
+    overflow-x: hidden;
+    overflow-y: auto;
+    margin: 0;
+    transform-origin: center;
+    box-shadow: 0 28px 72px rgba(3, 2, 14, .7), 0 0 0 1px rgba(174, 146, 255, .08), inset 0 1px 0 rgba(255,255,255,.07);
+  }
+}
+
+@keyframes messageActionBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
