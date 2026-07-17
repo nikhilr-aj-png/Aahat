@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Bell, Copy, Download, Key, Laptop, Lock, RefreshCw, Shield, Trash2, User } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Bell, Copy, Download, ImagePlus, Key, Laptop, Lock, Pencil, RefreshCw, Shield, Trash2, User } from 'lucide-react';
 import { supabase } from '../supabase';
 import SafeAvatar from './SafeAvatar';
 
@@ -22,6 +22,20 @@ const friendlyError = (error) => {
 
 const deviceName = () => `${navigator.platform || 'Web'} · ${/Mobile/i.test(navigator.userAgent) ? 'Mobile' : 'Browser'}`;
 
+const managedAvatarPath = (url, userId) => {
+  if (!url || !userId) return null;
+  try {
+    const marker = '/storage/v1/object/public/avatars/';
+    const parsed = new URL(url);
+    const markerIndex = parsed.pathname.indexOf(marker);
+    if (markerIndex < 0) return null;
+    const path = decodeURIComponent(parsed.pathname.slice(markerIndex + marker.length));
+    return path.startsWith(`${userId}/`) ? path : null;
+  } catch {
+    return null;
+  }
+};
+
 export default function SettingsPanelProduction({ user, profile, onLogout, onUpdateProfile, onRequestNotificationPermission, aahatCredentials, onRotateAahatPin }) {
   const [tab, setTab] = useState('profile');
   const [name, setName] = useState(profile?.display_name || '');
@@ -41,6 +55,9 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
   const [supportDetails, setSupportDetails] = useState('');
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
+  const avatarInputRef = useRef(null);
+
 
   const notify = (type, text) => setMessage({ type, text });
 
@@ -95,14 +112,37 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
   const savePreferences = () => run(async () => onUpdateProfile({ privacy_settings: privacy, notification_settings: notifications }), 'Preferences saved.');
 
   const uploadAvatar = async (file) => run(async () => {
-    if (!file.type.startsWith('image/') || file.size > 2 * 1024 * 1024) throw new Error('Choose an image smaller than 2MB.');
-    const path = `${user.id}/avatar-${crypto.randomUUID()}.${file.name.split('.').pop() || 'png'}`;
-    const { error } = await supabase.storage.from('avatars').upload(path, file, { contentType: file.type });
-    if (error) throw error;
+    const extension = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' })[file.type];
+    if (!extension || file.size > 2 * 1024 * 1024) throw new Error('Choose a JPG, PNG, WebP, or GIF image smaller than 2MB.');
+    const oldPath = managedAvatarPath(avatarUrl, user.id);
+    const path = `${user.id}/avatar-${crypto.randomUUID()}.${extension}`;
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, { contentType: file.type });
+    if (uploadError) throw uploadError;
     const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-    setAvatarUrl(data.publicUrl);
-    await onUpdateProfile({ avatar_url: data.publicUrl });
+    try {
+      await onUpdateProfile({ avatar_url: data.publicUrl });
+      setAvatarUrl(data.publicUrl);
+    } catch (error) {
+      await supabase.storage.from('avatars').remove([path]);
+      throw error;
+    }
+    if (oldPath && oldPath !== path) {
+      const { error: removeError } = await supabase.storage.from('avatars').remove([oldPath]);
+      if (removeError) throw new Error('Photo updated, but the previous storage file could not be removed.');
+    }
+    setIsAvatarMenuOpen(false);
   }, 'Profile photo updated.');
+
+  const removeAvatar = () => run(async () => {
+    const oldPath = managedAvatarPath(avatarUrl, user.id);
+    await onUpdateProfile({ avatar_url: '' });
+    setAvatarUrl('');
+    if (oldPath) {
+      const { error } = await supabase.storage.from('avatars').remove([oldPath]);
+      if (error) throw new Error('Profile photo was cleared, but its storage file could not be removed.');
+    }
+    setIsAvatarMenuOpen(false);
+  }, 'Profile photo removed.');
 
   const changePassword = () => run(async () => {
     if (newPassword.length < 8) throw new Error('New password must be at least 8 characters.');
@@ -183,8 +223,23 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
       {message && <div className={`settings-message ${message.type}`}>{message.text}</div>}
       {tab === 'profile' && <section>
         <h3>Profile</h3>
-        <SafeAvatar src={avatarUrl} name={name} size={88}/>
-        <input type="file" accept="image/*" onChange={e => e.target.files[0] && uploadAvatar(e.target.files[0])}/>
+        <SafeAvatar src={avatarUrl} name={name} size={88} className="user-avatar settings-profile-avatar"/>
+        <div className="settings-avatar-editor">
+          <button type="button" className="settings-avatar-edit-button" disabled={busy} onClick={() => setIsAvatarMenuOpen(open => !open)}>
+            <Pencil size={15}/>Edit
+          </button>
+          {isAvatarMenuOpen && <div className="settings-avatar-menu">
+            <button type="button" onClick={() => { setIsAvatarMenuOpen(false); avatarInputRef.current?.click(); }}>
+              <ImagePlus size={16}/>Choose photo
+            </button>
+            <button type="button" className="remove" disabled={!avatarUrl || busy} onClick={removeAvatar}>
+              <Trash2 size={16}/>Remove photo
+            </button>
+          </div>}
+        </div>
+        <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={event => {
+          const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadAvatar(file);
+        }}/>
         <label>Display name<input value={name} onChange={e => setName(e.target.value)}/></label>
         <label>Bio<textarea value={bio} onChange={e => setBio(e.target.value)}/></label>
         <button disabled={busy || !name.trim()} onClick={saveProfile}>Save profile</button>

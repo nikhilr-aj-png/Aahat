@@ -107,3 +107,52 @@
   .aahat-request-card { align-items: flex-start; flex-wrap: wrap; }
   .aahat-request-actions { width: 100%; padding-left: 53px; }
 }
+
+.settings-panel .settings-content section > div.settings-avatar-editor {
+  grid-column: 1 / -1;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+  flex-wrap: nowrap;
+}
+
+.settings-avatar-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  display: grid;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid rgba(181, 166, 240, .18);
+  border-radius: 12px;
+  background: #171036;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .42);
+}
+
+.settings-panel .settings-content .settings-avatar-menu button {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 11px;
+  color: var(--text-primary);
+  background: transparent;
+  box-shadow: none;
+}
+.settings-panel .settings-content .settings-avatar-menu button:hover { background: rgba(255, 255, 255, .06); transform: none; }
+.settings-panel .settings-content .settings-avatar-menu button.remove { color: #fca5a5; }
+.settings-panel .settings-content .settings-avatar-menu button:disabled { color: var(--text-muted); }
+
+.settings-panel .settings-content input[type="file"][hidden] { display: none !important; }
+
+@media (max-width: 620px) {
+  .settings-profile-avatar { width: 80px !important; height: 80px !important; }
+  .settings-avatar-menu { min-width: min(190px, calc(100vw - 52px)); }
+}
