@@ -182,3 +182,9 @@ test('desktop open action menu stays above neighboring messages', async () => {
   assert.match(theme, /\.message-bubble-wrapper\.action-menu-open[\s\S]+z-index:\s*240/);
   assert.match(theme, /@media \(min-width: 769px\)[\s\S]+padding-right:\s*42px/);
 });
+test('closing the mobile action portal cannot restart long press', async () => {
+  const bubble = await read('web/src/components/MessageBubble.jsx');
+  assert.match(bubble, /message-action-portal-backdrop, \.message-action-menu, button/);
+  assert.match(bubble, /event\.stopPropagation\(\);\s*cancelLongPress\(\);/);
+  assert.match(bubble, /longPressStartRef\.current = null;\s*longPressTimerRef\.current = null;\s*openActions\(\);/);
+});

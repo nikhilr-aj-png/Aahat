@@ -70,11 +70,12 @@ function MessageBubble({
   };
 
   const handlePointerDown = event => {
-    if (event.pointerType === 'mouse' || selectionMode || event.target.closest('button, a, input')) return;
+    if (event.pointerType === 'mouse' || selectionMode || event.target.closest('.message-action-portal-backdrop, .message-action-menu, button, a, input')) return;
     longPressStartRef.current = { x: event.clientX, y: event.clientY };
     longPressTimerRef.current = window.setTimeout(() => {
-      openActions();
+      longPressStartRef.current = null;
       longPressTimerRef.current = null;
+      openActions();
       if (navigator.vibrate) navigator.vibrate(18);
     }, 480);
   };
@@ -86,7 +87,7 @@ function MessageBubble({
   };
 
   const handleContextMenu = event => {
-    if (selectionMode || event.target.closest('button, a, input')) return;
+    if (selectionMode || event.target.closest('.message-action-portal-backdrop, .message-action-menu, button, a, input')) return;
     event.preventDefault();
     openActions();
   };
@@ -358,7 +359,15 @@ function MessageBubble({
               <div
                 className="message-action-portal-backdrop"
                 role="presentation"
-                onPointerDown={event => { if (event.target === event.currentTarget) closeActions(); }}
+                onPointerDown={event => {
+                  event.stopPropagation();
+                  cancelLongPress();
+                  if (event.target === event.currentTarget) closeActions();
+                }}
+                onContextMenu={event => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
               >
                 {renderActionMenu()}
               </div>,
