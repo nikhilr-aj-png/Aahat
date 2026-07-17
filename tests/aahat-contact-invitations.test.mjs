@@ -33,3 +33,12 @@ test('web UI uses PIN invitations instead of starting a chat from an ID', async 
   assert.match(settings, /Your 10-digit Aahat ID/);
   assert.match(settings, /Your 6-digit connection PIN/);
 });
+
+test('accepted invitations refresh contacts on both devices', async () => {
+  const hook = await read('web/src/hooks/useAahatContacts.js');
+  assert.match(
+    hook,
+    /contact_requests'[\s\S]+Promise\.all\(\[[\s\S]+refresh\(\)[\s\S]+onContactsChanged\?\.\(\)/
+  );
+  assert.match(hook, /\[user, refresh, onContactsChanged\]/);
+});

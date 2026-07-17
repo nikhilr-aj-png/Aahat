@@ -238,21 +238,25 @@ begin
 
   if exists (
     select 1 from public.user_contacts
-    where owner_id = auth.uid() and contact_id = target.id and status = 'accepted'
+    where user_contacts.owner_id = auth.uid()
+      and user_contacts.contact_id = target.id
+      and user_contacts.status = 'accepted'
   ) then
     raise exception 'This user is already in your contacts';
   end if;
 
   if exists (
     select 1 from public.contact_requests
-    where requester_id = target.id and recipient_id = auth.uid() and status = 'pending'
+    where contact_requests.requester_id = target.id
+      and contact_requests.recipient_id = auth.uid()
+      and contact_requests.status = 'pending'
   ) then
     raise exception 'This user already invited you. Accept their invitation in Contacts';
   end if;
 
   insert into public.contact_requests(requester_id, recipient_id, status, responded_at, updated_at)
   values (auth.uid(), target.id, 'pending', null, now())
-  on conflict (requester_id, recipient_id) do update
+  on conflict on constraint contact_requests_requester_id_recipient_id_key do update
     set status = 'pending', responded_at = null, updated_at = now()
   returning * into saved_request;
 

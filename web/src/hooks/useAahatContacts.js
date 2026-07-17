@@ -50,11 +50,14 @@ export function useAahatContacts(user, onContactsChanged) {
     const channel = supabase
       .channel(`aahat-contact-requests-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contact_requests' }, () => {
-        refresh().catch(error => console.warn('Could not refresh Aahat invitations:', error));
+        Promise.all([
+          refresh(),
+          onContactsChanged?.()
+        ]).catch(error => console.warn('Could not refresh Aahat contacts:', error));
       })
       .subscribe();
     return () => supabase.removeChannel(channel);
-  }, [user, refresh]);
+  }, [user, refresh, onContactsChanged]);
 
   const requestContact = useCallback(async (aahatId, pinCode) => {
     const normalizedId = (aahatId || '').replace(/\D/g, '');

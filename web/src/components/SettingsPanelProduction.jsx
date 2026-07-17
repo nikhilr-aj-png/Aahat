@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, Copy, Download, ImagePlus, Key, Laptop, Lock, Pencil, RefreshCw, Shield, Trash2, User } from 'lucide-react';
 import { supabase } from '../supabase';
 import SafeAvatar from './SafeAvatar';
+import AvatarCropModal from './AvatarCropModal';
 
 const newStableId = (key) => {
   let value = localStorage.getItem(key);
@@ -57,6 +58,7 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
   const [busy, setBusy] = useState(false);
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const avatarInputRef = useRef(null);
+  const [cropFile, setCropFile] = useState(null);
 
 
   const notify = (type, text) => setMessage({ type, text });
@@ -103,8 +105,14 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
 
   const run = async (operation, success) => {
     setBusy(true); setMessage(null);
-    try { await operation(); if (success) notify('success', success); }
-    catch (error) { notify('error', friendlyError(error)); }
+    try {
+      await operation();
+      if (success) notify('success', success);
+      return true;
+    } catch (error) {
+      notify('error', friendlyError(error));
+      return false;
+    }
     finally { setBusy(false); }
   };
 
@@ -132,6 +140,13 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
     }
     setIsAvatarMenuOpen(false);
   }, 'Profile photo updated.');
+
+
+  const saveCroppedAvatar = async blob => {
+    const croppedFile = new File([blob], 'avatar.webp', { type: 'image/webp' });
+    const saved = await uploadAvatar(croppedFile);
+    if (saved) setCropFile(null);
+  };
 
   const removeAvatar = () => run(async () => {
     const oldPath = managedAvatarPath(avatarUrl, user.id);
@@ -223,6 +238,7 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
       {message && <div className={`settings-message ${message.type}`}>{message.text}</div>}
       {tab === 'profile' && <section>
         <h3>Profile</h3>
+        <div className="settings-avatar-row">
         <SafeAvatar src={avatarUrl} name={name} size={88} className="user-avatar settings-profile-avatar"/>
         <div className="settings-avatar-editor">
           <button type="button" className="settings-avatar-edit-button" disabled={busy} onClick={() => setIsAvatarMenuOpen(open => !open)}>
@@ -237,8 +253,14 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
             </button>
           </div>}
         </div>
+        </div>
         <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={event => {
-          const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadAvatar(file);
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (file) {
+            setIsAvatarMenuOpen(false);
+            setCropFile(file);
+          }
         }}/>
         <label>Display name<input value={name} onChange={e => setName(e.target.value)}/></label>
         <label>Bio<textarea value={bio} onChange={e => setBio(e.target.value)}/></label>
@@ -267,5 +289,6 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
       {tab === 'notifications' && <section><h3>Notifications</h3><label><input type="checkbox" checked={notifications.sound !== false} onChange={e => setNotifications(current => ({...current,sound:e.target.checked}))}/>Sound</label><label><input type="checkbox" checked={notifications.previews !== false} onChange={e => setNotifications(current => ({...current,previews:e.target.checked}))}/>Message previews</label><button onClick={() => run(onRequestNotificationPermission, 'Notification permission updated.')}>Enable push notifications</button><button onClick={savePreferences}>Save preferences</button></section>}
       {tab === 'data' && <section><h3>Data and support</h3><button onClick={exportData}><Download size={15}/>Export my data</button><label>Subject<input value={supportSubject} onChange={e => setSupportSubject(e.target.value)}/></label><label>Details<textarea value={supportDetails} onChange={e => setSupportDetails(e.target.value)}/></label><button onClick={submitSupport}>Submit support request</button><hr/><button className="danger" onClick={deleteAccount}><Trash2 size={15}/>Delete account permanently</button></section>}
     </main>
+    {cropFile && <AvatarCropModal file={cropFile} busy={busy} onCancel={() => !busy && setCropFile(null)} onSave={saveCroppedAvatar}/>}
   </div>;
 }
