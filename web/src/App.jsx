@@ -6,6 +6,7 @@ import { usePresence } from './hooks/usePresence';
 import { useCalling } from './hooks/useCalling';
 import { useStatuses } from './hooks/useStatuses';
 import { useChannels } from './hooks/useChannels';
+import { useAahatContacts } from './hooks/useAahatContacts';
 import { supabase, isSupabaseConfigured } from './supabase';
 
 import AuthScreen from './components/AuthScreenProduction';
@@ -17,9 +18,10 @@ import SettingsPanel from './components/SettingsPanelProduction';
 import CallingOverlay from './components/CallingOverlay';
 import AdminEmbedPanel from './components/AdminEmbedProduction';
 import SafeAvatar from './components/SafeAvatar';
+import ContactsSection from './components/ContactsSection';
 import { requestNotificationPermission } from './firebase';
 
-import { MessageSquare, CircleDot, Settings, LogOut, Sparkles, X, Shield, Users, Plus } from 'lucide-react';
+import { MessageSquare, CircleDot, Settings, LogOut, Sparkles, X, Shield, Users } from 'lucide-react';
 
 const BrandLogo = () => (
   <img src="/logo.png" alt="Aahat" className="brand-logo-image" />
@@ -41,13 +43,24 @@ export default function App() {
   const {
     conversations, selectedConversationId, activeConversation,
     selectConversation, setSelectedConversationId,
-    startDirectChatByVirtualNumber, createGroup,
+    createGroup,
     fetchGroupMembers, addGroupMember, removeGroupMember,
     updateGroupMemberRole, leaveGroup,
     toggleMute, togglePin, toggleArchive, toggleFavorite,
     clearChat, deleteChat,
-    isLoading: isConvLoading
+    isLoading: isConvLoading,
+    refetch: refetchConversations
   } = useConversations(user);
+
+  const {
+    credentials: aahatCredentials,
+    incomingRequests,
+    outgoingRequests,
+    isLoading: areContactsLoading,
+    requestContact,
+    respondToRequest,
+    rotatePin
+  } = useAahatContacts(user, refetchConversations);
 
   // --- Messages (for the active conversation) ---
   const {
@@ -82,6 +95,7 @@ export default function App() {
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [showNewGroupModal, setShowNewGroupModal] = useState(false);
   const [newChatId, setNewChatId] = useState('');
+  const [newChatPin, setNewChatPin] = useState('');
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDesc, setNewGroupDesc] = useState('');
   const [activeToast, setActiveToast] = useState(null);
@@ -252,13 +266,15 @@ export default function App() {
     if (!newChatId.trim()) return;
 
     try {
-      await startDirectChatByVirtualNumber(newChatId.trim());
+      const result = await requestContact(newChatId, newChatPin);
       setShowNewChatModal(false);
       setNewChatId('');
+      setNewChatPin('');
+      alert(`Invitation sent to ${result?.display_name || 'this Aahat user'}. You can chat after they accept it.`);
     } catch (err) {
-      alert(err.message || 'Error starting chat');
+      alert(err.message || 'Could not send invitation');
     }
-  }, [newChatId, startDirectChatByVirtualNumber]);
+  }, [newChatId, newChatPin, requestContact]);
 
   const handleCreateGroup = useCallback(async (e) => {
     e?.preventDefault();
@@ -461,69 +477,18 @@ export default function App() {
         )}
 
         {activeTab === 'contacts' && (
-          <div className="contacts-section" style={{ flex: 1, padding: '24px', overflowY: 'auto', background: 'var(--bg-gradient)', color: 'var(--text-primary)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid var(--panel-border)', paddingBottom: '16px' }}>
-              <h2 style={{ fontSize: '20px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '10px', margin: 0 }}>
-                <Users size={22} style={{ color: 'var(--accent-light)' }} />
-                My Contacts
-              </h2>
-              <button
-                onClick={() => setShowNewChatModal(true)}
-                className="admin-btn admin-btn-primary"
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', fontSize: '13px' }}
-              >
-                <Plus size={16} />
-                Add Contact
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {conversations.filter(c => c.type === 'direct').length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--panel-border)', borderRadius: '12px', color: 'var(--text-secondary)' }}>
-                  <Users size={32} style={{ opacity: 0.4, marginBottom: '12px' }} />
-                  <p>No contacts added yet. Click "Add Contact" to add friends by their Aahat ID!</p>
-                </div>
-              ) : (
-                conversations.filter(c => c.type === 'direct').map(conv => (
-                  <div
-                    key={conv.id}
-                    onClick={() => handleSelectConversation(conv.id)}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '16px',
-                      background: 'rgba(30,41,59,0.3)',
-                      border: '1px solid var(--panel-border)',
-                      borderRadius: '12px',
-                      cursor: 'pointer',
-                      transition: 'transform 0.2s, background 0.2s'
-                    }}
-                    className="contact-card-hover"
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                      <div className="avatar-wrapper" style={{ position: 'relative', width: '44px', height: '44px' }}>
-                        <SafeAvatar
-                          src={conv.avatarUrl}
-                          name={conv.name}
-                          size={44}
-                          className="avatar-image"
-                        />
-                        <div className={`status-badge ${isUserOnline(conv.otherMemberId) ? 'active' : 'offline'}`} />
-                      </div>
-                      <div>
-                        <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: 'white' }}>{conv.name}</h4>
-                        <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                          {isUserOnline(conv.otherMemberId) ? 'Online' : conv.description || 'Offline'}
-                        </p>
-                      </div>
-                    </div>
-                    <button className="admin-btn admin-btn-ghost" style={{ padding: '6px 12px', fontSize: '12px' }}>Chat</button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          <ContactsSection
+            credentials={aahatCredentials}
+            conversations={conversations}
+            incomingRequests={incomingRequests}
+            outgoingRequests={outgoingRequests}
+            isLoading={areContactsLoading}
+            isUserOnline={isUserOnline}
+            onAddContact={() => setShowNewChatModal(true)}
+            onSelectConversation={handleSelectConversation}
+            onRespond={respondToRequest}
+            onRotatePin={rotatePin}
+          />
         )}
 
         {activeTab === 'status' && (
@@ -559,6 +524,8 @@ export default function App() {
             onUploadFile={uploadFile}
             onUpdateProfile={handleUpdateProfile}
             onRequestNotificationPermission={handleRequestNotificationPermission}
+            aahatCredentials={aahatCredentials}
+            onRotateAahatPin={rotatePin}
           />
         )}
 
@@ -643,28 +610,41 @@ export default function App() {
             <div className="modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Sparkles size={16} style={{ color: 'var(--accent-light)' }} />
-                Start New Conversation
+                Send Contact Invitation
               </h3>
               <button className="modal-close" onClick={() => setShowNewChatModal(false)}><X size={18} /></button>
             </div>
             <form onSubmit={handleNewChat} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="form-group">
                 <label htmlFor="new-chat-id" style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
-                  Friend's Virtual Number (Aahat ID)
+                  Friend's 10-digit Aahat ID
                 </label>
                 <input
                   id="new-chat-id"
                   type="text"
                   placeholder="Enter 10-digit Aahat ID..."
                   value={newChatId}
-                  onChange={e => setNewChatId(e.target.value)}
+                  inputMode="numeric"
+                  maxLength={10}
+                  onChange={e => setNewChatId(e.target.value.replace(/\D/g, ''))}
                   autoFocus
                   required
                 />
               </div>
+              <div className="form-group">
+                <label htmlFor="new-chat-pin" style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                  6-digit connection PIN
+                </label>
+                <input id="new-chat-pin" type="password" inputMode="numeric" autoComplete="off"
+                  placeholder="Enter 6-digit PIN..." value={newChatPin} maxLength={6}
+                  onChange={e => setNewChatPin(e.target.value.replace(/\D/g, ''))} required />
+                <small style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  They will receive an invitation. Messaging unlocks only after they accept.
+                </small>
+              </div>
               <div className="form-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
                 <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setShowNewChatModal(false)}>Cancel</button>
-                <button type="submit" className="admin-btn admin-btn-primary">Start Chat</button>
+                <button type="submit" className="admin-btn admin-btn-primary" disabled={newChatId.length !== 10 || newChatPin.length !== 6}>Send Invitation</button>
               </div>
             </form>
           </div>

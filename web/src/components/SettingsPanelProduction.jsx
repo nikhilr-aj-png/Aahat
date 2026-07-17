@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bell, Download, Key, Laptop, Lock, Shield, Trash2, User } from 'lucide-react';
+import { Bell, Copy, Download, Key, Laptop, Lock, RefreshCw, Shield, Trash2, User } from 'lucide-react';
 import { supabase } from '../supabase';
 import SafeAvatar from './SafeAvatar';
 
@@ -22,7 +22,7 @@ const friendlyError = (error) => {
 
 const deviceName = () => `${navigator.platform || 'Web'} · ${/Mobile/i.test(navigator.userAgent) ? 'Mobile' : 'Browser'}`;
 
-export default function SettingsPanelProduction({ user, profile, onLogout, onUpdateProfile, onRequestNotificationPermission }) {
+export default function SettingsPanelProduction({ user, profile, onLogout, onUpdateProfile, onRequestNotificationPermission, aahatCredentials, onRotateAahatPin }) {
   const [tab, setTab] = useState('profile');
   const [name, setName] = useState(profile?.display_name || '');
   const [bio, setBio] = useState(profile?.bio || '');
@@ -181,7 +181,31 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
     <aside className="settings-sidebar"><h2>Settings</h2>{tabs.map(([id, Icon, label]) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><Icon size={16}/>{label}</button>)}</aside>
     <main className="settings-content">
       {message && <div className={`settings-message ${message.type}`}>{message.text}</div>}
-      {tab === 'profile' && <section><h3>Profile</h3><SafeAvatar src={avatarUrl} name={name} size={88}/><input type="file" accept="image/*" onChange={e => e.target.files[0] && uploadAvatar(e.target.files[0])}/><label>Display name<input value={name} onChange={e => setName(e.target.value)}/></label><label>Bio<textarea value={bio} onChange={e => setBio(e.target.value)}/></label><button disabled={busy || !name.trim()} onClick={saveProfile}>Save profile</button></section>}
+      {tab === 'profile' && <section>
+        <h3>Profile</h3>
+        <SafeAvatar src={avatarUrl} name={name} size={88}/>
+        <input type="file" accept="image/*" onChange={e => e.target.files[0] && uploadAvatar(e.target.files[0])}/>
+        <label>Display name<input value={name} onChange={e => setName(e.target.value)}/></label>
+        <label>Bio<textarea value={bio} onChange={e => setBio(e.target.value)}/></label>
+        <button disabled={busy || !name.trim()} onClick={saveProfile}>Save profile</button>
+        <div className="settings-aahat-card">
+          <div>
+            <span>Your 10-digit Aahat ID</span>
+            <strong>{aahatCredentials?.aahat_id || '----------'}</strong>
+          </div>
+          <button type="button" title="Copy Aahat ID" onClick={() => navigator.clipboard.writeText(aahatCredentials?.aahat_id || '')}><Copy size={15}/></button>
+          <div>
+            <span>Your 6-digit connection PIN</span>
+            <strong>{aahatCredentials?.pin_code || '------'}</strong>
+          </div>
+          <button type="button" title="Copy PIN" onClick={() => navigator.clipboard.writeText(aahatCredentials?.pin_code || '')}><Copy size={15}/></button>
+          <p>Share both only with someone you want to connect with. Their invitation must still be accepted by you.</p>
+          <button type="button" onClick={() => {
+            if (!confirm('Generate a new connection PIN? Your old PIN will stop working immediately.')) return;
+            run(onRotateAahatPin, 'A new connection PIN is active.');
+          }}><RefreshCw size={15}/>Generate new PIN</button>
+        </div>
+      </section>}
       {tab === 'privacy' && <section><h3>Privacy</h3>{[['last_seen','Show last seen'],['online','Show online status'],['read_receipts','Read receipts'],['discover_by_aahat_id','Discoverable by Aahat ID']].map(([key,label]) => <label key={key}><input type="checkbox" checked={privacy[key] !== false} onChange={e => setPrivacy(current => ({...current,[key]:e.target.checked}))}/>{label}</label>)}<label>Status audience<select value={privacy.status || 'contacts'} onChange={e => setPrivacy(current => ({...current,status:e.target.value}))}><option value="everyone">Everyone</option><option value="contacts">Contacts</option><option value="private">Only me</option></select></label><button disabled={busy} onClick={savePreferences}>Save privacy</button><h4>Blocked users</h4>{blocked.length ? blocked.map(row => <div key={row.id}><SafeAvatar src={row.avatar_url} name={row.display_name} size={32}/><span>{row.display_name}</span><button onClick={() => unblock(row.id)}>Unblock</button></div>) : <p>No blocked users.</p>}</section>}
       {tab === 'security' && <section><h3>Security</h3><label>Current password<input type="password" value={oldPassword} onChange={e => setOldPassword(e.target.value)}/></label><label>New password<input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}/></label><button disabled={busy || !oldPassword || !newPassword} onClick={changePassword}><Key size={15}/>Update password</button><h4>Authenticator 2FA</h4>{factors.length ? factors.map(factor => <div key={factor.id}><span>{factor.friendly_name || 'Authenticator'} · verified</span><button onClick={() => removeMfa(factor.id)}>Disable</button></div>) : <button onClick={startMfa}>Set up authenticator</button>}{enrollment && <div><img src={enrollment.totp.qr_code} alt="Authenticator QR code"/><code>{enrollment.totp.secret}</code><input inputMode="numeric" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g,''))}/><button onClick={verifyMfa}>Verify code</button></div>}</section>}
       {tab === 'devices' && <section><h3>Registered devices</h3>{devices.length ? devices.map(row => <div key={row.id}><strong>{row.device_name}</strong><span>{new Date(row.last_seen_at).toLocaleString()}</span></div>) : <p>No devices registered.</p>}<h4>Sessions</h4>{sessions.map(row => <div key={row.id}><span>{row.revoked_at ? 'Revoked' : 'Active'} · {new Date(row.last_seen_at).toLocaleString()}</span></div>)}<button disabled={busy} onClick={revokeOtherSessions}>Sign out other sessions</button></section>}

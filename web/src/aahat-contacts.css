@@ -1,0 +1,109 @@
+.aahat-contacts-page {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  background: var(--bg-gradient);
+  color: var(--text-primary);
+}
+
+.aahat-section-header,
+.aahat-section-header > div,
+.aahat-section-header h2,
+.aahat-request-card,
+.aahat-contact-card,
+.aahat-request-actions,
+.settings-aahat-card > div {
+  display: flex;
+  align-items: center;
+}
+
+.aahat-section-header {
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.aahat-section-header > div { align-items: flex-start; flex-direction: column; gap: 4px; }
+.aahat-section-header h2 { gap: 10px; margin: 0; font-size: 20px; }
+.aahat-section-header h2 svg { color: var(--accent-light); }
+.aahat-section-header p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+.aahat-section-header button, .aahat-request-card button, .aahat-contact-card button { display: inline-flex; align-items: center; gap: 6px; }
+
+.aahat-identity-card,
+.settings-aahat-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 18px;
+  border: 1px solid rgba(139, 92, 246, .35);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(124, 58, 237, .14), rgba(14, 165, 233, .08));
+}
+
+.aahat-identity-card > div,
+.settings-aahat-card > div { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.aahat-identity-card span, .settings-aahat-card span { color: var(--text-secondary); font-size: 11px; }
+.aahat-identity-card strong, .settings-aahat-card strong { font-size: 19px; letter-spacing: .16em; font-variant-numeric: tabular-nums; }
+.aahat-identity-card button, .settings-aahat-card button {
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  padding: 9px;
+  background: rgba(255,255,255,.04);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.aahat-identity-card .aahat-rotate-pin { display: inline-flex; align-items: center; gap: 6px; padding-inline: 12px; }
+
+.aahat-request-section { margin-top: 24px; }
+.aahat-request-section h3 { margin: 0 0 10px; font-size: 14px; color: var(--text-secondary); }
+.aahat-request-section h3 span { margin-left: 6px; padding: 2px 7px; border-radius: 999px; background: var(--accent-primary); color: white; font-size: 11px; }
+
+.aahat-request-card,
+.aahat-contact-card {
+  gap: 13px;
+  margin-bottom: 9px;
+  padding: 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 13px;
+  background: rgba(30, 41, 59, .3);
+}
+.aahat-request-card > div:nth-child(2),
+.aahat-contact-card > div:nth-child(2) { display: flex; flex: 1; flex-direction: column; gap: 3px; }
+.aahat-request-card small, .aahat-contact-card small { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); }
+.aahat-request-actions { gap: 8px; }
+.aahat-request-card button, .aahat-contact-card button {
+  padding: 7px 11px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.aahat-request-card button.accept { border-color: rgba(34, 197, 94, .45); background: rgba(34, 197, 94, .12); color: #86efac; }
+.aahat-contact-card { cursor: pointer; }
+.aahat-contact-card:hover { background: rgba(51, 65, 85, .48); transform: translateY(-1px); }
+
+.aahat-empty {
+  padding: 36px;
+  border: 1px dashed var(--panel-border);
+  border-radius: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+.aahat-empty p { margin: 8px 0 3px; }
+
+.settings-aahat-card { grid-template-columns: minmax(150px, 1fr) auto minmax(150px, 1fr) auto; }
+.settings-aahat-card p { grid-column: 1 / -1; margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.settings-aahat-card > button:last-child { grid-column: 1 / -1; justify-self: start; display: inline-flex; align-items: center; gap: 7px; }
+
+@media (max-width: 720px) {
+  .aahat-contacts-page { padding: 16px 14px 88px; }
+  .aahat-section-header { align-items: flex-start; }
+  .aahat-identity-card, .settings-aahat-card { grid-template-columns: 1fr auto; }
+  .aahat-identity-card .aahat-rotate-pin, .settings-aahat-card > button:last-child { grid-column: 1 / -1; }
+  .aahat-request-card { align-items: flex-start; flex-wrap: wrap; }
+  .aahat-request-actions { width: 100%; padding-left: 53px; }
+}
