@@ -25,7 +25,7 @@ export default function SafeAvatar({ src, name, size = 36, className = '', style
           height: `${size}px`,
           borderRadius: '50%',
           objectFit: 'cover',
-          border: '2px solid rgba(255, 255, 255, 0.08)',
+          border: 'none',
           ...style
         }}
         onError={() => setHasError(true)}
@@ -42,13 +42,13 @@ export default function SafeAvatar({ src, name, size = 36, className = '', style
         height: `${size}px`,
         fontSize: `${Math.max(11, size * 0.38)}px`,
         borderRadius: '50%',
-        background: 'var(--accent-gradient)',
+        background: 'var(--accent)',
         color: 'white',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         fontWeight: 'bold',
-        border: '2px solid rgba(255, 255, 255, 0.08)',
+        border: 'none',
         textTransform: 'uppercase',
         userSelect: 'none',
         flexShrink: 0,

@@ -1,9 +1,9 @@
 begin;
 
 alter table public.user_sessions add column if not exists client_session_id text;
-create unique index if not exists idx_user_sessions_client_id
-  on public.user_sessions(user_id, client_session_id)
-  where client_session_id is not null;
+drop index if exists public.idx_user_sessions_client_id;
+create unique index idx_user_sessions_client_id
+  on public.user_sessions(user_id, client_session_id);
 
 -- A user can read the public identity of people they blocked without granting
 -- access to unrelated private profile fields through the Settings UI.

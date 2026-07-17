@@ -3,12 +3,12 @@ import { Plus, Eye, X, ChevronLeft, ChevronRight, Image, Trash2, Clock, Users } 
 import SafeAvatar from './SafeAvatar';
 
 const GRADIENT_OPTIONS = [
-  'linear-gradient(135deg, #4F46E5 0%, #06B6D4 100%)',
+  'linear-gradient(135deg, #5F34F7 0%, #8659F1 100%)',
   'linear-gradient(135deg, #EC4899 0%, #8B5CF6 100%)',
   'linear-gradient(135deg, #F59E0B 0%, #EF4444 100%)',
   'linear-gradient(135deg, #10B981 0%, #3B82F6 100%)',
   'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)',
-  'linear-gradient(135deg, #06B6D4 0%, #10B981 100%)',
+  'linear-gradient(135deg, #8659F1 0%, #10B981 100%)',
 ];
 
 /**
@@ -191,7 +191,7 @@ export default function StatusSection({
                 src={profile?.avatar_url}
                 name={profile?.display_name || 'Me'}
                 size={52}
-                style={{ borderRadius: '50%', border: myStatuses.length > 0 ? '3px solid var(--accent)' : '3px solid var(--panel-border)' }}
+                style={{ borderRadius: '50%', border: myStatuses.length > 0 ? '3px solid var(--accent)' : 'none' }}
               />
               <button
                 onClick={() => setShowCreateModal(true)}

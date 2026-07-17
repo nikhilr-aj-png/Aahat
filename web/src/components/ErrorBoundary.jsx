@@ -24,7 +24,7 @@ export default class ErrorBoundary extends React.Component {
       return (
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          height: '100vh', padding: '24px', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', color: 'white',
+          height: '100vh', padding: '24px', background: 'linear-gradient(135deg, #09051d 0%, #1c1545 100%)', color: 'white',
           textAlign: 'center', fontFamily: 'system-ui, sans-serif'
         }}>
           <div style={{
@@ -42,9 +42,9 @@ export default class ErrorBoundary extends React.Component {
               onClick={() => window.location.reload()}
               style={{
                 display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px',
-                background: 'linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%)', border: 'none', color: 'white',
+                background: 'linear-gradient(135deg, #5f34f7 0%, #8659f1 100%)', border: 'none', color: 'white',
                 borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px',
-                boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)', transition: 'transform 0.2s'
+                boxShadow: '0 4px 12px rgba(95, 52, 247, 0.3)', transition: 'transform 0.2s'
               }}
               onMouseOver={e => e.target.style.transform = 'scale(1.02)'}
               onMouseOut={e => e.target.style.transform = 'none'}

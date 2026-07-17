@@ -124,12 +124,12 @@ export default function CallingOverlay({
             <div className="call-avatar-ring" style={{ position: 'relative' }}>
               <div style={{
                 position: 'absolute', inset: '-16px', borderRadius: '50%',
-                border: '2px solid rgba(79, 70, 229, 0.3)',
+                border: '2px solid rgba(95, 52, 247, 0.3)',
                 animation: 'pulse 2s ease-in-out infinite'
               }} />
               <div style={{
                 position: 'absolute', inset: '-32px', borderRadius: '50%',
-                border: '2px solid rgba(79, 70, 229, 0.15)',
+                border: '2px solid rgba(95, 52, 247, 0.15)',
                 animation: 'pulse 2s ease-in-out infinite 0.5s'
               }} />
               <SafeAvatar
@@ -283,7 +283,7 @@ export default function CallingOverlay({
                   onClick={onToggleScreenShare}
                   style={{
                     width: '48px', height: '48px', borderRadius: '50%',
-                    background: isScreenSharing ? 'rgba(79,70,229,0.4)' : 'rgba(255,255,255,0.1)',
+                    background: isScreenSharing ? 'rgba(95,52,247,0.4)' : 'rgba(255,255,255,0.1)',
                     border: '1px solid rgba(255,255,255,0.15)', color: isScreenSharing ? '#a5b4fc' : 'white',
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}

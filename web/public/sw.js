@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = 'aahat-v2';
+﻿const CACHE_NAME = 'aahat-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -41,6 +41,23 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => caches.match('/index.html'))
+    );
+    return;
+  }
+
+  // Styles and scripts prefer the network so deployed UI fixes do not flash
+  // a stale cached theme. The cache remains available as an offline fallback.
+  if (event.request.destination === 'style' || event.request.destination === 'script') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }
