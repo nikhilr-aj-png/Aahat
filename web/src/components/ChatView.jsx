@@ -217,7 +217,7 @@ export default function ChatView({
     if (conversation.type === 'group') return `${conversation.memberCount} members`;
     if (conversation.type === 'self') return 'Message yourself';
     if (conversation.otherMemberId && isUserOnline?.(conversation.otherMemberId)) return 'Online';
-    return conversation.description || 'Offline';
+    return 'Offline';
   };
 
   // Empty state

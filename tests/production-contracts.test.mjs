@@ -60,3 +60,24 @@ test('message action RPCs are deployable with membership checks', async () => {
   assert.match(migration, /is_conversation_member/);
   assert.match(migration, /grant execute[\s\S]+authenticated/);
 });
+
+test('delivery receipts distinguish sent delivered and read', async () => {
+  const [migration, app, hook, bubble, theme] = await Promise.all([
+    read('supabase/migrations/20260718_message_delivery_receipts.sql'),
+    read('web/src/App.jsx'),
+    read('web/src/hooks/useMessagesProduction.js'),
+    read('web/src/components/MessageBubble.jsx'),
+    read('web/src/resonance.css')
+  ]);
+  assert.match(migration, /function public\.mark_message_delivered/);
+  assert.match(migration, /function public\.mark_pending_messages_delivered/);
+  assert.match(migration, /when message_status\.status = 'read' then 'read'/);
+  assert.match(app, /mark_pending_messages_delivered/);
+  assert.match(app, /mark_message_delivered/);
+  assert.match(app, /document\.visibilityState === 'visible'/);
+  assert.match(hook, /table: 'message_status'/);
+  assert.match(bubble, /msg\._status === 'delivered'/);
+  assert.match(bubble, /msg\._status === 'read'/);
+  assert.match(theme, /read-receipt\.delivered[\s\S]+color:\s*#fff/);
+  assert.match(theme, /read-receipt\.read[\s\S]+color:\s*#1746c7/);
+});

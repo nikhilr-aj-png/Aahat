@@ -236,13 +236,16 @@ function MessageBubble({
 
   return (
     <div
-      className={`message-bubble-wrapper ${isMe ? 'me' : 'other'} ${msg.reply_to_id ? 'has-reply' : ''} ${isOptimistic ? 'optimistic' : ''} ${isFailed ? 'failed' : ''} ${isActionMenuOpen ? 'action-menu-open' : ''}`}
+      className={`message-bubble-wrapper ${isMe ? 'me' : 'other'} ${msg.reply_to_id ? 'has-reply' : ''} ${isOptimistic ? 'optimistic' : ''} ${isFailed ? 'failed' : ''} ${isActionMenuOpen ? 'action-menu-open' : ''} ${selectionMode ? 'selection-mode' : ''} ${isSelected ? 'message-selected' : ''}`}
       onMouseLeave={() => { if (!isMobileActions) closeActions(); }}
       onContextMenu={handleContextMenu}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={cancelLongPress}
       onPointerCancel={cancelLongPress}
+      onClick={event => {
+        if (selectionMode && !event.target.closest('button, a, input')) onToggleSelect?.(msg.id);
+      }}
       id={`msg-${msg.id}`}
     >
       <div className="bubble-row">
@@ -399,9 +402,13 @@ function MessageBubble({
         {isMe && (
           isFailed
             ? <span style={{ fontSize: '10px', color: '#ef4444' }}>Failed</span>
-            : isOptimistic
-              ? <Check size={11} className="read-receipt sending" style={{ opacity: 0.4 }} />
-              : <CheckCheck size={11} className="read-receipt read" />
+            : isOptimistic || msg._status === 'sending'
+              ? <Check size={12} className="read-receipt sending" />
+              : msg._status === 'read'
+                ? <CheckCheck size={12} className="read-receipt read" />
+                : msg._status === 'delivered'
+                  ? <CheckCheck size={12} className="read-receipt delivered" />
+                  : <Check size={12} className="read-receipt sent" />
         )}
       </div>
     </div>

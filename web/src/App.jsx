@@ -109,12 +109,42 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Mark messages as read when conversation is selected
+  // Read means the conversation is actually open in a visible browser tab.
   useEffect(() => {
-    if (selectedConversationId && activeMessages.length > 0) {
-      markAsRead();
-    }
-  }, [selectedConversationId, activeMessages.length, markAsRead]);
+    if (!selectedConversationId || activeMessages.length === 0 || activeTab !== 'chats') return undefined;
+    const acknowledgeRead = () => {
+      if (document.visibilityState === 'visible') markAsRead().catch(console.error);
+    };
+    acknowledgeRead();
+    window.addEventListener('focus', acknowledgeRead);
+    document.addEventListener('visibilitychange', acknowledgeRead);
+    return () => {
+      window.removeEventListener('focus', acknowledgeRead);
+      document.removeEventListener('visibilitychange', acknowledgeRead);
+    };
+  }, [selectedConversationId, activeMessages.length, activeTab, markAsRead]);
+
+  // Delivered means the receiver's app is online, even if this conversation is
+  // not currently open. This also catches messages received while the app was offline.
+  useEffect(() => {
+    if (!user) return undefined;
+    const acknowledgePending = async () => {
+      const { error } = await supabase.rpc('mark_pending_messages_delivered');
+      if (error) console.warn('Could not acknowledge delivered messages:', error.message);
+    };
+    const acknowledgeWhenVisible = () => {
+      if (document.visibilityState === 'visible') acknowledgePending();
+    };
+    acknowledgePending();
+    window.addEventListener('online', acknowledgePending);
+    window.addEventListener('focus', acknowledgePending);
+    document.addEventListener('visibilitychange', acknowledgeWhenVisible);
+    return () => {
+      window.removeEventListener('online', acknowledgePending);
+      window.removeEventListener('focus', acknowledgePending);
+      document.removeEventListener('visibilitychange', acknowledgeWhenVisible);
+    };
+  }, [user]);
 
   // Toast auto-dismiss
   useEffect(() => {
@@ -140,6 +170,12 @@ export default function App() {
       }, async (payload) => {
         const msg = payload.new;
         if (!msg || msg.sender_id === user.id) return;
+
+        const { error: deliveryError } = await supabase.rpc('mark_message_delivered', {
+          p_message_id: msg.id
+        });
+        if (deliveryError) console.warn('Could not acknowledge message delivery:', deliveryError.message);
+
         if (msg.conversation_id === selectedConvRef.current) return;
         if (msg.message_type === 'system') return;
 

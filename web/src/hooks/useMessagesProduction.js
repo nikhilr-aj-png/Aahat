@@ -120,6 +120,7 @@ export function useMessages(user, conversationId) {
       .subscribe();
     const reactionChannel = supabase.channel(`reactions-production-${conversationId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_status' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pinned_messages', filter: `conversation_id=eq.${conversationId}` }, refresh)
       .subscribe();
     return () => {
