@@ -142,3 +142,15 @@ test('reply profile objects never render as React children', async () => {
   assert.match(input, /typeof replyTo\.senderName === 'string'/);
   assert.match(input, /typeof replyTo\.sender === 'string'/);
 });
+test('mobile chat scroll stays inside the message list and actions keep premium styling', async () => {
+  const [chatView, styles] = await Promise.all([
+    read('web/src/components/ChatView.jsx'),
+    read('web/src/index.css')
+  ]);
+  assert.doesNotMatch(chatView, /scrollIntoView/);
+  assert.match(chatView, /stickToBottomRef/);
+  assert.match(chatView, /list\.scrollTo\(\{ top: list\.scrollHeight/);
+  assert.match(styles, /Mobile chat viewport lock and premium message action sheet/);
+  assert.match(styles, /body:has\(\.app-container\.mobile-chat-open\)[\s\S]+overflow:\s*hidden/);
+  assert.match(styles, /@media \(max-width: 768px\)[\s\S]+\.message-action-menu[\s\S]+flex-direction:\s*column/);
+});

@@ -36,6 +36,7 @@ export default function ChatView({
 }) {
   const messagesEndRef = useRef(null);
   const messagesListRef = useRef(null);
+  const stickToBottomRef = useRef(true);
   const moreMenuRef = useRef(null);
   const groupDetailsRef = useRef(null);
   const inChatSearchRef = useRef(null);
@@ -60,6 +61,7 @@ export default function ChatView({
   const [isAddingMember, setIsAddingMember] = useState(false);
 
   useEffect(() => {
+    stickToBottomRef.current = true;
     setVisibleMessageLimit(140);
     setSelectedMessageIds(new Set());
     setEditingMessage(null);
@@ -100,21 +102,30 @@ export default function ChatView({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showMoreMenu, showGroupDetails, showInChatSearch]);
 
-  // Auto-scroll
+  // Keep scrolling confined to the message list. Element scrolling can move the
+  // whole mobile viewport and hide the chat header.
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    const list = messagesListRef.current;
+    if (!list || !stickToBottomRef.current) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      list.scrollTo({ top: list.scrollHeight, behavior: 'auto' });
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [messages, typingUsers]);
 
   const handleScroll = () => {
     if (!messagesListRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = messagesListRef.current;
-    setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 150);
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    stickToBottomRef.current = distanceFromBottom < 80;
+    setShowScrollBtn(distanceFromBottom > 150);
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const list = messagesListRef.current;
+    if (!list) return;
+    stickToBottomRef.current = true;
+    list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
   };
 
   // Filter messages by search
@@ -164,6 +175,7 @@ export default function ChatView({
 
   // Handlers
   const handleSend = async (text, image) => {
+    stickToBottomRef.current = true;
     if (editingMessage) {
       await onEditMessage(editingMessage.id, text);
       setEditingMessage(null);
