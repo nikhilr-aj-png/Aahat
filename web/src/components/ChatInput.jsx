@@ -2,6 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import { Paperclip, Send, X, Camera, Mic, MicOff, Sparkles, Smile, RefreshCw, FileText } from 'lucide-react';
 
 const POPULAR_EMOJIS = ['😊', '😂', '🔥', '👍', '❤️', '👏', '🙌', '🎉', '✨', '💡'];
+const SAFE_POPULAR_EMOJIS = POPULAR_EMOJIS.map((emoji, index) => [
+  '\u{1F60A}', '\u{1F602}', '\u{1F525}', '\u{1F44D}', '\u{2764}\u{FE0F}',
+  '\u{1F44F}', '\u{1F64C}', '\u{1F389}', '\u{2728}', '\u{1F4A1}'
+][index] || emoji);
 const AI_SUGGESTIONS = [
   "Hey! Checking out the glassmorphic designs right now!",
   "Great to meet you. Let's sync up later today!",
@@ -14,7 +18,7 @@ const AI_SUGGESTIONS = [
  * ChatInput — Message input bar with file attachments, camera upload simulation,
  * voice note recording simulation, emoji shortcuts, and smart AI assistant completions.
  */
-export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply, onSetTyping, conversationId }) {
+export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply, editingMessage, onCancelEdit, onSetTyping, conversationId }) {
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -25,6 +29,18 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
   const recordingTimerRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const fileInputRef = useRef(null);
+  const messageInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!editingMessage) return;
+    setInputText(editingMessage.content || '');
+    setSelectedImage(null);
+    setShowEmojiPicker(false);
+    requestAnimationFrame(() => {
+      messageInputRef.current?.focus();
+      messageInputRef.current?.setSelectionRange(messageInputRef.current.value.length, messageInputRef.current.value.length);
+    });
+  }, [editingMessage]);
 
   // Typing indicator: debounce to stop typing after 2 seconds of inactivity
   const handleTypingChange = (text) => {
@@ -70,6 +86,7 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
       : null;
     onSend(inputText, attachmentPayload);
     setInputText('');
+    if (onCancelEdit) onCancelEdit();
     setSelectedImage(null);
     if (onCancelReply) onCancelReply();
   };
@@ -299,13 +316,32 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
 
   return (
     <div className="chat-input-area-wrapper">
+      {editingMessage && (
+        <div className="reply-preview-banner editing-message-banner">
+          <div className="reply-preview-details">
+            <span className="reply-title">Editing message</span>
+            <p className="reply-text">{editingMessage.content}</p>
+          </div>
+          <button className="reply-cancel-btn" onClick={() => { setInputText(''); onCancelEdit?.(); }} title="Cancel editing">
+            <X size={14} />
+          </button>
+        </div>
+      )}
       
       {/* Replying to Preview Banner */}
-      {replyTo && (
+      {replyTo && !editingMessage && (
         <div className="reply-preview-banner">
           <div className="reply-preview-details">
-            <span className="reply-title">Replying to {replyTo.sender}</span>
-            <p className="reply-text">{replyTo.text}</p>
+            <span className="reply-title">Replying to {
+              typeof replyTo.senderName === 'string' ? replyTo.senderName
+                : typeof replyTo.sender === 'string' ? replyTo.sender
+                  : 'message'
+            }</span>
+            <p className="reply-text">{
+              typeof replyTo.text === 'string' ? replyTo.text
+                : typeof replyTo.content === 'string' ? replyTo.content
+                  : 'Attachment'
+            }</p>
           </div>
           <button className="reply-cancel-btn" onClick={onCancelReply} title="Cancel Reply">
             <X size={14} />
@@ -321,7 +357,7 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
             <button className="btn-close-emoji" onClick={() => setShowEmojiPicker(false)}><X size={12} /></button>
           </div>
           <div className="emoji-picker-grid">
-            {POPULAR_EMOJIS.map(emoji => (
+            {SAFE_POPULAR_EMOJIS.map(emoji => (
               <span 
                 key={emoji} 
                 className="emoji-picker-item" 
@@ -408,8 +444,9 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
               </div>
             ) : (
               <input
+                ref={messageInputRef}
                 type="text"
-                placeholder={isUploading ? "Uploading file..." : "Type a message..."}
+                placeholder={isUploading ? "Uploading file..." : editingMessage ? "Edit message..." : "Type a message..."}
                 value={inputText}
                 onChange={e => handleTypingChange(e.target.value)}
                 onKeyDown={handleKeyDown}

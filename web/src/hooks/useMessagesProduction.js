@@ -25,6 +25,19 @@ const storageObjectFromPublicUrl = (url) => {
   return bucket && parts.length ? { bucket, path: parts.join('/') } : null;
 };
 
+const hydrateReplyTargets = async (rows) => {
+  const replyIds = [...new Set(rows.map(row => row.reply_to_id).filter(Boolean))];
+  if (!replyIds.length) return rows;
+  const { data, error } = await supabase.from('messages')
+    .select('id,content,sender_id,message_type')
+    .in('id', replyIds);
+  if (error) {
+    console.warn('Reply previews could not be loaded:', error.message);
+    return rows;
+  }
+  const repliesById = new Map((data || []).map(row => [row.id, row]));
+  return rows.map(row => ({ ...row, reply_to: repliesById.get(row.reply_to_id) || null }));
+};
 export function useMessages(user, conversationId) {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,19 +47,23 @@ export function useMessages(user, conversationId) {
 
   useEffect(() => { messagesRef.current = messages; }, [messages]);
 
-  const mapMessage = useCallback((message) => ({
-    ...message,
-    isFromMe: message.sender_id === user?.id,
-    senderName: message.sender?.display_name || 'Unknown',
-    senderAvatar: message.sender?.avatar_url || '',
-    replyToContent: message.reply_to?.content || null,
-    replyToSenderName: message.reply_to?.sender_id === user?.id ? 'You' : null,
-    replyToType: message.reply_to?.message_type || null,
-    reactionList: message.reactions || [],
-    is_pinned: Boolean(message.pins?.length),
-    is_starred: Boolean(message.stars?.some(row => row.user_id === user?.id)),
-    _status: statusFor(message, user?.id)
-  }), [user?.id]);
+  const mapMessage = useCallback((message) => {
+    const sender = Array.isArray(message.sender) ? message.sender[0] : message.sender;
+    const reply = Array.isArray(message.reply_to) ? message.reply_to[0] : message.reply_to;
+    return {
+      ...message,
+      isFromMe: message.sender_id === user?.id,
+      senderName: typeof sender?.display_name === 'string' ? sender.display_name : 'Unknown',
+      senderAvatar: typeof sender?.avatar_url === 'string' ? sender.avatar_url : '',
+      replyToContent: typeof reply?.content === 'string' ? reply.content : null,
+      replyToSenderName: reply?.sender_id === user?.id ? 'You' : null,
+      replyToType: reply?.message_type || null,
+      reactionList: Array.isArray(message.reactions) ? message.reactions : [],
+      is_pinned: Boolean(message.pins?.length),
+      is_starred: Boolean(message.stars?.some(row => row.user_id === user?.id)),
+      _status: statusFor(message, user?.id)
+    };
+  }, [user?.id]);
 
   const fetchPage = useCallback(async (older = false) => {
     if (!user || !conversationId) {
@@ -57,7 +74,6 @@ export function useMessages(user, conversationId) {
     try {
       let query = supabase.from('messages').select(`
         *, sender:profiles!messages_sender_id_fkey(id,display_name,avatar_url),
-        reply_to:messages!messages_reply_to_id_fkey(id,content,sender_id,message_type),
         reactions:message_reactions(id,emoji,user_id),
         statuses:message_status(id,user_id,status,status_at),
         pins:pinned_messages(id,pinned_by), stars:starred_messages(id,user_id)
@@ -67,8 +83,22 @@ export function useMessages(user, conversationId) {
 
       const oldest = messagesRef.current[0];
       if (older && oldest) query = query.lt('created_at', oldest.created_at);
-      const { data, error } = await query;
+      let { data, error } = await query;
+      if (error) {
+        console.warn('Rich message query failed; loading core messages instead:', error.message);
+        let fallbackQuery = supabase.from('messages')
+          .select('*, sender:profiles!messages_sender_id_fkey(id,display_name,avatar_url)')
+          .eq('conversation_id', conversationId)
+          .eq('is_deleted_for_everyone', false)
+          .order('created_at', { ascending: false })
+          .limit(PAGE_SIZE);
+        if (older && oldest) fallbackQuery = fallbackQuery.lt('created_at', oldest.created_at);
+        const fallbackResult = await fallbackQuery;
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
       if (error) throw error;
+      data = await hydrateReplyTargets(data || []);
       const page = [...(data || [])].reverse().map(mapMessage)
         .filter(message => !(message.deleted_for_users || []).includes(user.id));
       setMessages(current => older
@@ -98,6 +128,19 @@ export function useMessages(user, conversationId) {
     };
   }, [conversationId, fetchPage, user]);
 
+  useEffect(() => {
+    if (!user || !conversationId) return undefined;
+    const refresh = () => fetchPage(false).catch(console.error);
+    const pollId = window.setInterval(refresh, 5000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(pollId);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [conversationId, fetchPage, user]);
+
   const sendMessage = useCallback(async (content, options = {}) => {
     if (!user || !conversationId) throw new Error('Select a conversation first.');
     const payload = {
@@ -114,9 +157,10 @@ export function useMessages(user, conversationId) {
       setMessages(current => current.map(row => row.id === optimisticId ? { ...row, _status: 'failed' } : row));
       throw error;
     }
-    setMessages(current => current.map(row => row.id === optimisticId ? { ...row, ...data, _optimistic: false, _status: 'sent' } : row));
+    setMessages(current => current.map(row => row.id === optimisticId ? mapMessage({ ...row, ...data, _optimistic: false }) : row));
+    await fetchPage(false);
     return data;
-  }, [conversationId, user]);
+  }, [conversationId, fetchPage, mapMessage, user]);
 
   const retryMessage = useCallback(async (messageId) => {
     const failed = messagesRef.current.find(row => row.id === messageId && row._status === 'failed');
@@ -134,6 +178,7 @@ export function useMessages(user, conversationId) {
     const { error } = await supabase.from('messages').update({ content, is_edited: true, edited_at: new Date().toISOString() })
       .eq('id', messageId).eq('sender_id', user.id);
     if (error) throw error;
+    setMessages(current => current.map(message => message.id === messageId ? { ...message, content, is_edited: true, edited_at: new Date().toISOString() } : message));
   }, [user]);
 
   const deleteForMe = useCallback(async (messageId) => {

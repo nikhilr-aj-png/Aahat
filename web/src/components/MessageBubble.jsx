@@ -1,5 +1,5 @@
-import { memo, useState } from 'react';
-import { Smile, Trash2, Check, CheckCheck, Reply, Share2, Play, Pause, FileText, Edit3, Pin, Star, RefreshCw, Download, Film } from 'lucide-react';
+import { memo, useEffect, useRef, useState } from 'react';
+import { Smile, Trash2, Check, CheckCheck, Reply, Play, Pause, FileText, Edit3, ChevronDown, ChevronLeft, ListChecks, RefreshCw, Download, Film } from 'lucide-react';
 
 const formatBytes = (bytes) => {
   if (!bytes) return '';
@@ -8,8 +8,9 @@ const formatBytes = (bytes) => {
   return `${(bytes / (1024 ** index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 };
 
-const REACTION_EMOJIS = ['ðŸ‘', 'â¤ï¸', 'ðŸ˜‚', 'ðŸ˜®', 'ðŸ˜¢', 'ðŸ™'];
-
+const SAFE_REACTION_EMOJIS = [
+  '\u{1F44D}', '\u{2764}\u{FE0F}', '\u{1F602}', '\u{1F62E}', '\u{1F622}', '\u{1F64F}'
+];
 /**
  * MessageBubble â€” Renders a single message (V2).
  * Supports text, images, voice notes, PDFs, reactions, reply preview,
@@ -22,18 +23,60 @@ function MessageBubble({
   onAddReaction, 
   onDeleteForMe,
   onDeleteForEveryone,
-  onEditMessage,
+  onStartEdit,
   onReply,
-  onForward,
-  onTogglePin,
-  onToggleStar,
-  onRetry
+  onRetry,
+  selectionMode,
+  isSelected,
+  isActionMenuOpen,
+  onToggleActionMenu,
+  onToggleSelect,
+  onStartSelect
 }) {
   const isMe = msg.isFromMe;
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioInstance, setAudioInstance] = useState(null);
   const [showDeleteMenu, setShowDeleteMenu] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const actionMenuRef = useRef(null);
+
+  const closeActions = () => {
+    setShowDeleteMenu(false);
+    setActionError('');
+    onToggleReactionPicker(null);
+    onToggleActionMenu?.(null);
+  };
+
+  const reactToMessage = async emoji => {
+    try {
+      await onAddReaction(msg.id, emoji);
+      closeActions();
+    } catch (error) {
+      setActionError(error.message || 'Could not add reaction.');
+    }
+  };
+
+  const deleteMessage = async forEveryone => {
+    try {
+      if (forEveryone) await onDeleteForEveryone?.(msg.id);
+      else await onDeleteForMe?.(msg.id);
+      closeActions();
+    } catch (error) {
+      setActionError(error.message || 'Could not delete message.');
+    }
+  };
+
+  useEffect(() => {
+    if (!isActionMenuOpen) return undefined;
+    const closeMenu = event => {
+      if (!actionMenuRef.current?.contains(event.target)) onToggleActionMenu?.(null);
+    };
+    document.addEventListener('pointerdown', closeMenu);
+    return () => document.removeEventListener('pointerdown', closeMenu);
+  }, [isActionMenuOpen, onToggleActionMenu]);
+
+  useEffect(() => { if (selectionMode) onToggleActionMenu?.(null); }, [selectionMode, onToggleActionMenu]);
 
   const toggleAudio = () => {
     const isMockUrl = !msg.attachment_url || (!msg.attachment_url.startsWith('http') && !msg.attachment_url.startsWith('blob:'));
@@ -110,7 +153,7 @@ function MessageBubble({
   if (isSystem) {
     return (
       <div className="date-separator system-message" id={`msg-${msg.id}`}>
-        <span style={{ fontStyle: 'italic', fontSize: '11px' }}>ðŸ”” {msg.content}</span>
+        <span style={{ fontStyle: 'italic', fontSize: '11px' }}>{'\u{1F514}'} {msg.content}</span>
       </div>
     );
   }
@@ -118,9 +161,21 @@ function MessageBubble({
   return (
     <div
       className={`message-bubble-wrapper ${isMe ? 'me' : 'other'} ${msg.reply_to_id ? 'has-reply' : ''} ${isOptimistic ? 'optimistic' : ''} ${isFailed ? 'failed' : ''}`}
+      onMouseLeave={() => {
+        closeActions();
+      }}
       id={`msg-${msg.id}`}
     >
       <div className="bubble-row">
+        {selectionMode && (
+          <button
+            type="button"
+            className={`message-select-toggle ${isSelected ? 'selected' : ''}`}
+            onClick={() => onToggleSelect?.(msg.id)}
+            aria-label={isSelected ? 'Deselect message' : 'Select message'}
+            aria-pressed={isSelected}
+          ><Check size={12} /></button>
+        )}
         {!isMe && (
           <div className="message-sender-avatar" title={msg.senderName || 'Contact'}>
             {msg.senderName ? msg.senderName[0].toUpperCase() : 'C'}
@@ -206,85 +261,32 @@ function MessageBubble({
             </button>
           )}
 
-          {/* Hover actions */}
-          <div className="message-hover-actions">
-            <button className="msg-action-btn" onClick={() => onReply(msg)} title="Reply" id={`btn-reply-${msg.id}`}>
-              <Reply size={12} />
+          {/* Compact message actions */}
+          {!selectionMode && <div className="message-hover-actions" ref={actionMenuRef}>
+            <button type="button" className="msg-action-btn message-menu-trigger" onClick={() => { if (isActionMenuOpen) closeActions(); else { setActionError(''); onToggleActionMenu?.(msg.id); } }} title="Message actions" aria-expanded={isActionMenuOpen}>
+              <ChevronDown size={14} />
             </button>
-            <button className="msg-action-btn" onClick={() => onForward(msg)} title="Forward" id={`btn-forward-${msg.id}`}>
-              <Share2 size={12} />
-            </button>
-            <button className="msg-action-btn" onClick={() => onToggleReactionPicker(showReactionPicker === msg.id ? null : msg.id)} title="React" id={`btn-react-${msg.id}`}>
-              <Smile size={12} />
-            </button>
-            {isMe && (
-              <button className="msg-action-btn" onClick={() => {
-                const newText = prompt('Edit message:', msg.content);
-                if (newText && newText !== msg.content) onEditMessage?.(msg.id, newText);
-              }} title="Edit" id={`btn-edit-${msg.id}`}>
-                <Edit3 size={12} />
-              </button>
-            )}
-            <button className="msg-action-btn" onClick={() => onTogglePin?.(msg.id)} title={msg.is_pinned ? 'Unpin' : 'Pin'}>
-              <Pin size={12} />
-            </button>
-            <button className={`msg-action-btn ${msg.is_starred ? 'active' : ''}`} onClick={() => onToggleStar?.(msg.id)} title={msg.is_starred ? 'Unstar' : 'Star'}>
-              <Star size={12} fill={msg.is_starred ? 'currentColor' : 'none'} />
-            </button>
-            <button
-              className="msg-action-btn danger"
-              onClick={() => setShowDeleteMenu(!showDeleteMenu)}
-              title="Delete"
-              id={`btn-delete-${msg.id}`}
-            >
-              <Trash2 size={12} />
-            </button>
+            {isActionMenuOpen && <div className={`message-action-menu ${isMe ? 'right' : 'left'}`}>
+              {actionError && <div className="message-action-error">{actionError}</div>}
+              {showReactionPicker === msg.id ? <>
+                <button className="message-action-back" onClick={() => { setActionError(''); onToggleReactionPicker(null); }}><ChevronLeft size={14}/>Reactions</button>
+                <div className="message-action-emoji-grid">
+                  {SAFE_REACTION_EMOJIS.map(emoji => <button key={emoji} onClick={() => reactToMessage(emoji)}>{emoji}</button>)}
+                </div>
+              </> : showDeleteMenu ? <>
+                <button className="message-action-back" onClick={() => { setActionError(''); setShowDeleteMenu(false); }}><ChevronLeft size={14}/>Delete message</button>
+                <button onClick={() => deleteMessage(false)}><Trash2 size={14}/>Delete for me</button>
+                {isMe && <button className="danger" onClick={() => deleteMessage(true)}><Trash2 size={14}/>Delete for everyone</button>}
+              </> : <>
+                <button onClick={() => { onReply(msg); closeActions(); }}><Reply size={14}/>Reply</button>
+                <button onClick={() => { setShowDeleteMenu(false); setActionError(''); onToggleReactionPicker(msg.id); }}><Smile size={14}/>Emoji</button>
+                {isMe && <button onClick={() => { onStartEdit?.(msg); closeActions(); }}><Edit3 size={14}/>Edit</button>}
+                <button className="danger" onClick={() => { setActionError(''); onToggleReactionPicker(null); setShowDeleteMenu(true); }}><Trash2 size={14}/>Delete</button>
+                <button onClick={() => { onStartSelect?.(msg.id); closeActions(); }}><ListChecks size={14}/>Select</button>
+              </>}
+            </div>}
           </div>
-
-          {/* Delete submenu */}
-          {showDeleteMenu && (
-            <div style={{
-              position: 'absolute', bottom: '-50px', right: isMe ? '0' : 'auto', left: isMe ? 'auto' : '0',
-              background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(12px)',
-              border: '1px solid var(--panel-border)', borderRadius: '8px', padding: '4px',
-              display: 'flex', flexDirection: 'column', gap: '2px', zIndex: 30, minWidth: '140px',
-              boxShadow: 'var(--shadow-md)'
-            }}>
-              <button
-                style={{ padding: '6px 12px', fontSize: '11px', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', textAlign: 'left', borderRadius: '4px' }}
-                onClick={() => { onDeleteForMe?.(msg.id); setShowDeleteMenu(false); }}
-                onMouseOver={e => e.target.style.background = 'var(--glass-hover)'}
-                onMouseOut={e => e.target.style.background = 'none'}
-              >
-                Delete for me
-              </button>
-              {isMe && (
-                <button
-                  style={{ padding: '6px 12px', fontSize: '11px', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', textAlign: 'left', borderRadius: '4px' }}
-                  onClick={() => { onDeleteForEveryone?.(msg.id); setShowDeleteMenu(false); }}
-                  onMouseOver={e => e.target.style.background = 'rgba(239,68,68,0.1)'}
-                  onMouseOut={e => e.target.style.background = 'none'}
-                >
-                  Delete for everyone
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Reaction picker */}
-          {showReactionPicker === msg.id && (
-            <div className={`reaction-picker ${isMe ? 'right' : 'left'}`}>
-              {REACTION_EMOJIS.map(emoji => (
-                <span
-                  key={emoji}
-                  className="reaction-emoji"
-                  onClick={() => { onAddReaction(msg.id, emoji); onToggleReactionPicker(null); }}
-                >
-                  {emoji}
-                </span>
-              ))}
-            </div>
-          )}
+          }
         </div>
       </div>
 

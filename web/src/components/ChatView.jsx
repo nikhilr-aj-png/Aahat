@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { 
   ArrowLeft, ChevronDown, Phone, Video, Search,
-  MoreVertical, Info, Users, Image, X
+  MoreVertical, Info, Users, Image, X, Forward, Trash2
 } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import ChatInput from './ChatInput';
@@ -17,7 +17,6 @@ export default function ChatView({
   conversation, messages, typingUsers,
   onSend, onAddReaction,
   onDeleteForMe, onDeleteForEveryone, onEditMessage,
-  onTogglePinMessage, onToggleStarMessage,
   onRetryMessage,
   onLoadMoreMessages, hasMoreMessages, isLoadingMoreMessages,
   onUploadFile,
@@ -48,8 +47,12 @@ export default function ChatView({
   const [showGroupDetails, setShowGroupDetails] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState(null);
-  const [forwardingMessage, setForwardingMessage] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [openMessageMenuId, setOpenMessageMenuId] = useState(null);
+  const [forwardingMessages, setForwardingMessages] = useState([]);
+  const [selectedMessageIds, setSelectedMessageIds] = useState(() => new Set());
   const [visibleMessageLimit, setVisibleMessageLimit] = useState(140);
+  const showLegacyGreeting = false;
 
   const [groupMembers, setGroupMembers] = useState([]);
   const [isFetchingMembers, setIsFetchingMembers] = useState(false);
@@ -58,6 +61,10 @@ export default function ChatView({
 
   useEffect(() => {
     setVisibleMessageLimit(140);
+    setSelectedMessageIds(new Set());
+    setEditingMessage(null);
+    setOpenMessageMenuId(null);
+    setShowReactionPicker(null);
   }, [conversation?.id]);
 
   // Fetch group members dynamically
@@ -156,7 +163,12 @@ export default function ChatView({
   }, [messages]);
 
   // Handlers
-  const handleSend = (text, image) => {
+  const handleSend = async (text, image) => {
+    if (editingMessage) {
+      await onEditMessage(editingMessage.id, text);
+      setEditingMessage(null);
+      return;
+    }
     const replyPayload = replyingToMessage ? {
       id: replyingToMessage.id,
       text: replyingToMessage.content || "Photo",
@@ -167,11 +179,24 @@ export default function ChatView({
     setReplyingToMessage(null);
   };
 
-  const handleForwardToContact = (targetConvId) => {
-    if (!forwardingMessage) return;
-    onForwardMessage?.(forwardingMessage.content, forwardingMessage.attachment_url, targetConvId);
-    setForwardingMessage(null);
-    alert('Message forwarded successfully!');
+  const selectedMessages = messages.filter(message => selectedMessageIds.has(message.id));
+  const toggleMessageSelection = messageId => setSelectedMessageIds(current => {
+    const next = new Set(current);
+    if (next.has(messageId)) next.delete(messageId); else next.add(messageId);
+    return next;
+  });
+  const startMessageSelection = messageId => setSelectedMessageIds(new Set([messageId]));
+  const deleteSelectedMessages = async () => {
+    if (!selectedMessages.length || !confirm(`Delete ${selectedMessages.length} selected message(s) for you?`)) return;
+    await Promise.all(selectedMessages.map(message => onDeleteForMe?.(message.id)));
+    setSelectedMessageIds(new Set());
+  };
+  const handleForwardToContact = async targetConvId => {
+    if (!forwardingMessages.length) return;
+    await Promise.all(forwardingMessages.map(message => onForwardMessage?.(message.content, message.attachment_url, targetConvId)));
+    setForwardingMessages([]);
+    setSelectedMessageIds(new Set());
+    alert(`${forwardingMessages.length} message(s) forwarded successfully!`);
   };
 
   // Get online status text
@@ -296,14 +321,27 @@ export default function ChatView({
           </div>
         )}
 
+        {selectedMessageIds.size > 0 && (
+          <div className="message-selection-toolbar">
+            <button type="button" onClick={() => setSelectedMessageIds(new Set())} title="Cancel selection"><X size={17}/></button>
+            <strong>{selectedMessageIds.size} selected</strong>
+            <div>
+              <button type="button" onClick={() => setForwardingMessages(selectedMessages)} title="Forward selected"><Forward size={16}/><span>Forward</span></button>
+              <button type="button" className="danger" onClick={deleteSelectedMessages} title="Delete selected"><Trash2 size={16}/><span>Delete</span></button>
+            </div>
+          </div>
+        )}
+
         {/* Messages */}
         <div className="messages-list" ref={messagesListRef} onScroll={handleScroll} id="messages-list">
           {visibleGroupedMessages.length === 0 ? (
             <div className="chat-start-hint">
               {chatSearchQuery ? (
                 <p>No messages match your search criteria</p>
+              ) : showLegacyGreeting ? (
+                <p>Say hello to <strong>{conversation.name}</strong> {'\u{1F44B}'}</p>
               ) : (
-                <p>Say hello to <strong>{conversation.name}</strong> ðŸ‘‹</p>
+                <p>Start your conversation with <strong>{conversation.name}</strong>.</p>
               )}
             </div>
           ) : (
@@ -341,13 +379,15 @@ export default function ChatView({
                   onAddReaction={onAddReaction}
                   onDeleteForMe={onDeleteForMe}
                   onDeleteForEveryone={onDeleteForEveryone}
-                  onEditMessage={onEditMessage}
-                  onReply={() => setReplyingToMessage(item.data)}
-                  onForward={() => setForwardingMessage(item.data)}
-                  onTogglePin={onTogglePinMessage}
-                  onToggleStar={onToggleStarMessage}
+                  onStartEdit={message => { setReplyingToMessage(null); setShowReactionPicker(null); setEditingMessage(message); }}
+                  onReply={() => { setEditingMessage(null); setShowReactionPicker(null); setReplyingToMessage(item.data); }}
+                  isActionMenuOpen={openMessageMenuId === item.data.id}
+                  onToggleActionMenu={setOpenMessageMenuId}
                   onRetry={onRetryMessage}
-                  currentUserId={currentUserId}
+                  selectionMode={selectedMessageIds.size > 0}
+                  isSelected={selectedMessageIds.has(item.data.id)}
+                  onToggleSelect={toggleMessageSelection}
+                  onStartSelect={startMessageSelection}
                 />
               );
             })}
@@ -383,6 +423,8 @@ export default function ChatView({
           onUploadFile={onUploadFile}
           replyTo={replyingToMessage}
           onCancelReply={() => setReplyingToMessage(null)}
+          editingMessage={editingMessage}
+          onCancelEdit={() => setEditingMessage(null)}
           onSetTyping={onSetTyping}
           conversationId={conversation.id}
         />
@@ -497,7 +539,7 @@ export default function ChatView({
                                 {member.display_name} {member.id === currentUserId && '(You)'}
                               </span>
                               <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-                                {member.role === 'admin' ? 'ðŸ‘‘ Admin' : 'Member'}
+                                {member.role === 'admin' ? '\u{1F451} Admin' : 'Member'}
                               </span>
                             </div>
                           </div>
@@ -573,18 +615,18 @@ export default function ChatView({
       )}
 
       {/* Forward Modal */}
-      {forwardingMessage && (
-        <div className="modal-overlay" onClick={() => setForwardingMessage(null)}>
+      {forwardingMessages.length > 0 && (
+        <div className="modal-overlay" onClick={() => setForwardingMessages([])}>
           <div className="modal-card forwarding-card" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Forward Message</h3>
-              <button className="modal-close" onClick={() => setForwardingMessage(null)}>
+              <h3>Forward {forwardingMessages.length} Message(s)</h3>
+              <button className="modal-close" onClick={() => setForwardingMessages([])}>
                 <X size={18} />
               </button>
             </div>
             <div className="forwarding-preview">
-              <span className="label">Message Preview</span>
-              <p>{forwardingMessage.content || '[Image attachment]'}</p>
+              <span className="label">Selected Messages</span>
+              <p>{forwardingMessages.map(message => message.content || '[Attachment]').join(' · ')}</p>
             </div>
             <div className="forward-list">
               <span className="label">Select Target Conversation</span>

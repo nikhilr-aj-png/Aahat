@@ -42,3 +42,14 @@ test('accepted invitations refresh contacts on both devices', async () => {
   );
   assert.match(hook, /\[user, refresh, onContactsChanged\]/);
 });
+
+test('accepted contacts can read their direct conversation without recursive RLS', async () => {
+  const migration = await read('supabase/migrations/20260717_fix_conversation_member_rls.sql');
+  assert.match(migration, /function public\.is_conversation_member\(p_conversation_id uuid\)/i);
+  assert.match(migration, /security definer/i);
+  assert.match(
+    migration,
+    /policy "conv_members_select"[\s\S]+is_conversation_member\(conversation_id\)/i
+  );
+  assert.doesNotMatch(migration, /conv_members_select[\s\S]+conversation_id in\s*\(\s*select[\s\S]+conversation_members/i);
+});

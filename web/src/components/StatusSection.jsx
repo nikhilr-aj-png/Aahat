@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Plus, Eye, X, ChevronLeft, ChevronRight, Image, Trash2, Clock, Users } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 
@@ -464,7 +464,7 @@ export default function StatusSection({
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-light)' }}>ðŸ“¢ {activeChannel.name}</span>
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-light)' }}>{'\u{1F4E2}'} {activeChannel.name}</span>
                       <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     <p style={{ margin: 0, fontSize: '13px', color: 'white', whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{post.content}</p>
@@ -535,7 +535,7 @@ export default function StatusSection({
                     color: createType === t ? 'white' : 'var(--text-secondary)'
                   }}
                 >
-                  {t === 'text' ? 'âœï¸ Text' : 'ðŸ“· Photo/Video'}
+                  {t === 'text' ? '\u{270F}\u{FE0F} Text' : '\u{1F4F7} Photo/Video'}
                 </button>
               ))}
             </div>

@@ -199,6 +199,7 @@ body::before {
 @media (max-width: 768px) {
   #root { min-height: 100dvh; padding: 0; }
   .app-container { height: 100dvh; padding-bottom: calc(88px + env(safe-area-inset-bottom)); border: 0; border-radius: 0; box-shadow: none; }
+  .app-container.mobile-chat-open { padding-bottom: 0; }
   .sidebar { width: 100%; background: #0e0926; padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
   .sidebar-header { padding: 16px 16px 12px; }
   .filter-chips { padding-inline: 16px !important; }

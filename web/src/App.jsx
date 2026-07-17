@@ -66,7 +66,7 @@ export default function App() {
   const {
     messages: activeMessages,
     sendMessage, retryMessage, editMessage, deleteForMe, deleteForEveryone,
-    addReaction, removeReaction, togglePinMessage, toggleStarMessage,
+    addReaction, removeReaction,
     markAsRead, uploadFile, loadMore, hasMore, isLoadingMore
   } = useMessages(user, selectedConversationId);
 
@@ -336,7 +336,10 @@ export default function App() {
   }
 
   return (
-    <div className="app-container" id="app-container">
+    <div
+      className={`app-container ${isMobile && activeTab === 'chats' && selectedConversationId ? 'mobile-chat-open' : ''}`}
+      id="app-container"
+    >
       {/* Desktop Navigation Dock */}
       {!isMobile && (
         <div className="nav-dock">
@@ -435,8 +438,6 @@ export default function App() {
               onDeleteForMe={deleteForMe}
               onDeleteForEveryone={deleteForEveryone}
               onEditMessage={editMessage}
-              onTogglePinMessage={togglePinMessage}
-              onToggleStarMessage={toggleStarMessage}
               onRetryMessage={retryMessage}
               onLoadMoreMessages={loadMore}
               hasMoreMessages={hasMore}
@@ -538,7 +539,7 @@ export default function App() {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      {isMobile && (
+      {isMobile && !(activeTab === 'chats' && selectedConversationId) && (
         <div className="mobile-bottom-nav">
           <button
             className={`mobile-nav-btn ${activeTab === 'chats' ? 'active' : ''}`}

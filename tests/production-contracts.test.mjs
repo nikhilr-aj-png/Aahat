@@ -39,3 +39,24 @@ test('account deletion requires an authenticated edge function and confirmation 
   assert.match(fn, /DELETE MY AAHAT ACCOUNT/);
   assert.match(fn, /auth\.admin\.deleteUser/);
 });
+
+test('channel policies avoid channels and membership recursion', async () => {
+  const migration = await read('supabase/migrations/20260717_fix_channel_rls.sql');
+  assert.match(migration, /function public\.is_public_channel/);
+  assert.match(migration, /function public\.is_channel_member/);
+  assert.match(migration, /function public\.is_channel_admin/);
+  assert.match(migration, /channels_select_public[\s\S]+is_channel_member\(id\)/);
+  assert.match(migration, /ch_members_select[\s\S]+is_public_channel\(channel_id\)/);
+  const selectPolicy = migration.match(/create policy "channels_select_public"[\s\S]+?;/)?.[0] || '';
+  assert.match(selectPolicy, /is_channel_member\(id\)/);
+  assert.doesNotMatch(selectPolicy, /select[\s\S]+channel_members/);
+});
+
+test('message action RPCs are deployable with membership checks', async () => {
+  const migration = await read('supabase/migrations/20260717_message_action_rpcs.sql');
+  assert.match(migration, /delete_message_for_me/);
+  assert.match(migration, /clear_conversation_for_me/);
+  assert.match(migration, /mark_conversation_read/);
+  assert.match(migration, /is_conversation_member/);
+  assert.match(migration, /grant execute[\s\S]+authenticated/);
+});
