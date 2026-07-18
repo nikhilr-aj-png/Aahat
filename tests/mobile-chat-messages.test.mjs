@@ -16,6 +16,22 @@ test('mobile bottom navigation is hidden while a chat is open', async () => {
   assert.match(resonance, /\.app-container\.mobile-chat-open\s*\{\s*padding-bottom:\s*0/);
 });
 
+test('camera fills the desktop chat panel and the mobile chat viewport', async () => {
+  const [chatInput, styles] = await Promise.all([
+    read('web/src/components/ChatInput.jsx'),
+    read('web/src/index.css')
+  ]);
+
+  assert.match(chatInput, /createPortal/);
+  assert.match(chatInput, /document\.querySelector\('#chat-view > \.chat-view'\)/);
+  assert.match(chatInput, /className="camera-workspace-overlay"/);
+  assert.match(chatInput, /onCanPlay=\{\(\) => setIsCameraReady\(true\)\}/);
+  assert.doesNotMatch(chatInput, /modal-card camera-capture-card/);
+  assert.match(styles, /\.camera-workspace-overlay\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;/);
+  assert.match(styles, /\.camera-workspace-overlay::before/);
+  assert.match(styles, /@media \(max-width:\s*768px\)[\s\S]*?\.camera-btn\s*\{\s*display:\s*flex\s*!important;/);
+});
+
 test('messages use direct membership RLS and recover missed realtime events', async () => {
   const [hook, migration] = await Promise.all([
     read('web/src/hooks/useMessagesProduction.js'),

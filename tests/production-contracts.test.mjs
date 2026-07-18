@@ -150,3 +150,48 @@ test('background FCM push is token-scoped, one-time, and service-worker handled'
   assert.match(worker, /onBackgroundMessage/);
   assert.match(worker, /notificationclick/);
 });
+test('12-hour hard delete keeps a privacy-safe tombstone and cleans media', async () => {
+  const [migration, hook, bubble, input, compression] = await Promise.all([
+    read('supabase/migrations/20260718_hard_delete_and_media_limits.sql'),
+    read('web/src/hooks/useMessagesProduction.js'),
+    read('web/src/components/MessageBubble.jsx'),
+    read('web/src/components/ChatInput.jsx'),
+    read('web/src/utils/mediaCompression.js')
+  ]);
+  assert.match(migration, /interval '12 hours'/);
+  assert.match(migration, /insert into public\.deleted_messages/);
+  assert.match(migration, /delete from public\.messages where id = target\.id/);
+  assert.match(migration, /delete from public\.user_notifications/);
+  assert.match(migration, /storage\.foldername\(name\)/);
+  assert.doesNotMatch(migration, /target\.content/);
+  assert.match(hook, /rpc\('delete_message_for_everyone'/);
+  assert.match(hook, /from\('deleted_messages'\)/);
+  assert.match(hook, /storage\.from\(data\.storage_bucket\)\.remove/);
+  assert.match(bubble, /Delete for everyone \(within 12 hours\)/);
+  assert.match(bubble, /You deleted this message/);
+  assert.match(bubble, /message-video-attachment/);
+  assert.match(input, /prepareChatMedia/);
+  assert.match(input, /chat-media-limits/);
+  assert.match(compression, /image\/jpeg/);
+  assert.match(compression, /imageOutputBytes: 1 \* 1024 \* 1024/);
+  assert.match(compression, /videoOutputBytes: 25 \* 1024 \* 1024/);
+});
+
+test('voice-note Storage lifecycle is owner-scoped and deletion-ready', async () => {
+  const [migration, input, hook, deleteMigration] = await Promise.all([
+    read('supabase/migrations/20260718_voice_notes_storage_policies.sql'),
+    read('web/src/components/ChatInput.jsx'),
+    read('web/src/hooks/useMessagesProduction.js'),
+    read('supabase/migrations/20260718_hard_delete_and_media_limits.sql')
+  ]);
+  assert.match(migration, /voice_notes_owner_insert/);
+  assert.match(migration, /voice_notes_owner_delete/);
+  assert.match(migration, /storage\.foldername\(name\)/);
+  assert.match(migration, /file_size_limit = 20971520/);
+  assert.match(migration, /'audio\/webm'/);
+  assert.match(input, /audioBitsPerSecond: 32_000/);
+  assert.match(input, /Could not upload this voice note/);
+  assert.match(hook, /'voice-notes'/);
+  assert.match(deleteMigration, /'storage_bucket', bucket_name/);
+  assert.match(hook, /storage\.from\(data\.storage_bucket\)\.remove/);
+});

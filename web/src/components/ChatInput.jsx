@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Paperclip, Send, X, Camera, Mic, MicOff, Smile, RefreshCw, FileText } from 'lucide-react';
+import { CHAT_MEDIA_LIMITS, prepareChatMedia } from '../utils/mediaCompression';
 
 const POPULAR_EMOJIS = ['😊', '😂', '🔥', '👍', '❤️', '👏', '🙌', '🎉', '✨', '💡'];
 const SAFE_POPULAR_EMOJIS = POPULAR_EMOJIS.map((emoji, index) => [
@@ -16,6 +18,7 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
@@ -94,6 +97,7 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
 
   // Real camera capture references and states
   const [showCameraFeed, setShowCameraFeed] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
@@ -140,38 +144,36 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
     const file = e.target.files[0];
     if (!file) return;
 
-    // Validate file size limit: 50MB
-    const MAX_SIZE_MB = 50;
-    const maxSizeBytes = MAX_SIZE_MB * 1024 * 1024;
-    if (file.size > maxSizeBytes) {
-      alert(`File size exceeds the ${MAX_SIZE_MB}MB limit! Please select a smaller file (current: ${(file.size / (1024 * 1024)).toFixed(2)}MB).`);
-      e.target.value = '';
-      return;
-    }
-
     setIsUploading(true);
+    setUploadStatus(file.type.startsWith('video/') ? 'Preparing video...' : 'Compressing photo...');
     try {
-      const url = await onUploadFile(file);
+      const preparedFile = await prepareChatMedia(file, percent => setUploadStatus(`Compressing video... ${percent}%`));
+      setUploadStatus('Uploading...');
+      const url = await onUploadFile(preparedFile);
       setSelectedImage({
         url,
-        name: file.name,
-        size: file.size,
-        mimeType: file.type
+        name: preparedFile.name,
+        size: preparedFile.size,
+        mimeType: preparedFile.type,
+        originalSize: file.size
       });
     } catch (err) {
-      console.error("Upload failed:", err);
+      console.error('Upload failed:', err);
+      alert(err.message || 'Could not prepare this attachment.');
     } finally {
       setIsUploading(false);
+      setUploadStatus('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
-
   const handleCameraOpen = () => {
-    setFacingMode('user'); // Reset to front camera by default
+    setFacingMode('user');
+    setIsCameraReady(false);
     setShowCameraFeed(true);
   };
 
   const toggleFacingMode = () => {
+    setIsCameraReady(false);
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
   };
 
@@ -190,22 +192,27 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
       if (!blob) return;
       
       const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      
       closeCamera();
 
       setIsUploading(true);
+      setUploadStatus('Compressing photo...');
       try {
-        const url = await onUploadFile(file);
+        const preparedFile = await prepareChatMedia(file);
+        setUploadStatus('Uploading...');
+        const url = await onUploadFile(preparedFile);
         setSelectedImage({
           url,
-          name: file.name,
-          size: file.size,
-          mimeType: file.type
+          name: preparedFile.name,
+          size: preparedFile.size,
+          mimeType: preparedFile.type,
+          originalSize: file.size
         });
       } catch (err) {
-        console.error("Upload captured photo failed:", err);
+        console.error('Upload captured photo failed:', err);
+        alert(err.message || 'Could not prepare this photo.');
       } finally {
         setIsUploading(false);
+        setUploadStatus('');
       }
     }, 'image/jpeg', 0.85);
   };
@@ -215,15 +222,32 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
+    setIsCameraReady(false);
     setShowCameraFeed(false);
   };
+
+  useEffect(() => {
+    if (!showCameraFeed) return undefined;
+    const closeOnEscape = event => { if (event.key === 'Escape') closeCamera(); };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [showCameraFeed]);
+
+  const cameraPortalTarget = typeof document !== 'undefined'
+    ? (document.querySelector('#chat-view > .chat-view') || document.body)
+    : null;
 
   const startVoiceRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
       
-      const mediaRecorder = new MediaRecorder(stream);
+      const preferredVoiceType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
+        .find(type => window.MediaRecorder?.isTypeSupported?.(type));
+      const mediaRecorder = new MediaRecorder(stream, {
+        ...(preferredVoiceType ? { mimeType: preferredVoiceType } : {}),
+        audioBitsPerSecond: 32_000
+      });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
       
@@ -234,8 +258,10 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
       };
       
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const audioFile = new File([audioBlob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
+        const audioType = mediaRecorder.mimeType?.split(';')[0] || 'audio/webm';
+        const extension = audioType === 'audio/mp4' ? 'm4a' : 'webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: audioType });
+        const audioFile = new File([audioBlob], `voice-note-${Date.now()}.${extension}`, { type: audioType });
         
         setIsUploading(true);
         try {
@@ -248,6 +274,7 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
           });
         } catch (err) {
           console.error("Voice note upload failed:", err);
+          alert(err.message || "Could not upload this voice note.");
         } finally {
           setIsUploading(false);
         }
@@ -360,6 +387,9 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
       )}
 
       <form onSubmit={handleSubmit} className="chat-input-bar" id="chat-input-bar">
+        <div className="chat-media-limits">
+          Photos up to {CHAT_MEDIA_LIMITS.imageInputBytes / 1024 / 1024}MB (sent as JPG under {CHAT_MEDIA_LIMITS.imageOutputBytes / 1024 / 1024}MB) · Videos up to {CHAT_MEDIA_LIMITS.videoInputBytes / 1024 / 1024}MB / {CHAT_MEDIA_LIMITS.videoDurationSeconds / 60} min (final upload ≤{CHAT_MEDIA_LIMITS.videoOutputBytes / 1024 / 1024}MB) · PDF up to {CHAT_MEDIA_LIMITS.pdfBytes / 1024 / 1024}MB
+        </div>
         {/* Hidden File Input */}
         <input
           type="file"
@@ -378,7 +408,9 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
                 <span style={{ fontSize: '11px', color: 'white' }}>{typeof selectedImage === 'object' ? selectedImage.name : 'Document.pdf'}</span>
               </div>
             ) : (
-              <img src={typeof selectedImage === 'object' ? selectedImage.url : selectedImage} alt="Attachment preview" />
+              typeof selectedImage === 'object' && selectedImage.mimeType?.startsWith('video/')
+                ? <video src={selectedImage.url} muted playsInline preload="metadata" aria-label="Video attachment preview" />
+                : <img src={typeof selectedImage === 'object' ? selectedImage.url : selectedImage} alt="Attachment preview" />
             )}
             <button type="button" className="attachment-remove" onClick={clearAttachment}>
               <X size={14} />
@@ -435,7 +467,7 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
               <input
                 ref={messageInputRef}
                 type="text"
-                placeholder={isUploading ? "Uploading file..." : editingMessage ? "Edit message..." : "Type a message..."}
+                placeholder={isUploading ? (uploadStatus || "Preparing attachment...") : editingMessage ? "Edit message..." : "Type a message..."}
                 value={inputText}
                 onChange={e => handleTypingChange(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -472,34 +504,46 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
         </div>
       </form>
 
-      {/* Real Camera Video Stream Modal Overlay */}
-      {showCameraFeed && (
-        <div className="modal-overlay" style={{ zIndex: 1100 }}>
-          <div className="modal-card camera-capture-card" style={{ maxWidth: '450px', background: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(16px)', border: '1px solid var(--panel-border)', padding: '20px' }}>
-            <div className="modal-header" style={{ marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}><Camera size={18} style={{ color: 'var(--accent-light)' }} /> Capture Photo</h3>
-              <button type="button" className="modal-close" onClick={closeCamera} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}><X size={18} /></button>
-            </div>
-            <div style={{ position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden', background: '#000', aspectRatio: '4/3', marginBottom: '20px', border: '1px solid var(--panel-border)' }}>
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                muted 
-                style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
-              />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <button type="button" className="admin-btn admin-btn-ghost" onClick={toggleFacingMode} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
-                <RefreshCw size={14} /> Flip Camera
+      {/* Camera workspace fills the chat panel on desktop and the viewport on mobile. */}
+      {showCameraFeed && cameraPortalTarget && createPortal(
+        <div className="camera-workspace-overlay" role="dialog" aria-modal="true" aria-label="Take a photo">
+          <div className="camera-workspace">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="camera-live-preview"
+              onCanPlay={() => setIsCameraReady(true)}
+            />
+            <div className="camera-vignette" aria-hidden="true" />
+            <div className="camera-focus-frame" aria-hidden="true"><span/><span/><span/><span/></div>
+
+            <header className="camera-topbar">
+              <div className="camera-title"><span className="camera-live-dot"/>Camera</div>
+              <button type="button" className="camera-round-control camera-close-control" onClick={closeCamera} aria-label="Close camera">
+                <X size={20}/>
               </button>
-              <button type="button" className="admin-btn admin-btn-primary" onClick={capturePhoto} style={{ width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }} title="Capture Photo">
-                <div style={{ width: '42px', height: '42px', borderRadius: '50%', border: '4px solid white', background: 'rgba(255,255,255,0.2)' }} />
+            </header>
+
+            {!isCameraReady && (
+              <div className="camera-loading-state"><div className="upload-spinner"/><span>Starting camera...</span></div>
+            )}
+
+            <footer className="camera-control-deck">
+              <button type="button" className="camera-round-control" onClick={toggleFacingMode} disabled={!isCameraReady || isUploading} aria-label="Flip camera">
+                <RefreshCw size={20}/><span>Flip</span>
               </button>
-              <button type="button" className="admin-btn admin-btn-ghost" onClick={closeCamera}>Cancel</button>
-            </div>
+              <button type="button" className="camera-shutter" onClick={capturePhoto} disabled={!isCameraReady || isUploading} aria-label="Capture photo">
+                <span/>
+              </button>
+              <button type="button" className="camera-round-control" onClick={closeCamera} disabled={isUploading} aria-label="Cancel camera">
+                <X size={20}/><span>Cancel</span>
+              </button>
+            </footer>
           </div>
-        </div>
+        </div>,
+        cameraPortalTarget
       )}
     </div>
   );

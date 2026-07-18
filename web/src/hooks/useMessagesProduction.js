@@ -2,9 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../supabase';
 
 const PAGE_SIZE = 50;
-const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const MAX_IMAGE_UPLOAD_BYTES = 1 * 1024 * 1024;
+const MAX_VIDEO_UPLOAD_BYTES = 25 * 1024 * 1024;
+const MAX_PDF_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_AUDIO_UPLOAD_BYTES = 20 * 1024 * 1024;
 const ALLOWED_UPLOAD_TYPES = new Set([
-  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm',
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime',
   'audio/mpeg', 'audio/mp4', 'audio/webm', 'audio/wav', 'audio/ogg',
   'application/pdf', 'application/zip', 'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -120,17 +123,41 @@ export function useMessages(user, conversationId) {
       if (error) throw error;
       data = await hydrateReplyTargets(data || []);
       data = await hydrateMessageStatuses(data, user.id);
+
+      let deletedQuery = supabase.from('deleted_messages')
+        .select('message_id,conversation_id,sender_id,deleted_by,original_message_type,original_created_at,deleted_at,had_attachment')
+        .eq('conversation_id', conversationId)
+        .order('original_created_at', { ascending: false })
+        .limit(PAGE_SIZE);
+      if (older && oldest) deletedQuery = deletedQuery.lt('original_created_at', oldest.created_at);
+      const { data: deletedRows, error: deletedError } = await deletedQuery;
+      if (deletedError) console.warn('Deleted message markers could not be loaded:', deletedError.message);
+
       if ((data || []).some(message => message.sender_id !== user.id)) {
         supabase.rpc('mark_pending_messages_delivered').then(({ error: deliveryError }) => {
           if (deliveryError) console.warn('Could not acknowledge fetched messages:', deliveryError.message);
         });
       }
-      const page = [...(data || [])].reverse().map(mapMessage)
+      const tombstones = (deletedRows || []).map(row => ({
+        id: row.message_id,
+        conversation_id: row.conversation_id,
+        sender_id: row.sender_id,
+        created_at: row.original_created_at,
+        message_type: 'deleted',
+        content: '',
+        _deletedTombstone: true,
+        deleted_at: row.deleted_at,
+        original_message_type: row.original_message_type,
+        had_attachment: row.had_attachment
+      }));
+      const page = [...(data || []), ...tombstones]
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+        .map(mapMessage)
         .filter(message => !(message.deleted_for_users || []).includes(user.id));
       setMessages(current => older
         ? [...page, ...current.filter(row => !page.some(item => item.id === row.id))]
         : page);
-      setHasMore((data || []).length === PAGE_SIZE);
+      setHasMore((data || []).length === PAGE_SIZE || (deletedRows || []).length === PAGE_SIZE);
     } finally {
       older ? setIsLoadingMore(false) : setIsLoading(false);
     }
@@ -148,6 +175,7 @@ export function useMessages(user, conversationId) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'message_status' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pinned_messages', filter: `conversation_id=eq.${conversationId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deleted_messages', filter: `conversation_id=eq.${conversationId}` }, refresh)
       .subscribe();
     return () => {
       supabase.removeChannel(messageChannel);
@@ -215,10 +243,32 @@ export function useMessages(user, conversationId) {
   }, []);
 
   const deleteForEveryone = useCallback(async (messageId) => {
-    const { error } = await supabase.from('messages').update({ is_deleted_for_everyone: true, content: '' })
-      .eq('id', messageId).eq('sender_id', user.id);
+    const { data, error } = await supabase.rpc('delete_message_for_everyone', { p_message_id: messageId });
     if (error) throw error;
-  }, [user]);
+    setMessages(current => current.map(message => message.id === messageId ? {
+      id: message.id,
+      conversation_id: message.conversation_id,
+      sender_id: message.sender_id,
+      created_at: message.created_at,
+      message_type: 'deleted',
+      content: '',
+      isFromMe: true,
+      _deletedTombstone: true,
+      original_message_type: message.message_type,
+      had_attachment: Boolean(message.attachment_url)
+    } : message));
+
+    if (data?.storage_bucket && data?.storage_path) {
+      const cleanup = await supabase.storage.from(data.storage_bucket).remove([data.storage_path]);
+      await supabase.rpc('complete_deleted_message_storage', {
+        p_message_id: messageId,
+        p_success: !cleanup.error,
+        p_error: cleanup.error?.message || null
+      });
+      if (cleanup.error) console.warn('Message media cleanup is pending:', cleanup.error.message);
+    }
+    await fetchPage(false);
+  }, [fetchPage]);
 
   const addReaction = useCallback(async (messageId, emoji) => {
     const { data } = await supabase.from('message_reactions').select('id').eq('message_id', messageId).eq('user_id', user.id).eq('emoji', emoji).maybeSingle();
@@ -259,7 +309,12 @@ export function useMessages(user, conversationId) {
 
   const uploadFile = useCallback(async (file, oldUrl = null, preferredBucket = null) => {
     if (!file) throw new Error('No file selected.');
-    if (file.size > MAX_UPLOAD_BYTES) throw new Error('File exceeds the 50MB limit.');
+    const uploadLimit = file.type.startsWith('image/') ? MAX_IMAGE_UPLOAD_BYTES
+      : file.type.startsWith('video/') ? MAX_VIDEO_UPLOAD_BYTES
+        : file.type.startsWith('audio/') ? MAX_AUDIO_UPLOAD_BYTES
+          : file.type === 'application/pdf' ? MAX_PDF_UPLOAD_BYTES
+            : MAX_VIDEO_UPLOAD_BYTES;
+    if (file.size > uploadLimit) throw new Error(`Prepared file exceeds the ${Math.round(uploadLimit / 1024 / 1024)}MB upload limit.`);
     if (file.type && !ALLOWED_UPLOAD_TYPES.has(file.type)) throw new Error(`Unsupported file type: ${file.type}`);
     const oldObject = storageObjectFromPublicUrl(oldUrl);
     if (oldObject) await supabase.storage.from(oldObject.bucket).remove([oldObject.path]);

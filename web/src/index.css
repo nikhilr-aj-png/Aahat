@@ -4990,3 +4990,279 @@ body {
     background: #0e0926;
   }
 }
+.chat-media-limits {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: calc(100% + 6px);
+  color: rgba(235, 231, 255, 0.72);
+  font-size: 10px;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+}
+
+.attachment-preview video {
+  width: 100%;
+  max-height: 160px;
+  display: block;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.deleted-message-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 13px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  border-radius: 14px;
+  background: rgba(30, 24, 62, 0.72);
+  color: rgba(241, 238, 255, 0.78);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.deleted-message-bubble small {
+  color: rgba(196, 181, 253, 0.72);
+  font-size: 10px;
+  font-style: normal;
+  text-transform: lowercase;
+}
+.message-video-attachment {
+  display: grid;
+  gap: 5px;
+  max-width: min(320px, 72vw);
+}
+
+.message-video-attachment video {
+  width: 100%;
+  max-height: 360px;
+  border-radius: 12px;
+  background: #070515;
+}
+
+.message-video-attachment span {
+  max-width: 280px;
+  overflow: hidden;
+  color: rgba(255,255,255,.74);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Camera workspace: scoped to the active chat on desktop, fullscreen on mobile. */
+.camera-workspace-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1400;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #050311;
+  isolation: isolate;
+  animation: cameraWorkspaceIn .22s ease-out both;
+}
+
+.camera-workspace-overlay::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 8;
+  width: 3px;
+  background: linear-gradient(180deg, transparent, #8b5cf6 18%, #5b35f4 82%, transparent);
+  box-shadow: 0 0 22px rgba(139, 92, 246, .78);
+  pointer-events: none;
+}
+
+.camera-workspace {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: radial-gradient(circle at center, #17102f, #05030f 72%);
+}
+
+.camera-live-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #05030f;
+}
+
+.camera-vignette {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(3,2,12,.68), transparent 23%, transparent 68%, rgba(3,2,12,.82)), radial-gradient(circle at center, transparent 46%, rgba(2,1,9,.34));
+  pointer-events: none;
+}
+
+.camera-topbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+}
+
+.camera-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 13px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 999px;
+  background: rgba(10,7,28,.56);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: .025em;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.camera-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #a78bfa;
+  box-shadow: 0 0 12px #8b5cf6;
+}
+
+.camera-round-control {
+  min-width: 48px;
+  min-height: 48px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 16px;
+  background: rgba(10,7,28,.64);
+  color: #f4f0ff;
+  cursor: pointer;
+  backdrop-filter: blur(16px) saturate(125%);
+  -webkit-backdrop-filter: blur(16px) saturate(125%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 10px 30px rgba(0,0,0,.24);
+}
+
+.camera-round-control span { font-size: 9px; font-weight: 700; }
+.camera-round-control:disabled { opacity: .42; cursor: wait; }
+.camera-close-control { min-width: 44px; min-height: 44px; border-radius: 50%; padding: 0; }
+
+.camera-control-deck {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 24px;
+  padding: 24px max(24px, 7vw) 28px;
+}
+
+.camera-control-deck > :first-child { justify-self: end; }
+.camera-control-deck > :last-child { justify-self: start; }
+
+.camera-shutter {
+  width: 76px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 3px solid rgba(255,255,255,.94);
+  border-radius: 50%;
+  background: rgba(20,13,45,.26);
+  cursor: pointer;
+  box-shadow: 0 0 0 5px rgba(103,67,246,.26), 0 12px 38px rgba(0,0,0,.4);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.camera-shutter span {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #fff, #ddd5ff);
+  box-shadow: inset 0 -4px 10px rgba(74,42,164,.18);
+}
+
+.camera-shutter:active { transform: scale(.92); }
+.camera-shutter:disabled { opacity: .45; cursor: wait; }
+
+.camera-loading-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transform: translate(-50%, -50%);
+  padding: 12px 16px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 14px;
+  background: rgba(9,6,25,.7);
+  color: #e9e2ff;
+  font-size: 12px;
+  backdrop-filter: blur(14px);
+}
+
+.camera-focus-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(44%, 310px);
+  aspect-ratio: 4 / 3;
+  transform: translate(-50%, -50%);
+  opacity: .54;
+  pointer-events: none;
+}
+
+.camera-focus-frame span { position: absolute; width: 30px; height: 30px; border-color: rgba(221,210,255,.72); }
+.camera-focus-frame span:nth-child(1) { top: 0; left: 0; border-top: 2px solid; border-left: 2px solid; border-radius: 8px 0 0; }
+.camera-focus-frame span:nth-child(2) { top: 0; right: 0; border-top: 2px solid; border-right: 2px solid; border-radius: 0 8px 0 0; }
+.camera-focus-frame span:nth-child(3) { right: 0; bottom: 0; border-right: 2px solid; border-bottom: 2px solid; border-radius: 0 0 8px; }
+.camera-focus-frame span:nth-child(4) { bottom: 0; left: 0; border-bottom: 2px solid; border-left: 2px solid; border-radius: 0 0 0 8px; }
+
+@keyframes cameraWorkspaceIn {
+  from { opacity: 0; transform: scale(.992); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 768px) {
+  .app-container.mobile-chat-open .camera-workspace-overlay {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    border-radius: 0;
+  }
+
+  .camera-topbar {
+    padding: calc(12px + env(safe-area-inset-top)) 14px 12px;
+  }
+
+  .camera-control-deck {
+    gap: 16px;
+    padding: 20px 14px calc(20px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, transparent, rgba(3,2,12,.26));
+  }
+
+  .camera-shutter { width: 72px; height: 72px; }
+  .camera-shutter span { width: 54px; height: 54px; }
+  .camera-focus-frame { width: min(66vw, 280px); }
+  .camera-btn { display: flex !important; }
+}

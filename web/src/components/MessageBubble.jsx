@@ -187,10 +187,14 @@ function MessageBubble({
   const isImage = msg.message_type === 'image' ||
     mimeType.startsWith('image/') ||
     /\.(jpe?g|png|gif|webp)(?:[?#]|$)/i.test(attachmentUrl);
+  const isVideo = msg.message_type === 'video' || mimeType.startsWith('video/') ||
+    /\.(mp4|webm|mov)(?:[?#]|$)/i.test(attachmentUrl);
   const isFile = msg.message_type === 'file' && !isPdf;
   const isSystem = msg.message_type === 'system';
   const isOptimistic = msg._optimistic;
   const isFailed = msg._status === 'failed';
+  const isDeletedTombstone = Boolean(msg._deletedTombstone);
+  const canDeleteForEveryone = isMe && !isDeletedTombstone && Date.now() - new Date(msg.created_at).getTime() <= 12 * 60 * 60 * 1000;
 
   // Format time
   const timeText = msg.created_at
@@ -216,7 +220,7 @@ function MessageBubble({
       </> : showDeleteMenu ? <>
         <button className="message-action-back" onClick={() => { setActionError(''); setShowDeleteMenu(false); }}><ChevronLeft size={14}/>Delete message</button>
         <button onClick={() => deleteMessage(false)}><Trash2 size={14}/>Delete for me</button>
-        {isMe && <button className="danger" onClick={() => deleteMessage(true)}><Trash2 size={14}/>Delete for everyone</button>}
+        {canDeleteForEveryone && <button className="danger" onClick={() => deleteMessage(true)}><Trash2 size={14}/>Delete for everyone (within 12 hours)</button>}
       </> : <>
         <button onClick={() => { onReply(msg); closeActions(); }}><Reply size={14}/>Reply</button>
         <button onClick={() => { setShowDeleteMenu(false); setActionError(''); onToggleReactionPicker(msg.id); }}><Smile size={14}/>Emoji</button>
@@ -230,6 +234,18 @@ function MessageBubble({
     return (
       <div className="date-separator system-message" id={`msg-${msg.id}`}>
         <span style={{ fontStyle: 'italic', fontSize: '11px' }}>{'\u{1F514}'} {msg.content}</span>
+      </div>
+    );
+  }
+  if (isDeletedTombstone) {
+    const deletedType = msg.original_message_type || 'message';
+    return (
+      <div className={`message-bubble-wrapper deleted-message-wrapper ${isMe ? 'me' : 'other'}`} id={`msg-${msg.id}`}>
+        <div className="deleted-message-bubble">
+          <Trash2 size={13} />
+          <span>{isMe ? 'You deleted this message' : 'This message was deleted'} <small>[{deletedType}]</small></span>
+        </div>
+        <div className="message-info-row"><span className="msg-time-stamp">{timeText}</span></div>
       </div>
     );
   }
@@ -280,6 +296,13 @@ function MessageBubble({
           {isImage && msg.attachment_url && !isVoiceNote && !isPdf && (
             <div className="message-attachment">
               <img src={msg.attachment_url} alt="Attachment" loading="lazy" />
+            </div>
+          )}
+
+                    {isVideo && msg.attachment_url && (
+            <div className="message-video-attachment">
+              <video src={msg.attachment_url} controls playsInline preload="metadata" />
+              <span>{attachmentName}</span>
             </div>
           )}
 
