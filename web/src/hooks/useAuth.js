@@ -151,17 +151,27 @@ export function useAuth() {
     if (!user?.id) return undefined;
     const syncPresence = (online) => supabase.from('profiles').update({
       is_online: online, last_seen: new Date().toISOString()
-    }).eq('id', user.id).then(() => undefined);
-    const handleVisibility = () => syncPresence(document.visibilityState === 'visible');
-    const handlePageHide = () => syncPresence(false);
+    }).eq('id', user.id).then(({ error }) => {
+      if (error) console.warn('Could not sync profile presence:', error.message);
+    });
+    const shouldBeOnline = () => document.visibilityState === 'visible' && navigator.onLine;
+    const handleVisibility = () => { void syncPresence(shouldBeOnline()); };
+    const handlePageHide = () => { void syncPresence(false); };
+    handleVisibility();
+    const heartbeat = window.setInterval(handleVisibility, 15000);
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('online', handleVisibility);
+    window.addEventListener('offline', handleVisibility);
     window.addEventListener('pagehide', handlePageHide);
     return () => {
+      window.clearInterval(heartbeat);
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('online', handleVisibility);
+      window.removeEventListener('offline', handleVisibility);
       window.removeEventListener('pagehide', handlePageHide);
+      void syncPresence(false);
     };
   }, [user?.id]);
-
   // Auth actions
   const signUp = useCallback(async (email, password, name) => {
     const { data, error } = await supabase.auth.signUp({

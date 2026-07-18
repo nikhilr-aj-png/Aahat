@@ -154,48 +154,100 @@ export default function App() {
     }
   }, [activeToast]);
 
-  // Listen for incoming messages to show toasts
+  // Durable message notifications are created by the database trigger. Listening
+  // to the recipient's own rows keeps delivery receipts and previews in sync.
   const selectedConvRef = useRef(null);
   useEffect(() => { selectedConvRef.current = selectedConversationId; }, [selectedConversationId]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) return undefined;
+    let mounted = true;
+
+    const markNotificationRead = async (notificationId) => {
+      if (!notificationId) return;
+      const { error } = await supabase.from('user_notifications')
+        .update({ is_read: true })
+        .eq('id', notificationId)
+        .eq('user_id', user.id);
+      if (error) console.warn('Could not mark notification as read:', error.message);
+    };
+
+    const showNotification = async (notification) => {
+      if (!mounted || !notification || notification.type !== 'message') return;
+      const data = notification.data && typeof notification.data === 'object' ? notification.data : {};
+      const conversationId = data.conversation_id;
+      const messageId = data.message_id;
+
+      if (messageId) {
+        const { error } = await supabase.rpc('mark_message_delivered', { p_message_id: messageId });
+        if (error) console.warn('Could not acknowledge message delivery:', error.message);
+      }
+
+      if (conversationId === selectedConvRef.current && document.visibilityState === 'visible') {
+        await markNotificationRead(notification.id);
+        return;
+      }
+
+      const conv = conversations.find(item => item.id === conversationId);
+      setActiveToast({
+        id: notification.id,
+        notificationId: notification.id,
+        sender: notification.title || conv?.name || 'New message',
+        text: notification.body || 'Sent a message',
+        conversationId,
+        avatarUrl: conv?.avatarUrl || ''
+      });
+
+      if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
+        const options = {
+          body: notification.body || 'Sent a message',
+          icon: conv?.avatarUrl || '/logo.png',
+          badge: '/logo.png',
+          tag: `message-${conversationId || notification.id}`,
+          data: { conversationId }
+        };
+        try {
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            if (registrations[0]) await registrations[0].showNotification(notification.title || 'Aahat', options);
+            else new Notification(notification.title || 'Aahat', options);
+          } else {
+            new Notification(notification.title || 'Aahat', options);
+          }
+        } catch (error) {
+          console.warn('Could not display browser notification:', error.message);
+        }
+      }
+    };
 
     const toastChannel = supabase
-      .channel('toast-notifications')
+      .channel(`message-notifications-${user.id}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
-        table: 'messages'
-      }, async (payload) => {
-        const msg = payload.new;
-        if (!msg || msg.sender_id === user.id) return;
-
-        const { error: deliveryError } = await supabase.rpc('mark_message_delivered', {
-          p_message_id: msg.id
-        });
-        if (deliveryError) console.warn('Could not acknowledge message delivery:', deliveryError.message);
-
-        if (msg.conversation_id === selectedConvRef.current) return;
-        if (msg.message_type === 'system') return;
-
-        // Find conversation info
-        const conv = conversations.find(c => c.id === msg.conversation_id);
-        if (!conv) return;
-
-        setActiveToast({
-          id: Date.now(),
-          sender: conv.name || 'New message',
-          text: msg.content || 'Sent an attachment',
-          conversationId: msg.conversation_id,
-          avatarUrl: conv.avatarUrl || ''
-        });
-      })
+        table: 'user_notifications',
+        filter: `user_id=eq.${user.id}`
+      }, (payload) => { void showNotification(payload.new); })
       .subscribe();
 
-    return () => supabase.removeChannel(toastChannel);
-  }, [user, conversations]);
+    supabase.from('user_notifications')
+      .select('id,type,title,body,data,is_read,created_at')
+      .eq('user_id', user.id)
+      .eq('type', 'message')
+      .eq('is_read', false)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) console.warn('Could not load message notifications:', error.message);
+        else if (data) void showNotification(data);
+      });
 
+    return () => {
+      mounted = false;
+      supabase.removeChannel(toastChannel);
+    };
+  }, [user, conversations]);
   // FCM Registration
   const handleRequestNotificationPermission = useCallback(async () => {
     try {
@@ -734,7 +786,13 @@ export default function App() {
         <div
           className="in-app-toast-container"
           onClick={() => {
-            handleSelectConversation(activeToast.conversationId);
+            if (activeToast.notificationId) {
+              void supabase.from('user_notifications')
+                .update({ is_read: true })
+                .eq('id', activeToast.notificationId)
+                .eq('user_id', user.id);
+            }
+            if (activeToast.conversationId) handleSelectConversation(activeToast.conversationId);
             setActiveToast(null);
           }}
         >

@@ -90,7 +90,7 @@ export default function ContactsSection({
               <SafeAvatar src={conversation.avatarUrl} name={conversation.name} size={44}/>
               <div className={`status-badge ${isUserOnline(conversation.otherMemberId) ? 'active' : 'offline'}`}/>
             </div>
-            <div><strong>{conversation.name}</strong><small>{isUserOnline(conversation.otherMemberId) ? 'Online' : conversation.description || 'Offline'}</small></div>
+            <div><strong>{conversation.name}</strong><small>{isUserOnline(conversation.otherMemberId) ? 'Online' : 'Offline'}</small></div>
             <button><MessageSquare size={15}/>Chat</button>
           </article>
         ))}

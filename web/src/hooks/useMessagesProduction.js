@@ -38,6 +38,27 @@ const hydrateReplyTargets = async (rows) => {
   const repliesById = new Map((data || []).map(row => [row.id, row]));
   return rows.map(row => ({ ...row, reply_to: repliesById.get(row.reply_to_id) || null }));
 };
+const hydrateMessageStatuses = async (rows, userId) => {
+  const outgoingIds = rows.filter(row => row.sender_id === userId).map(row => row.id);
+  if (!outgoingIds.length) return rows;
+  const { data, error } = await supabase.from('message_status')
+    .select('id,message_id,user_id,status,status_at')
+    .in('message_id', outgoingIds);
+  if (error) {
+    console.warn('Message receipts could not be loaded:', error.message);
+    return rows;
+  }
+  const statusesByMessage = new Map();
+  (data || []).forEach(status => {
+    const current = statusesByMessage.get(status.message_id) || [];
+    current.push(status);
+    statusesByMessage.set(status.message_id, current);
+  });
+  return rows.map(row => ({
+    ...row,
+    statuses: statusesByMessage.get(row.id) || row.statuses || []
+  }));
+};
 export function useMessages(user, conversationId) {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -75,7 +96,6 @@ export function useMessages(user, conversationId) {
       let query = supabase.from('messages').select(`
         *, sender:profiles!messages_sender_id_fkey(id,display_name,avatar_url),
         reactions:message_reactions(id,emoji,user_id),
-        statuses:message_status(id,user_id,status,status_at),
         pins:pinned_messages(id,pinned_by), stars:starred_messages(id,user_id)
       `).eq('conversation_id', conversationId)
         .eq('is_deleted_for_everyone', false)
@@ -99,6 +119,12 @@ export function useMessages(user, conversationId) {
       }
       if (error) throw error;
       data = await hydrateReplyTargets(data || []);
+      data = await hydrateMessageStatuses(data, user.id);
+      if ((data || []).some(message => message.sender_id !== user.id)) {
+        supabase.rpc('mark_pending_messages_delivered').then(({ error: deliveryError }) => {
+          if (deliveryError) console.warn('Could not acknowledge fetched messages:', deliveryError.message);
+        });
+      }
       const page = [...(data || [])].reverse().map(mapMessage)
         .filter(message => !(message.deleted_for_users || []).includes(user.id));
       setMessages(current => older

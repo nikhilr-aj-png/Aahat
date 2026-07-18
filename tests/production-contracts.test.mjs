@@ -81,3 +81,47 @@ test('delivery receipts distinguish sent delivered and read', async () => {
   assert.match(theme, /read-receipt\.delivered[\s\S]+color:\s*#fff/);
   assert.match(theme, /read-receipt\.read[\s\S]+color:\s*#1746c7/);
 });
+test('message notifications are durable, recipient-scoped and realtime', async () => {
+  const [migration, app] = await Promise.all([
+    read('supabase/migrations/20260718_realtime_message_notifications.sql'),
+    read('web/src/App.jsx')
+  ]);
+  assert.match(migration, /trigger trg_create_message_notifications/);
+  assert.match(migration, /insert into public\.user_notifications/);
+  assert.match(migration, /cm\.user_id <> new\.sender_id/);
+  assert.match(migration, /notifications_insert_own[\s\S]+user_id = auth\.uid\(\)/);
+  assert.match(app, /table: 'user_notifications'/);
+  assert.match(app, /filter: `user_id=eq\.\$\{user\.id\}`/);
+  assert.match(app, /notification\.body/);
+  assert.match(app, /mark_message_delivered/);
+});
+
+test('receipt fallback hydrates statuses independently of rich message relations', async () => {
+  const hook = await read('web/src/hooks/useMessagesProduction.js');
+  assert.match(hook, /hydrateMessageStatuses/);
+  assert.match(hook, /from\('message_status'\)[\s\S]+\.in\('message_id', outgoingIds\)/);
+  assert.match(hook, /data = await hydrateMessageStatuses\(data, user\.id\)/);
+});
+
+test('presence tracks visibility and connectivity without overwriting typing', async () => {
+  const [presence, auth, contacts] = await Promise.all([
+    read('web/src/hooks/usePresence.js'),
+    read('web/src/hooks/useAuth.js'),
+    read('web/src/components/ContactsSection.jsx')
+  ]);
+  assert.match(presence, /presenceState\(\)/);
+  assert.match(presence, /event: 'join'/);
+  assert.match(presence, /event: 'leave'/);
+  assert.match(presence, /typingRef\.current/);
+  assert.match(presence, /window\.addEventListener\('offline'/);
+  assert.match(auth, /handleVisibility\(\);/);
+  assert.match(auth, /window\.setInterval\(handleVisibility, 15000\)/);
+  assert.match(contacts, /\? 'Online' : 'Offline'/);
+});
+test('conversation previews exclude messages deleted for the current user', async () => {
+  const conversations = await read('web/src/hooks/useConversations.js');
+  assert.match(conversations, /\.not\('deleted_for_users', 'cs', `\{\$\{user\.id\}\}`\)/);
+  assert.match(conversations, /event: '\*', schema: 'public', table: 'messages'/);
+  assert.match(conversations, /payload\.eventType !== 'INSERT'[\s\S]+fetchConversations\(\)/);
+  assert.match(conversations, /previewText: '', previewTime: ''/);
+});

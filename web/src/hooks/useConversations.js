@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../supabase';
 
 /**
@@ -9,6 +9,7 @@ export function useConversations(user) {
   const [conversations, setConversations] = useState([]);
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const previewRefreshTimerRef = useRef(null);
 
   // Fetch all conversations with member info and latest message
   const fetchConversations = useCallback(async () => {
@@ -87,9 +88,10 @@ export function useConversations(user) {
           // Get latest message for preview
           const { data: latestMsgs } = await supabase
             .from('messages')
-            .select('id, content, message_type, attachment_url, sender_id, created_at, is_deleted_for_everyone')
+            .select('id, content, message_type, attachment_url, sender_id, created_at, is_deleted_for_everyone, deleted_for_users')
             .eq('conversation_id', conv.id)
             .eq('is_deleted_for_everyone', false)
+            .not('deleted_for_users', 'cs', `{${user.id}}`)
             .order('created_at', { ascending: false })
             .limit(1);
 
@@ -186,7 +188,12 @@ export function useConversations(user) {
     // Listen for new messages to update previews
     const msgChannel = supabase
       .channel('conv-msg-updates')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
+        if (payload.eventType !== 'INSERT') {
+          window.clearTimeout(previewRefreshTimerRef.current);
+          previewRefreshTimerRef.current = window.setTimeout(() => fetchConversations(), 120);
+          return;
+        }
         const msg = payload.new;
         if (!msg) return;
 
@@ -290,6 +297,7 @@ export function useConversations(user) {
       .subscribe();
 
     return () => {
+      window.clearTimeout(previewRefreshTimerRef.current);
       supabase.removeChannel(msgChannel);
       supabase.removeChannel(memberChannel);
       supabase.removeChannel(profileChannel);
