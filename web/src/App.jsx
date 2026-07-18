@@ -67,7 +67,7 @@ export default function App() {
     messages: activeMessages,
     sendMessage, retryMessage, editMessage, deleteForMe, deleteForEveryone,
     addReaction, removeReaction,
-    markAsRead, uploadFile, loadMore, hasMore, isLoadingMore
+    markAsRead, uploadFile, searchMessages, fetchSharedMedia, refetch: refetchMessages, loadMore, hasMore, isLoadingMore
   } = useMessages(user, selectedConversationId);
 
   // --- Presence ---
@@ -76,7 +76,7 @@ export default function App() {
   // --- Calling ---
   const {
     callState, callDuration, isMuted: isCallMuted, isCameraOff, isSpeakerOn, isScreenSharing,
-    localStream, remoteStream,
+    localStream, remoteStream, callError, clearCallError,
     startCall, answerCall, hangup, rejectCall,
     toggleMute: toggleCallMute, toggleCamera, toggleScreenShare, setIsSpeakerOn
   } = useCalling(user);
@@ -578,10 +578,12 @@ export default function App() {
               hasMoreMessages={hasMore}
               isLoadingMoreMessages={isLoadingMore}
               onUploadFile={uploadFile}
+              onSearchMessages={searchMessages}
+              onFetchSharedMedia={fetchSharedMedia}
               onBack={selectedConversationId ? handleMobileBack : undefined}
               onStartCall={handleStartCall}
               conversations={conversations}
-              onClearChat={() => clearChat(selectedConversationId)}
+              onClearChat={async () => { await clearChat(selectedConversationId); await refetchMessages(); }}
               onDeleteChat={() => deleteChat(selectedConversationId)}
               onToggleArchive={toggleArchive}
               onToggleMute={toggleMute}
@@ -718,6 +720,12 @@ export default function App() {
 
       <PasswordRecoveryGate />
 
+      {callError && (
+        <div className="call-error-toast" role="alert">
+          <span>{callError}</span>
+          <button type="button" onClick={clearCallError} aria-label="Dismiss call error">×</button>
+        </div>
+      )}
       {/* Calling Overlay */}
       {callState && (
         <CallingOverlay

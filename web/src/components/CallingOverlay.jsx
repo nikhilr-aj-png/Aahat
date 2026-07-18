@@ -1,4 +1,4 @@
-﻿import { useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume2, VolumeX, Monitor } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 
@@ -24,6 +24,7 @@ export default function CallingOverlay({
   onToggleSpeaker
 }) {
   const localVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
   const remoteVideoRef = useRef(null);
 
   // Attach streams to video elements
@@ -37,7 +38,11 @@ export default function CallingOverlay({
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
     }
-  }, [remoteStream]);
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.play().catch(() => undefined);
+    }
+  }, [remoteStream, isSpeakerOn]);
 
   if (!callState) return null;
 
@@ -53,6 +58,7 @@ export default function CallingOverlay({
 
   return (
     <div className="calling-overlay" id="calling-overlay">
+      <audio ref={remoteAudioRef} autoPlay playsInline muted={!isSpeakerOn} aria-label="Remote call audio" />
       {/* Background */}
       <div className="call-background">
         <div className="call-gradient-1" />
@@ -66,7 +72,7 @@ export default function CallingOverlay({
           <video
             ref={remoteVideoRef}
             autoPlay
-            muted={!isSpeakerOn}
+            muted
             playsInline
             className="remote-video"
             style={{

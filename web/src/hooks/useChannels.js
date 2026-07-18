@@ -57,28 +57,14 @@ export function useChannels(user) {
     if (!user) return null;
     try {
       const { data, error } = await supabase
-        .from('channels')
-        .insert({
-          name,
-          description,
-          avatar_url: avatarUrl,
-          created_by: user.id,
-          type: 'public',
-          subscriber_count: 1
+        .rpc('create_public_channel', {
+          p_name: name,
+          p_description: description,
+          p_avatar_url: avatarUrl
         })
-        .select()
         .single();
 
       if (error) throw error;
-
-      // Add creator as admin member
-      await supabase
-        .from('channel_members')
-        .insert({
-          channel_id: data.id,
-          user_id: user.id,
-          role: 'admin'
-        });
 
       await fetchMyChannels();
       await fetchChannels();
@@ -107,6 +93,7 @@ export function useChannels(user) {
       await fetchChannels();
     } catch (err) {
       console.error('Error subscribing to channel:', err);
+      throw err;
     }
   }, [user, fetchChannels, fetchMyChannels]);
 
@@ -126,6 +113,7 @@ export function useChannels(user) {
       await fetchChannels();
     } catch (err) {
       console.error('Error unsubscribing from channel:', err);
+      throw err;
     }
   }, [user, fetchChannels, fetchMyChannels]);
 
@@ -180,6 +168,21 @@ export function useChannels(user) {
     }
   }, [user, fetchChannels, fetchMyChannels]);
 
+  // Keep the public directory, memberships, and follower totals fresh across devices.
+  useEffect(() => {
+    if (!user) return;
+
+    const directoryChannel = supabase
+      .channel(`public-channel-directory-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'channels' }, fetchChannels)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'channel_members' }, () => {
+        fetchChannels();
+        fetchMyChannels();
+      })
+      .subscribe();
+
+    return () => supabase.removeChannel(directoryChannel);
+  }, [user, fetchChannels, fetchMyChannels]);
   // Real-time listener for active channel posts
   useEffect(() => {
     if (!user || !activeChannelId) return;

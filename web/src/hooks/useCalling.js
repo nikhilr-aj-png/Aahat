@@ -30,6 +30,9 @@ export function useCalling(user) {
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [localStream, setLocalStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
+  const [callError, setCallError] = useState('');
 
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -37,15 +40,18 @@ export function useCalling(user) {
   const screenStreamRef = useRef(null);
   const timerRef = useRef(null);
   const signalingChannelRef = useRef(null);
+  const ringTimeoutRef = useRef(null);
 
   // Clean up media streams
   const cleanupMedia = useCallback(() => {
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(t => t.stop());
       localStreamRef.current = null;
+      setLocalStream(null);
     }
     if (remoteStreamRef.current) {
       remoteStreamRef.current = null;
+      setRemoteStream(null);
     }
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach(t => t.stop());
@@ -54,6 +60,10 @@ export function useCalling(user) {
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
+    }
+    if (ringTimeoutRef.current) {
+      clearTimeout(ringTimeoutRef.current);
+      ringTimeoutRef.current = null;
     }
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -74,6 +84,7 @@ export function useCalling(user) {
       };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
+      setLocalStream(stream);
 
       stream.getTracks().forEach(track => {
         pc.addTrack(track, stream);
@@ -86,6 +97,7 @@ export function useCalling(user) {
 
     // Handle remote tracks
     remoteStreamRef.current = new MediaStream();
+    setRemoteStream(remoteStreamRef.current);
     pc.ontrack = (event) => {
       event.streams[0]?.getTracks().forEach(track => {
         remoteStreamRef.current.addTrack(track);
@@ -107,6 +119,10 @@ export function useCalling(user) {
 
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === 'connected') {
+        if (ringTimeoutRef.current) {
+          clearTimeout(ringTimeoutRef.current);
+          ringTimeoutRef.current = null;
+        }
         setCallState(prev => prev ? { ...prev, isRinging: false } : null);
         // Start duration timer
         timerRef.current = setInterval(() => {
@@ -129,6 +145,7 @@ export function useCalling(user) {
     if (!remoteUserId) return;
 
     try {
+      setCallError('');
       // Create call record
       const { data: call, error } = await supabase
         .from('calls')
@@ -172,14 +189,32 @@ export function useCalling(user) {
       await pc.setLocalDescription(offer);
 
       // Send offer via signaling
-      await supabase.from('call_signaling').insert({
+      const { error: signalError } = await supabase.from('call_signaling').insert({
         call_id: call.id,
         sender_id: user.id,
         receiver_id: remoteUserId,
         signal_type: 'offer',
         signal_data: { sdp: offer.sdp, type: offer.type }
       });
+      if (signalError) throw signalError;
 
+      ringTimeoutRef.current = window.setTimeout(async () => {
+        if (peerConnectionRef.current?.connectionState === 'connected') return;
+        await supabase.from('calls').update({
+          status: 'missed',
+          ended_at: new Date().toISOString()
+        }).eq('id', call.id).eq('status', 'ringing');
+        await supabase.from('call_signaling').insert({
+          call_id: call.id,
+          sender_id: user.id,
+          receiver_id: remoteUserId,
+          signal_type: 'hangup',
+          signal_data: { reason: 'no_answer' }
+        });
+        cleanupMedia();
+        setCallState(null);
+        setCallError('No answer. The call ended.');
+      }, 45000);
     } catch (err) {
       console.error('Failed to start call:', err);
       cleanupMedia();
@@ -379,6 +414,48 @@ export function useCalling(user) {
     }
   }, [isScreenSharing]);
 
+  // Recover a recent ringing offer if Realtime was briefly disconnected or the app resumed late.
+  useEffect(() => {
+    if (!user || callState) return undefined;
+    let cancelled = false;
+    const restoreIncomingCall = async () => {
+      const cutoff = new Date(Date.now() - 60_000).toISOString();
+      const { data: offers, error } = await supabase
+        .from('call_signaling')
+        .select('call_id,sender_id,created_at')
+        .eq('receiver_id', user.id)
+        .eq('signal_type', 'offer')
+        .gte('created_at', cutoff)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      if (error || cancelled) return;
+      for (const offer of (offers || [])) {
+        const { data: call } = await supabase
+          .from('calls')
+          .select('*, initiator:profiles!calls_initiator_id_fkey(id, display_name, avatar_url)')
+          .eq('id', offer.call_id)
+          .eq('status', 'ringing')
+          .maybeSingle();
+        if (cancelled || !call) continue;
+        setCallState({
+          callId: call.id,
+          conversationId: call.conversation_id,
+          contact: {
+            id: call.initiator?.id || offer.sender_id,
+            name: call.initiator?.display_name || 'Unknown',
+            avatarUrl: call.initiator?.avatar_url || ''
+          },
+          type: call.call_type,
+          isRinging: true,
+          isIncoming: true
+        });
+        setCallDuration(0);
+        break;
+      }
+    };
+    restoreIncomingCall().catch(error => console.warn('Could not restore incoming call:', error));
+    return () => { cancelled = true; };
+  }, [user, callState]);
   // Listen for incoming calls via signaling
   useEffect(() => {
     if (!user) return;
@@ -460,8 +537,10 @@ export function useCalling(user) {
     isCameraOff,
     isSpeakerOn,
     isScreenSharing,
-    localStream: localStreamRef.current,
-    remoteStream: remoteStreamRef.current,
+    localStream,
+    remoteStream,
+    callError,
+    clearCallError: () => setCallError(''),
 
     startCall,
     answerCall,

@@ -86,7 +86,7 @@ Deno.serve(async request => {
       .from('user_notifications')
       .update({ push_dispatched_at: new Date().toISOString() })
       .eq('id', notificationId)
-      .eq('type', 'message')
+      .in('type', ['message', 'call'])
       .is('push_dispatched_at', null)
       .select('id,user_id,type,title,body,data')
       .maybeSingle();
@@ -110,11 +110,14 @@ Deno.serve(async request => {
     const messageData = notification.data && typeof notification.data === 'object' ? notification.data : {};
     const stringData = {
       title: String(notification.title || 'Aahat'),
-      body: String(notification.body || 'You have a new message.'),
+      body: String(notification.body || (notification.type === 'call' ? 'Incoming call' : 'You have a new message.')),
+      notificationType: String(notification.type || 'message'),
       notificationId: String(notification.id),
       conversationId: String(messageData.conversation_id || ''),
       messageId: String(messageData.message_id || ''),
-      senderId: String(messageData.sender_id || '')
+      senderId: String(messageData.sender_id || ''),
+      callId: String(messageData.call_id || ''),
+      callType: String(messageData.call_type || '')
     };
     const endpoint = `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`;
 
@@ -130,7 +133,7 @@ Deno.serve(async request => {
             token: row.token,
             data: stringData,
             webpush: {
-              headers: { Urgency: 'high', TTL: '86400' }
+              headers: { Urgency: 'high', TTL: notification.type === 'call' ? '60' : '86400' }
             }
           }
         })

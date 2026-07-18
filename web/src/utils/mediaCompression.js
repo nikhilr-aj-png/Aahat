@@ -1,5 +1,5 @@
 export const CHAT_MEDIA_LIMITS = Object.freeze({
-  imageInputBytes: 20 * 1024 * 1024,
+  imageInputBytes: 5 * 1024 * 1024,
   imageOutputBytes: 1 * 1024 * 1024,
   videoInputBytes: 50 * 1024 * 1024,
   videoOutputBytes: 25 * 1024 * 1024,

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { Plus, Eye, X, ChevronLeft, ChevronRight, Image, Trash2, Clock, Users } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
+import { prepareChatMedia } from '../utils/mediaCompression';
 
 const GRADIENT_OPTIONS = [
   'linear-gradient(135deg, #5F34F7 0%, #8659F1 100%)',
@@ -79,8 +80,9 @@ export default function StatusSection({
     if (!file) return;
     setIsCreating(true);
     try {
-      const url = await onUploadFile(file);
-      const type = file.type.startsWith('video/') ? 'video' : 'image';
+      const preparedFile = await prepareChatMedia(file);
+      const url = await onUploadFile(preparedFile);
+      const type = preparedFile.type.startsWith('video/') ? 'video' : 'image';
       await onPostStatus(type, url);
       setShowCreateModal(false);
     } catch (err) {
@@ -405,6 +407,8 @@ export default function StatusSection({
                   value={newChannelName}
                   onChange={e => setNewChannelName(e.target.value)}
                   required
+                  minLength={2}
+                  maxLength={80}
                 />
               </div>
               <div className="form-group">
@@ -414,6 +418,7 @@ export default function StatusSection({
                   placeholder="Describe your channel..."
                   value={newChannelDesc}
                   onChange={e => setNewChannelDesc(e.target.value)}
+                  maxLength={500}
                 />
               </div>
               <div className="form-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
@@ -515,15 +520,15 @@ export default function StatusSection({
 
       {/* Create Status Modal */}
       {showCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
-            <div className="modal-header">
+        <div className="status-create-workspace-overlay" onClick={() => setShowCreateModal(false)}>
+          <section className="status-create-workspace" onClick={e => e.stopPropagation()} aria-label="Create status">
+            <div className="modal-header status-create-header">
               <h3>Create Status</h3>
               <button className="modal-close" onClick={() => setShowCreateModal(false)}><X size={18} /></button>
             </div>
 
             {/* Type tabs */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <div className="status-create-type-tabs">
               {['text', 'media'].map(t => (
                 <button
                   key={t}
@@ -541,26 +546,18 @@ export default function StatusSection({
             </div>
 
             {createType === 'text' ? (
-              <div>
+              <div className="status-create-text-editor">
                 {/* Preview */}
-                <div style={{
-                  background: selectedGradient, borderRadius: '12px', padding: '40px 20px',
-                  minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  marginBottom: '16px'
-                }}>
+                <div className="status-create-preview" style={{ background: selectedGradient }}>
                   <textarea
                     placeholder="Type your status..."
                     value={textContent}
                     onChange={e => setTextContent(e.target.value)}
-                    style={{
-                      background: 'transparent', border: 'none', outline: 'none', color: 'white',
-                      fontSize: '18px', fontWeight: '600', textAlign: 'center', width: '100%',
-                      resize: 'none', minHeight: '60px', fontFamily: 'inherit'
-                    }}
+                    className="status-create-textarea"
                   />
                 </div>
                 {/* Gradient picker */}
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', justifyContent: 'center' }}>
+                <div className="status-create-gradients" aria-label="Status background">
                   {GRADIENT_OPTIONS.map((g, i) => (
                     <button
                       key={i}
@@ -576,13 +573,13 @@ export default function StatusSection({
                 <button
                   onClick={handlePostText}
                   disabled={!textContent.trim() || isCreating}
-                  className="btn-primary"
+                  className="btn-primary status-create-submit"
                 >
                   {isCreating ? 'Posting...' : 'Post Status'}
                 </button>
               </div>
             ) : (
-              <div style={{ textAlign: 'center' }}>
+              <div className="status-create-media-editor">
                 <input
                   type="file"
                   accept="image/*,video/*"
@@ -593,18 +590,14 @@ export default function StatusSection({
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isCreating}
-                  style={{
-                    padding: '40px', borderRadius: '12px', border: '2px dashed var(--panel-border)',
-                    background: 'var(--glass-subtle)', color: 'var(--text-secondary)', cursor: 'pointer',
-                    width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px'
-                  }}
+                  className="status-create-media-picker"
                 >
                   <Image size={32} style={{ opacity: 0.5 }} />
                   <span style={{ fontSize: '13px' }}>{isCreating ? 'Uploading...' : 'Select Photo or Video'}</span>
                 </button>
               </div>
             )}
-          </div>
+          </section>
         </div>
       )}
 

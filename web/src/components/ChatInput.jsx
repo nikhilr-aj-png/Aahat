@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Paperclip, Send, X, Camera, Mic, MicOff, Smile, RefreshCw, FileText } from 'lucide-react';
-import { CHAT_MEDIA_LIMITS, prepareChatMedia } from '../utils/mediaCompression';
+import { prepareChatMedia } from '../utils/mediaCompression';
 
 const POPULAR_EMOJIS = ['😊', '😂', '🔥', '👍', '❤️', '👏', '🙌', '🎉', '✨', '💡'];
 const SAFE_POPULAR_EMOJIS = POPULAR_EMOJIS.map((emoji, index) => [
@@ -387,9 +387,6 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
       )}
 
       <form onSubmit={handleSubmit} className="chat-input-bar" id="chat-input-bar">
-        <div className="chat-media-limits">
-          Photos up to {CHAT_MEDIA_LIMITS.imageInputBytes / 1024 / 1024}MB (sent as JPG under {CHAT_MEDIA_LIMITS.imageOutputBytes / 1024 / 1024}MB) · Videos up to {CHAT_MEDIA_LIMITS.videoInputBytes / 1024 / 1024}MB / {CHAT_MEDIA_LIMITS.videoDurationSeconds / 60} min (final upload ≤{CHAT_MEDIA_LIMITS.videoOutputBytes / 1024 / 1024}MB) · PDF up to {CHAT_MEDIA_LIMITS.pdfBytes / 1024 / 1024}MB
-        </div>
         {/* Hidden File Input */}
         <input
           type="file"

@@ -307,6 +307,61 @@ export function useMessages(user, conversationId) {
     if (error) throw error;
   }, [conversationId]);
 
+  const searchMessages = useCallback(async (query) => {
+    const normalized = query?.trim();
+    if (!user || !conversationId || !normalized) return [];
+    let { data, error } = await supabase.rpc('search_conversation_messages', {
+      p_conversation_id: conversationId,
+      p_query: normalized,
+      p_limit: 100
+    });
+    if (error && /search_conversation_messages|schema cache|PGRST202/i.test(error.message || '')) {
+      const safeQuery = normalized.replace(/[%_,()]/g, ' ').trim();
+      const fallback = await supabase.from('messages')
+        .select('*, sender:profiles!messages_sender_id_fkey(id,display_name,avatar_url)')
+        .eq('conversation_id', conversationId)
+        .eq('is_deleted_for_everyone', false)
+        .ilike('content', '%' + safeQuery + '%')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      data = fallback.data;
+      error = fallback.error;
+    }
+    if (error) throw error;
+    return (data || [])
+      .filter(row => !(row.deleted_for_users || []).includes(user.id))
+      .map(row => mapMessage({
+        ...row,
+        sender: row.sender || {
+          display_name: row.sender_name,
+          avatar_url: row.sender_avatar
+        },
+        reactions: [],
+        pins: [],
+        stars: []
+      }));
+  }, [conversationId, mapMessage, user]);
+
+  const fetchSharedMedia = useCallback(async () => {
+    if (!user || !conversationId) return [];
+    let { data, error } = await supabase.rpc('list_conversation_media', {
+      p_conversation_id: conversationId,
+      p_limit: 250
+    });
+    if (error && /list_conversation_media|schema cache|PGRST202/i.test(error.message || '')) {
+      const fallback = await supabase.from('messages')
+        .select('id,conversation_id,sender_id,message_type,attachment_url,attachment_name,attachment_size,attachment_mime_type,created_at,deleted_for_users')
+        .eq('conversation_id', conversationId)
+        .eq('is_deleted_for_everyone', false)
+        .not('attachment_url', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(250);
+      data = fallback.data;
+      error = fallback.error;
+    }
+    if (error) throw error;
+    return (data || []).filter(row => !(row.deleted_for_users || []).includes(user.id));
+  }, [conversationId, user]);
   const uploadFile = useCallback(async (file, oldUrl = null, preferredBucket = null) => {
     if (!file) throw new Error('No file selected.');
     const uploadLimit = file.type.startsWith('image/') ? MAX_IMAGE_UPLOAD_BYTES
@@ -332,6 +387,6 @@ export function useMessages(user, conversationId) {
     messages, isLoading, isLoadingMore, hasMore, loadMore: () => fetchPage(true),
     sendMessage, retryMessage, editMessage, deleteForMe, deleteForEveryone,
     addReaction, removeReaction, togglePinMessage, toggleStarMessage, markAsRead,
-    uploadFile, refetch: () => fetchPage(false)
+    uploadFile, searchMessages, fetchSharedMedia, refetch: () => fetchPage(false)
   };
 }

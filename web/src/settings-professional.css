@@ -291,3 +291,47 @@
   .settings-panel .settings-sidebar button svg { width: 20px; height: 20px; flex: 0 0 20px; }
   .settings-panel .settings-content > section { grid-template-columns: 1fr; gap: 16px; padding: 20px 16px; border-radius: 17px; }
 }
+.settings-panel .settings-content .settings-about-media {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow: hidden;
+  border-color: rgba(134, 89, 241, 0.24) !important;
+  background: linear-gradient(135deg, rgba(95, 52, 247, 0.11), rgba(255, 255, 255, 0.018)) !important;
+}
+
+.settings-panel .settings-about-media > div {
+  min-width: 0;
+  padding: 18px;
+}
+
+.settings-panel .settings-about-media > div + div {
+  border-left: 1px solid var(--settings-border);
+}
+
+.settings-panel .settings-about-media strong {
+  display: block;
+  margin-bottom: 7px;
+  color: #f3efff;
+  font-size: 13px;
+}
+
+.settings-panel .settings-about-media p {
+  margin: 0;
+  color: #aeb7c7;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+@media (max-width: 600px) {
+  .settings-panel .settings-content .settings-about-media {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-panel .settings-about-media > div + div {
+    border-top: 1px solid var(--settings-border);
+    border-left: 0;
+  }
+}

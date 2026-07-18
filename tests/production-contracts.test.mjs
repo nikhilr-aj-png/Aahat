@@ -171,12 +171,27 @@ test('12-hour hard delete keeps a privacy-safe tombstone and cleans media', asyn
   assert.match(bubble, /You deleted this message/);
   assert.match(bubble, /message-video-attachment/);
   assert.match(input, /prepareChatMedia/);
-  assert.match(input, /chat-media-limits/);
+  assert.doesNotMatch(input, /chat-media-limits/);
+  assert.match(compression, /imageInputBytes: 5 \* 1024 \* 1024/);
   assert.match(compression, /image\/jpeg/);
   assert.match(compression, /imageOutputBytes: 1 \* 1024 \* 1024/);
   assert.match(compression, /videoOutputBytes: 25 \* 1024 \* 1024/);
 });
 
+test('photo limits warn above 5MB and are documented outside the composer', async () => {
+  const [input, compression, settings, styles] = await Promise.all([
+    read('web/src/components/ChatInput.jsx'),
+    read('web/src/utils/mediaCompression.js'),
+    read('web/src/components/SettingsPanelProduction.jsx'),
+    read('web/src/settings-professional.css')
+  ]);
+  assert.match(compression, /imageInputBytes: 5 \* 1024 \* 1024/);
+  assert.match(compression, /Photo is too large\. Select a photo up to/);
+  assert.doesNotMatch(input, /chat-media-limits|Photos up to/);
+  assert.match(settings, /About media sharing/);
+  assert.match(settings, /including camera captures/);
+  assert.match(styles, /\.settings-about-media/);
+});
 test('voice-note Storage lifecycle is owner-scoped and deletion-ready', async () => {
   const [migration, input, hook, deleteMigration] = await Promise.all([
     read('supabase/migrations/20260718_voice_notes_storage_policies.sql'),
@@ -194,4 +209,78 @@ test('voice-note Storage lifecycle is owner-scoped and deletion-ready', async ()
   assert.match(hook, /'voice-notes'/);
   assert.match(deleteMigration, /'storage_bucket', bucket_name/);
   assert.match(hook, /storage\.from\(data\.storage_bucket\)\.remove/);
+});
+test('voice and video calling attach remote audio and recover signaling gaps', async () => {
+  const [calling, overlay, app, migration] = await Promise.all([
+    read('web/src/hooks/useCalling.js'),
+    read('web/src/components/CallingOverlay.jsx'),
+    read('web/src/App.jsx'),
+    read('supabase/migrations/20260718_complete_chat_header_actions.sql')
+  ]);
+  assert.match(overlay, /<audio ref=\{remoteAudioRef\} autoPlay playsInline/);
+  assert.match(calling, /const \[localStream, setLocalStream\]/);
+  assert.match(calling, /const \[remoteStream, setRemoteStream\]/);
+  assert.match(calling, /restoreIncomingCall/);
+  assert.match(calling, /45000/);
+  assert.match(app, /call-error-toast/);
+  assert.match(migration, /create table if not exists public\.call_signaling/);
+  assert.match(migration, /trg_incoming_call_notification/);
+});
+
+test('chat header search and info use full-history server methods with safe fallbacks', async () => {
+  const [hook, chat, migration] = await Promise.all([
+    read('web/src/hooks/useMessagesProduction.js'),
+    read('web/src/components/ChatView.jsx'),
+    read('supabase/migrations/20260718_complete_chat_header_actions.sql')
+  ]);
+  assert.match(hook, /rpc\('search_conversation_messages'/);
+  assert.match(hook, /PGRST202/);
+  assert.match(hook, /rpc\('list_conversation_media'/);
+  assert.match(chat, /Searching the full conversation/);
+  assert.match(chat, /<video src=\{media\.attachment_url\} controls/);
+  assert.match(migration, /function public\.search_conversation_messages/);
+  assert.match(migration, /function public\.list_conversation_media/);
+});
+
+test('three-dot actions confirm destructive work and never delete membership', async () => {
+  const [chat, conversations, migration] = await Promise.all([
+    read('web/src/components/ChatView.jsx'),
+    read('web/src/hooks/useConversations.js'),
+    read('supabase/migrations/20260718_complete_chat_header_actions.sql')
+  ]);
+  assert.match(chat, /Clear this chat for you\?/);
+  assert.match(chat, /Delete this chat from your list\?/);
+  assert.match(chat, /busyMenuAction/);
+  assert.match(conversations, /rpc\('delete_conversation_for_me'/);
+  assert.doesNotMatch(conversations, /const deleteChat[\s\S]*from\('conversation_members'\)[\s\S]*\.delete\(\)/);
+  assert.match(migration, /add column if not exists is_deleted/);
+  assert.match(migration, /trg_restore_deleted_conversation/);
+});
+
+test('FCM dispatcher accepts incoming call notifications', async () => {
+  const [edge, migration] = await Promise.all([
+    read('supabase/functions/send-message-push/index.ts'),
+    read('supabase/migrations/20260718_complete_chat_header_actions.sql')
+  ]);
+  assert.match(edge, /\.in\('type', \['message', 'call'\]\)/);
+  assert.match(edge, /callId: String\(messageData\.call_id/);
+  assert.match(migration, /new\.type not in \('message','call'\)/);
+});
+
+test('status creator fills the workspace and public channel creation is atomic', async () => {
+  const [status, styles, channels, migration] = await Promise.all([
+    read('web/src/components/StatusSection.jsx'),
+    read('web/src/index.css'),
+    read('web/src/hooks/useChannels.js'),
+    read('supabase/migrations/20260718_atomic_public_channel_creation.sql')
+  ]);
+  assert.match(status, /status-create-workspace-overlay/);
+  assert.match(status, /prepareChatMedia/);
+  assert.doesNotMatch(status, /maxWidth: '440px'/);
+  assert.match(styles, /\.status-create-workspace-overlay[\s\S]*position: absolute/);
+  assert.match(styles, /height: 100dvh/);
+  assert.match(channels, /rpc\('create_public_channel'/);
+  assert.match(channels, /public-channel-directory/);
+  assert.match(migration, /insert into public\.channels[\s\S]*insert into public\.channel_members/);
+  assert.match(migration, /Repair channels created by the former two-query client flow/);
 });

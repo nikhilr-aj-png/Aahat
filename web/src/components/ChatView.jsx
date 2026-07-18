@@ -20,6 +20,7 @@ export default function ChatView({
   onRetryMessage,
   onLoadMoreMessages, hasMoreMessages, isLoadingMoreMessages,
   onUploadFile,
+  onSearchMessages, onFetchSharedMedia,
   onBack,
   onStartCall,
   conversations,
@@ -45,7 +46,15 @@ export default function ChatView({
   const [showReactionPicker, setShowReactionPicker] = useState(null);
   const [showInChatSearch, setShowInChatSearch] = useState(false);
   const [chatSearchQuery, setChatSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
   const [showGroupDetails, setShowGroupDetails] = useState(false);
+  const [detailsMedia, setDetailsMedia] = useState([]);
+  const [isLoadingDetailsMedia, setIsLoadingDetailsMedia] = useState(false);
+  const [hasLoadedDetailsMedia, setHasLoadedDetailsMedia] = useState(false);
+  const [menuActionError, setMenuActionError] = useState('');
+  const [busyMenuAction, setBusyMenuAction] = useState('');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [replyingToMessage, setReplyingToMessage] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
@@ -67,6 +76,9 @@ export default function ChatView({
     setEditingMessage(null);
     setOpenMessageMenuId(null);
     setShowReactionPicker(null);
+    setDetailsMedia([]);
+    setHasLoadedDetailsMedia(false);
+    setMenuActionError('');
   }, [conversation?.id]);
 
   // Fetch group members dynamically
@@ -85,6 +97,41 @@ export default function ChatView({
     }
   }, [showGroupDetails, loadGroupMembers]);
 
+  useEffect(() => {
+    if (!showGroupDetails || !onFetchSharedMedia) return undefined;
+    let cancelled = false;
+    setIsLoadingDetailsMedia(true);
+    setMenuActionError('');
+    onFetchSharedMedia()
+      .then(rows => {
+        if (!cancelled) {
+          setDetailsMedia(rows || []);
+          setHasLoadedDetailsMedia(true);
+        }
+      })
+      .catch(error => {
+        if (!cancelled) setMenuActionError(error.message || 'Could not load shared media.');
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingDetailsMedia(false);
+      });
+    return () => { cancelled = true; };
+  }, [showGroupDetails, onFetchSharedMedia]);
+
+  const runMenuAction = async (name, action, confirmation) => {
+    if (busyMenuAction) return;
+    if (confirmation && !window.confirm(confirmation)) return;
+    setBusyMenuAction(name);
+    setMenuActionError('');
+    try {
+      await action?.();
+      setShowMoreMenu(false);
+    } catch (error) {
+      setMenuActionError(error.message || ('Could not ' + name.toLowerCase() + '.'));
+    } finally {
+      setBusyMenuAction('');
+    }
+  };
   // Click-outside handler for dropdowns
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -143,11 +190,42 @@ export default function ChatView({
     list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
   };
 
-  // Filter messages by search
-  const searchedMessages = useMemo(() => {
-    if (!chatSearchQuery.trim()) return messages;
-    return messages.filter(m => m.content && m.content.toLowerCase().includes(chatSearchQuery.toLowerCase()));
-  }, [messages, chatSearchQuery]);
+  useEffect(() => {
+    const normalized = chatSearchQuery.trim();
+    if (!showInChatSearch || !normalized) {
+      setSearchResults([]);
+      setSearchError('');
+      setIsSearching(false);
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setIsSearching(true);
+      setSearchError('');
+      try {
+        const rows = onSearchMessages
+          ? await onSearchMessages(normalized)
+          : messages.filter(message => message.content?.toLowerCase().includes(normalized.toLowerCase()));
+        if (!cancelled) setSearchResults(rows);
+      } catch (error) {
+        if (!cancelled) {
+          setSearchResults([]);
+          setSearchError(error.message || 'Search failed. Please try again.');
+        }
+      } finally {
+        if (!cancelled) setIsSearching(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [chatSearchQuery, messages, onSearchMessages, showInChatSearch]);
+
+  const searchedMessages = useMemo(
+    () => showInChatSearch && chatSearchQuery.trim() ? searchResults : messages,
+    [messages, searchResults, showInChatSearch, chatSearchQuery]
+  );
 
   // Group by date
   const groupedMessages = useMemo(() => {
@@ -183,11 +261,11 @@ export default function ChatView({
 
   const isTyping = typingUsers && typingUsers.length > 0;
 
-  // Shared media for details panel
+  // Shared media uses the server result so older attachments are included.
   const sharedMedia = useMemo(() => {
-    return messages.filter(m => m.attachment_url && m.message_type !== 'voice_note' && m.message_type !== 'audio');
-  }, [messages]);
-
+    if (hasLoadedDetailsMedia) return detailsMedia;
+    return messages.filter(message => message.attachment_url && !['voice_note', 'audio'].includes(message.message_type));
+  }, [detailsMedia, hasLoadedDetailsMedia, messages]);
   // Handlers
   const handleSend = async (text, image) => {
     stickToBottomRef.current = true;
@@ -321,10 +399,25 @@ export default function ChatView({
               </button>
               {showMoreMenu && (
                 <div className="chat-dropdown-menu" ref={moreMenuRef}>
-                  <button onClick={() => { onToggleArchive?.(conversation.id); setShowMoreMenu(false); }}>{conversation.isArchived ? 'Unarchive Chat' : 'Archive Chat'}</button>
-                  <button onClick={() => { onToggleMute?.(conversation.id); setShowMoreMenu(false); }}>{conversation.isMuted ? 'Unmute Notifications' : 'Mute Notifications'}</button>
-                  <button className="danger" onClick={() => { onClearChat?.(); setShowMoreMenu(false); }}>Clear Chat</button>
-                  <button className="danger" onClick={() => { onDeleteChat?.(); setShowMoreMenu(false); }}>Delete Chat</button>
+                  {menuActionError && <p className="chat-menu-error" role="alert">{menuActionError}</p>}
+                  <button disabled={Boolean(busyMenuAction)} onClick={() => runMenuAction(
+                    conversation.isArchived ? 'Unarchive chat' : 'Archive chat',
+                    () => onToggleArchive?.(conversation.id)
+                  )}>{busyMenuAction.toLowerCase().includes('archive') ? 'Working...' : conversation.isArchived ? 'Unarchive Chat' : 'Archive Chat'}</button>
+                  <button disabled={Boolean(busyMenuAction)} onClick={() => runMenuAction(
+                    conversation.isMuted ? 'Unmute notifications' : 'Mute notifications',
+                    () => onToggleMute?.(conversation.id)
+                  )}>{busyMenuAction.toLowerCase().includes('notifications') ? 'Working...' : conversation.isMuted ? 'Unmute Notifications' : 'Mute Notifications'}</button>
+                  <button disabled={Boolean(busyMenuAction)} className="danger" onClick={() => runMenuAction(
+                    'Clear chat',
+                    onClearChat,
+                    'Clear this chat for you? The other person will keep their messages.'
+                  )}>{busyMenuAction === 'Clear chat' ? 'Clearing...' : 'Clear Chat'}</button>
+                  <button disabled={Boolean(busyMenuAction)} className="danger" onClick={() => runMenuAction(
+                    'Delete chat',
+                    onDeleteChat,
+                    'Delete this chat from your list? New messages can make it appear again.'
+                  )}>{busyMenuAction === 'Delete chat' ? 'Deleting...' : 'Delete Chat'}</button>
                 </div>
               )}
             </div>
@@ -363,7 +456,11 @@ export default function ChatView({
         <div className="messages-list" ref={messagesListRef} onScroll={handleScroll} id="messages-list">
           {visibleGroupedMessages.length === 0 ? (
             <div className="chat-start-hint">
-              {chatSearchQuery ? (
+              {isSearching ? (
+                <p>Searching the full conversation...</p>
+              ) : searchError ? (
+                <p>{searchError}</p>
+              ) : chatSearchQuery ? (
                 <p>No messages match your search criteria</p>
               ) : showLegacyGreeting ? (
                 <p>Say hello to <strong>{conversation.name}</strong> {'\u{1F44B}'}</p>
@@ -635,15 +732,28 @@ export default function ChatView({
               <label className="flex-row-label">
                 <Image size={14} /> Shared Media ({sharedMedia.length})
               </label>
-              {sharedMedia.length === 0 ? (
+              {isLoadingDetailsMedia ? (
+                <p className="no-media-label">Loading shared media...</p>
+              ) : sharedMedia.length === 0 ? (
                 <p className="no-media-label">No media shared in this chat yet</p>
               ) : (
                 <div className="shared-media-grid">
-                  {sharedMedia.map(m => (
-                    <div key={m.id} className="shared-media-item">
-                      <img src={m.attachment_url} alt="Shared Attachment" />
-                    </div>
-                  ))}
+                  {sharedMedia.map(media => {
+                    const mimeType = media.attachment_mime_type || '';
+                    const isVideoMedia = media.message_type === 'video' || mimeType.startsWith('video/');
+                    const isImageMedia = media.message_type === 'image' || mimeType.startsWith('image/');
+                    return (
+                      <div key={media.id} className="shared-media-item">
+                        {isVideoMedia ? (
+                          <video src={media.attachment_url} controls playsInline preload="metadata" aria-label={media.attachment_name || 'Shared video'} />
+                        ) : isImageMedia ? (
+                          <img src={media.attachment_url} alt={media.attachment_name || 'Shared image'} loading="lazy" />
+                        ) : (
+                          <a href={media.attachment_url} target="_blank" rel="noreferrer">{media.attachment_name || 'Open attachment'}</a>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -40,7 +40,7 @@ export function useConversations(user) {
 
       // For each conversation, resolve the display info
       const enrichedConversations = await Promise.all(
-        (memberRows || []).map(async (memberRow) => {
+        (memberRows || []).filter(memberRow => memberRow.is_deleted !== true).map(async (memberRow) => {
           const conv = memberRow.conversation;
           if (!conv) return null;
 
@@ -534,21 +534,23 @@ export function useConversations(user) {
   }, [user, fetchConversations]);
 
   const toggleMute = useCallback(async (conversationId) => {
-    const conv = conversations.find(c => c.id === conversationId);
+    const conv = conversations.find(conversation => conversation.id === conversationId);
     if (!conv || !user) return;
-
-    const newVal = !conv.isMuted;
-    setConversations(prev => prev.map(c =>
-      c.id === conversationId ? { ...c, isMuted: newVal } : c
+    const newValue = !conv.isMuted;
+    setConversations(current => current.map(conversation =>
+      conversation.id === conversationId ? { ...conversation, isMuted: newValue } : conversation
     ));
-
-    await supabase
-      .from('conversation_members')
-      .update({ is_muted: newVal })
+    const { error } = await supabase.from('conversation_members')
+      .update({ is_muted: newValue })
       .eq('conversation_id', conversationId)
       .eq('user_id', user.id);
+    if (error) {
+      setConversations(current => current.map(conversation =>
+        conversation.id === conversationId ? { ...conversation, isMuted: !newValue } : conversation
+      ));
+      throw error;
+    }
   }, [conversations, user]);
-
   const togglePin = useCallback(async (conversationId) => {
     const conv = conversations.find(c => c.id === conversationId);
     if (!conv || !user) return;
@@ -566,21 +568,23 @@ export function useConversations(user) {
   }, [conversations, user]);
 
   const toggleArchive = useCallback(async (conversationId) => {
-    const conv = conversations.find(c => c.id === conversationId);
+    const conv = conversations.find(conversation => conversation.id === conversationId);
     if (!conv || !user) return;
-
-    const newVal = !conv.isArchived;
-    setConversations(prev => prev.map(c =>
-      c.id === conversationId ? { ...c, isArchived: newVal } : c
+    const newValue = !conv.isArchived;
+    setConversations(current => current.map(conversation =>
+      conversation.id === conversationId ? { ...conversation, isArchived: newValue } : conversation
     ));
-
-    await supabase
-      .from('conversation_members')
-      .update({ is_archived: newVal })
+    const { error } = await supabase.from('conversation_members')
+      .update({ is_archived: newValue })
       .eq('conversation_id', conversationId)
       .eq('user_id', user.id);
+    if (error) {
+      setConversations(current => current.map(conversation =>
+        conversation.id === conversationId ? { ...conversation, isArchived: !newValue } : conversation
+      ));
+      throw error;
+    }
   }, [conversations, user]);
-
   const toggleFavorite = useCallback(async (conversationId) => {
     const conv = conversations.find(c => c.id === conversationId);
     if (!conv || !user) return;
@@ -618,20 +622,13 @@ export function useConversations(user) {
 
   const deleteChat = useCallback(async (conversationId) => {
     if (!user) return;
-
-    // Leave the conversation
-    await supabase
-      .from('conversation_members')
-      .delete()
-      .eq('conversation_id', conversationId)
-      .eq('user_id', user.id);
-
-    setConversations(prev => prev.filter(c => c.id !== conversationId));
-    if (selectedConversationId === conversationId) {
-      setSelectedConversationId(null);
-    }
+    const { error } = await supabase.rpc('delete_conversation_for_me', {
+      p_conversation_id: conversationId
+    });
+    if (error) throw error;
+    setConversations(current => current.filter(conversation => conversation.id !== conversationId));
+    if (selectedConversationId === conversationId) setSelectedConversationId(null);
   }, [user, selectedConversationId]);
-
   // Derived
   const activeConversation = useMemo(
     () => conversations.find(c => c.id === selectedConversationId),
