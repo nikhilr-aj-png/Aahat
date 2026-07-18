@@ -7,6 +7,7 @@ import { supabase } from '../supabase';
  */
 export function usePresence(user) {
   const [onlineUsers, setOnlineUsers] = useState(new Map());
+  const [profileOnlineUsers, setProfileOnlineUsers] = useState(new Set());
   const channelRef = useRef(null);
   const typingRef = useRef({ isTyping: false, typingIn: null });
   const offlineTimersRef = useRef(new Map());
@@ -54,12 +55,15 @@ export function usePresence(user) {
       Object.entries(state).forEach(([key, presences]) => {
         if (!presences.length) return;
         const latest = presences[presences.length - 1];
-        observed.set(key, {
+        // Supabase may key presenceState by a presence reference. The UUID we
+        // explicitly track in the payload is the stable identity used by chats.
+        const presenceUserId = String(latest.user_id || key);
+        observed.set(presenceUserId, {
           lastSeen: latest.last_seen,
           isTyping: Boolean(latest.isTyping),
           typingIn: latest.typingIn || null
         });
-        cancelOffline(key);
+        cancelOffline(presenceUserId);
       });
 
       setOnlineUsers(current => {
@@ -123,7 +127,59 @@ export function usePresence(user) {
     };
   }, [userId]);
 
-  const isUserOnline = useCallback(id => onlineUsers.has(id), [onlineUsers]);
+  // Profile presence is a durable fallback for browsers where the Presence
+  // channel is reconnecting or its initial sync is delayed. Live Presence wins:
+  // a profile going offline cannot hide a still-connected Presence session.
+  useEffect(() => {
+    if (!userId) {
+      setProfileOnlineUsers(new Set());
+      return undefined;
+    }
+
+    let active = true;
+    const loadProfilePresence = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, is_online')
+        .eq('is_online', true);
+      if (!active) return;
+      if (error) {
+        console.warn('Could not load profile presence fallback:', error.message);
+        return;
+      }
+      setProfileOnlineUsers(new Set((data || []).map(profile => String(profile.id))));
+    };
+
+    void loadProfilePresence();
+    const profileChannel = supabase
+      .channel(`presence-profile-fallback-${userId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles'
+      }, ({ new: profile }) => {
+        if (!profile?.id || !active) return;
+        const id = String(profile.id);
+        setProfileOnlineUsers(current => {
+          const next = new Set(current);
+          if (profile.is_online) next.add(id);
+          else next.delete(id);
+          return next;
+        });
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(profileChannel);
+    };
+  }, [userId]);
+
+  const isUserOnline = useCallback(id => {
+    if (!id) return false;
+    const normalizedId = String(id);
+    return onlineUsers.has(normalizedId) || profileOnlineUsers.has(normalizedId);
+  }, [onlineUsers, profileOnlineUsers]);
 
   const setTyping = useCallback(async (conversationId, isTyping) => {
     if (!userId || !channelRef.current) return;
