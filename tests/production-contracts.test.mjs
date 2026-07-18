@@ -111,8 +111,7 @@ test('presence tracks visibility and connectivity without overwriting typing', a
   ]);
   assert.match(presence, /presenceState\(\)/);
   assert.match(presence, /latest\.user_id \|\| key/);
-  assert.match(presence, /profileOnlineUsers/);
-  assert.match(presence, /presence-profile-fallback-/);
+  assert.doesNotMatch(presence, /profileOnlineUsers|presence-profile-fallback-/);
   assert.match(presence, /event: 'join'/);
   assert.match(presence, /event: 'leave'/);
   assert.match(presence, /typingRef\.current/);
