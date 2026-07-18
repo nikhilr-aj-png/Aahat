@@ -1,16 +1,20 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './clock-integrity.css'
 import './resonance.css'
 import './settings-professional.css'
 import './aahat-contacts.css'
 import App from './App.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
+import ClockIntegrityGate from './components/ClockIntegrityGate.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      <App />
+      <ClockIntegrityGate>
+        <App />
+      </ClockIntegrityGate>
     </ErrorBoundary>
   </StrictMode>,
 )

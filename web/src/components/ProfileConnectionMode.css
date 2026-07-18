@@ -1,0 +1,113 @@
+.settings-panel .settings-content .settings-aahat-card {
+  align-items: center;
+}
+
+.settings-panel .settings-content .settings-aahat-card > .profile-connection-mode {
+  grid-column: 1 / -1;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+  padding: 16px;
+  gap: 14px;
+  border: 1px solid rgba(145, 116, 255, .24);
+  border-radius: 17px;
+  background: linear-gradient(120deg, rgba(103, 70, 226, .14), rgba(255, 255, 255, .018));
+}
+
+.profile-mode-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  color: #c7baff;
+  border-radius: 14px;
+  background: rgba(112, 76, 244, .16);
+}
+
+.profile-mode-icon.is-public {
+  color: #79e5c6;
+  background: rgba(25, 180, 139, .13);
+}
+
+.profile-mode-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.profile-mode-copy > span {
+  color: #929bad;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.profile-mode-copy strong {
+  color: #f4f0ff;
+  font-size: 14px;
+}
+
+.profile-mode-copy small {
+  color: #9da6b8;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.settings-panel .settings-content button.profile-mode-toggle {
+  position: relative;
+  width: 56px;
+  min-width: 56px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  background: #373147;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .28);
+}
+
+.settings-panel .settings-content button.profile-mode-toggle > span {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #b0adba;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, .3);
+  transition: transform .2s ease, background .2s ease;
+}
+
+.settings-panel .settings-content button.profile-mode-toggle.is-on {
+  border-color: rgba(139, 107, 255, .7);
+  background: linear-gradient(135deg, #8564ff, #5a3ae6);
+}
+
+.settings-panel .settings-content button.profile-mode-toggle.is-on > span {
+  background: #fff;
+  transform: translateX(24px);
+}
+
+.settings-panel .settings-content button.profile-mode-toggle:focus-visible {
+  outline: 3px solid rgba(144, 113, 255, .28);
+  outline-offset: 3px;
+}
+
+.settings-panel .settings-content button.profile-mode-toggle:disabled {
+  cursor: wait;
+  opacity: .62;
+}
+
+@media (max-width: 520px) {
+  .settings-panel .settings-content .settings-aahat-card > .profile-connection-mode {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .settings-panel .settings-content .profile-connection-mode .profile-mode-toggle {
+    grid-column: 2;
+    justify-self: end;
+  }
+}

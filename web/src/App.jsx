@@ -15,13 +15,14 @@ import Sidebar from './components/Sidebar';
 import ChatView from './components/ChatView';
 import StatusSection from './components/StatusSection';
 import SettingsPanel from './components/SettingsPanelProduction';
+import './ConnectAahatModal.css';
 import CallingOverlay from './components/CallingOverlay';
 import AdminEmbedPanel from './components/AdminEmbedProduction';
 import SafeAvatar from './components/SafeAvatar';
 import ContactsSection from './components/ContactsSection';
 import { requestNotificationPermission } from './firebase';
 
-import { MessageSquare, CircleDot, Settings, LogOut, Sparkles, X, Shield, Users } from 'lucide-react';
+import { ArrowLeft, Lock, MessageSquare, CircleDot, Search, Settings, LogOut, Sparkles, X, Shield, Users } from 'lucide-react';
 
 const BrandLogo = () => (
   <img src="/logo.png" alt="Aahat" className="brand-logo-image" />
@@ -59,7 +60,8 @@ export default function App() {
     isLoading: areContactsLoading,
     requestContact,
     respondToRequest,
-    rotatePin
+    rotatePin,
+    removeContact
   } = useAahatContacts(user, refetchConversations);
 
   // --- Messages (for the active conversation) ---
@@ -96,9 +98,28 @@ export default function App() {
   const [showNewGroupModal, setShowNewGroupModal] = useState(false);
   const [newChatId, setNewChatId] = useState('');
   const [newChatPin, setNewChatPin] = useState('');
+  const [newChatStep, setNewChatStep] = useState('id');
+  const [newChatError, setNewChatError] = useState('');
+  const [isConnecting, setIsConnecting] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDesc, setNewGroupDesc] = useState('');
   const [activeToast, setActiveToast] = useState(null);
+  const resetNewChatForm = useCallback(() => {
+    setNewChatId('');
+    setNewChatPin('');
+    setNewChatStep('id');
+    setNewChatError('');
+    setIsConnecting(false);
+  }, []);
+  const openNewChatModal = useCallback(() => {
+    resetNewChatForm();
+    setShowNewChatModal(true);
+  }, [resetNewChatForm]);
+  const closeNewChatModal = useCallback(() => {
+    setShowNewChatModal(false);
+    resetNewChatForm();
+  }, [resetNewChatForm]);
+
 
   // Mobile responsive
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
@@ -400,16 +421,27 @@ export default function App() {
     e?.preventDefault();
     if (!newChatId.trim()) return;
 
+    setIsConnecting(true);
+    setNewChatError('');
     try {
-      const result = await requestContact(newChatId, newChatPin);
-      setShowNewChatModal(false);
-      setNewChatId('');
-      setNewChatPin('');
-      alert(`Invitation sent to ${result?.display_name || 'this Aahat user'}. You can chat after they accept it.`);
+      const result = await requestContact(newChatId, newChatStep === 'pin' ? newChatPin : '');
+      closeNewChatModal();
+      if (result?.conversation_id) {
+        handleSelectConversation(result.conversation_id);
+      } else {
+        alert(`Invitation sent to ${result?.display_name || 'this Aahat user'}. You can chat after they accept it.`);
+      }
     } catch (err) {
-      alert(err.message || 'Could not send invitation');
+      if (err?.code === 'AAHAT_PIN_REQUIRED' && newChatStep === 'id') {
+        setNewChatStep('pin');
+        setNewChatPin('');
+      } else {
+        setNewChatError(err.message || 'Could not connect to this user.');
+      }
+    } finally {
+      setIsConnecting(false);
     }
-  }, [newChatId, newChatPin, requestContact]);
+  }, [closeNewChatModal, handleSelectConversation, newChatId, newChatPin, newChatStep, requestContact]);
 
   const handleCreateGroup = useCallback(async (e) => {
     e?.preventDefault();
@@ -558,7 +590,7 @@ export default function App() {
               togglePin={togglePin}
               toggleMute={toggleMute}
               toggleFavorite={toggleFavorite}
-              onNewChat={() => setShowNewChatModal(true)}
+              onNewChat={openNewChatModal}
               onNewGroup={() => setShowNewGroupModal(true)}
               isUserOnline={isUserOnline}
               isLoading={isConvLoading}
@@ -622,10 +654,11 @@ export default function App() {
             outgoingRequests={outgoingRequests}
             isLoading={areContactsLoading}
             isUserOnline={isUserOnline}
-            onAddContact={() => setShowNewChatModal(true)}
+            onAddContact={openNewChatModal}
             onSelectConversation={handleSelectConversation}
             onRespond={respondToRequest}
             onRotatePin={rotatePin}
+            onRemoveContact={removeContact}
           />
         )}
 
@@ -659,6 +692,7 @@ export default function App() {
             user={user}
             profile={profile}
             onLogout={handleLogout}
+            conversations={conversations}
             onUploadFile={uploadFile}
             onUpdateProfile={handleUpdateProfile}
             onRequestNotificationPermission={handleRequestNotificationPermission}
@@ -749,19 +783,27 @@ export default function App() {
 
       {/* New Chat Modal */}
       {showNewChatModal && (
-        <div className="modal-overlay" onClick={() => setShowNewChatModal(false)}>
-          <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+        <div className="modal-overlay" onClick={closeNewChatModal}>
+          <div className="modal-card connect-aahat-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Sparkles size={16} style={{ color: 'var(--accent-light)' }} />
-                Send Contact Invitation
+                Connect by Aahat ID
               </h3>
-              <button className="modal-close" onClick={() => setShowNewChatModal(false)}><X size={18} /></button>
+              <button className="modal-close" onClick={closeNewChatModal}><X size={18} /></button>
             </div>
-            <form onSubmit={handleNewChat} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div className="form-group">
+            <form onSubmit={handleNewChat} className="connect-aahat-form">
+              <div className="connect-step-bar" aria-label={`Step ${newChatStep === 'id' ? '1' : '2'} of 2`}><i className="active"/><i className={newChatStep === 'pin' ? 'active' : ''}/></div>
+              <div className="connect-step-copy">
+                <span>Step {newChatStep === 'id' ? '1' : '2'} of 2</span>
+                <strong>{newChatStep === 'id' ? 'Find the Aahat profile' : 'Private profile found'}</strong>
+                <p>{newChatStep === 'id'
+                  ? 'Enter the Aahat ID first. Public profiles open instantly; private profiles ask for their PIN next.'
+                  : 'This profile accepts approved invitations. Enter the PIN shared by this person.'}</p>
+              </div>
+              {newChatStep === 'id' ? <div className="form-group">
                 <label htmlFor="new-chat-id" style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
-                  Friend's 10-digit Aahat ID
+                  10-digit Aahat ID
                 </label>
                 <input
                   id="new-chat-id"
@@ -770,25 +812,26 @@ export default function App() {
                   value={newChatId}
                   inputMode="numeric"
                   maxLength={10}
-                  onChange={e => setNewChatId(e.target.value.replace(/\D/g, ''))}
+                  onChange={e => { setNewChatId(e.target.value.replace(/\D/g, '')); setNewChatError(''); }}
                   autoFocus
                   required
                 />
               </div>
+              : <>
+              <div className="connect-id-summary"><Search size={17}/><span><small>Aahat ID</small><strong>{newChatId}</strong></span><button type="button" title="Change Aahat ID" onClick={() => { setNewChatStep('id'); setNewChatPin(''); setNewChatError(''); }}><ArrowLeft size={17}/></button></div>
               <div className="form-group">
                 <label htmlFor="new-chat-pin" style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
-                  6-digit connection PIN
+                  <Lock size={12}/> Connection PIN
                 </label>
                 <input id="new-chat-pin" type="password" inputMode="numeric" autoComplete="off"
                   placeholder="Enter 6-digit PIN..." value={newChatPin} maxLength={6}
-                  onChange={e => setNewChatPin(e.target.value.replace(/\D/g, ''))} required />
-                <small style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  They will receive an invitation. Messaging unlocks only after they accept.
-                </small>
+                  onChange={e => { setNewChatPin(e.target.value.replace(/\D/g, '')); setNewChatError(''); }} autoFocus required />
               </div>
-              <div className="form-actions" style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '10px' }}>
-                <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setShowNewChatModal(false)}>Cancel</button>
-                <button type="submit" className="admin-btn admin-btn-primary" disabled={newChatId.length !== 10 || newChatPin.length !== 6}>Send Invitation</button>
+              </>}
+              {newChatError && <p className="connect-aahat-error" role="alert">{newChatError}</p>}
+              <div className="form-actions">
+                <button type="button" className="admin-btn admin-btn-ghost" onClick={newChatStep === 'pin' ? () => { setNewChatStep('id'); setNewChatPin(''); setNewChatError(''); } : closeNewChatModal}>{newChatStep === 'pin' ? 'Back' : 'Cancel'}</button>
+                <button type="submit" className="admin-btn admin-btn-primary" disabled={isConnecting || newChatId.length !== 10 || (newChatStep === 'pin' && newChatPin.length !== 6)}>{isConnecting ? (newChatStep === 'id' ? 'Checking…' : 'Sending…') : newChatStep === 'id' ? 'Continue' : 'Send invitation'}</button>
               </div>
             </form>
           </div>

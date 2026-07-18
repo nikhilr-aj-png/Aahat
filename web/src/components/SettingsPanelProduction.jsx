@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Bell, Copy, Download, ImagePlus, Key, Laptop, Lock, Pencil, RefreshCw, Shield, Trash2, User } from 'lucide-react';
+import { Bell, Copy, Download, Globe2, ImagePlus, Key, Laptop, Lock, Pencil, RefreshCw, Shield, Trash2, User } from 'lucide-react';
 import { supabase } from '../supabase';
 import SafeAvatar from './SafeAvatar';
 import AvatarCropModal from './AvatarCropModal';
+import PrivacySettingsSection from './PrivacySettingsSection';
 import { CHAT_MEDIA_LIMITS } from '../utils/mediaCompression';
+import './ProfileConnectionMode.css';
 
 const newStableId = (key) => {
   let value = localStorage.getItem(key);
@@ -38,7 +40,7 @@ const managedAvatarPath = (url, userId) => {
   }
 };
 
-export default function SettingsPanelProduction({ user, profile, onLogout, onUpdateProfile, onRequestNotificationPermission, aahatCredentials, onRotateAahatPin }) {
+export default function SettingsPanelProduction({ user, profile, conversations, onLogout, onUpdateProfile, onRequestNotificationPermission, aahatCredentials, onRotateAahatPin }) {
   const [tab, setTab] = useState('profile');
   const [name, setName] = useState(profile?.display_name || '');
   const [bio, setBio] = useState(profile?.bio || '');
@@ -62,6 +64,7 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
   const [cropFile, setCropFile] = useState(null);
 
 
+  const publicConnections = privacy.aahat_connection_mode === 'public';
   const notify = (type, text) => setMessage({ type, text });
 
   const loadSecurityData = useCallback(async () => {
@@ -119,6 +122,18 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
 
   const saveProfile = () => run(async () => onUpdateProfile({ display_name: name.trim(), bio: bio.trim(), avatar_url: avatarUrl }), 'Profile saved.');
   const savePreferences = () => run(async () => onUpdateProfile({ privacy_settings: privacy, notification_settings: notifications }), 'Preferences saved.');
+  const toggleAahatConnectionMode = () => {
+    const nextMode = publicConnections ? 'private' : 'public';
+    const nextPrivacy = {
+      ...privacy,
+      discover_by_aahat_id: true,
+      aahat_connection_mode: nextMode
+    };
+    return run(async () => {
+      await onUpdateProfile({ privacy_settings: nextPrivacy });
+      setPrivacy(nextPrivacy);
+    }, nextMode === 'public' ? 'Your Aahat ID is now public.' : 'Private connections restored.');
+  };
 
   const uploadAvatar = async (file) => run(async () => {
     const extension = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' })[file.type];
@@ -266,25 +281,48 @@ export default function SettingsPanelProduction({ user, profile, onLogout, onUpd
         <label>Display name<input value={name} onChange={e => setName(e.target.value)}/></label>
         <label>Bio<textarea value={bio} onChange={e => setBio(e.target.value)}/></label>
         <button disabled={busy || !name.trim()} onClick={saveProfile}>Save profile</button>
-        <div className="settings-aahat-card">
+        <div className={`settings-aahat-card ${publicConnections ? 'has-public-mode' : ''}`}>
           <div>
             <span>Your 10-digit Aahat ID</span>
             <strong>{aahatCredentials?.aahat_id || '----------'}</strong>
           </div>
           <button type="button" title="Copy Aahat ID" onClick={() => navigator.clipboard.writeText(aahatCredentials?.aahat_id || '')}><Copy size={15}/></button>
-          <div>
-            <span>Your 6-digit connection PIN</span>
-            <strong>{aahatCredentials?.pin_code || '------'}</strong>
+          {!publicConnections && <>
+            <div>
+              <span>Your 6-digit connection PIN</span>
+              <strong>{aahatCredentials?.pin_code || '------'}</strong>
+            </div>
+            <button type="button" title="Copy PIN" onClick={() => navigator.clipboard.writeText(aahatCredentials?.pin_code || '')}><Copy size={15}/></button>
+          </>}
+          <div className="profile-connection-mode">
+            <div className={`profile-mode-icon ${publicConnections ? 'is-public' : ''}`}>
+              {publicConnections ? <Globe2 size={22}/> : <Lock size={22}/>}
+            </div>
+            <div className="profile-mode-copy">
+              <span>Aahat ID connection</span>
+              <strong>{publicConnections ? 'Public · instant chat' : 'Private · approval required'}</strong>
+              <small>{publicConnections
+                ? 'People can connect with your Aahat ID only. Your PIN stays hidden.'
+                : 'People need your Aahat ID and 6-digit PIN. You approve every request.'}</small>
+            </div>
+            <button type="button" className={`profile-mode-toggle ${publicConnections ? 'is-on' : ''}`} role="switch" aria-checked={publicConnections} aria-label="Allow instant connections using only your Aahat ID" disabled={busy} onClick={toggleAahatConnectionMode}><span/></button>
           </div>
-          <button type="button" title="Copy PIN" onClick={() => navigator.clipboard.writeText(aahatCredentials?.pin_code || '')}><Copy size={15}/></button>
-          <p>Share both only with someone you want to connect with. Their invitation must still be accepted by you.</p>
-          <button type="button" onClick={() => {
+          <p>{publicConnections ? 'Your Aahat ID is searchable. Switch back to Private whenever you want PIN-protected requests.' : 'Share both only with someone you want to connect with. Their invitation must still be accepted by you.'}</p>
+          {!publicConnections && <button type="button" onClick={() => {
             if (!confirm('Generate a new connection PIN? Your old PIN will stop working immediately.')) return;
             run(onRotateAahatPin, 'A new connection PIN is active.');
-          }}><RefreshCw size={15}/>Generate new PIN</button>
+          }}><RefreshCw size={15}/>Generate new PIN</button>}
         </div>
       </section>}
-      {tab === 'privacy' && <section><h3>Privacy</h3>{[['last_seen','Show last seen'],['online','Show online status'],['read_receipts','Read receipts'],['discover_by_aahat_id','Discoverable by Aahat ID']].map(([key,label]) => <label key={key}><input type="checkbox" checked={privacy[key] !== false} onChange={e => setPrivacy(current => ({...current,[key]:e.target.checked}))}/>{label}</label>)}<label>Status audience<select value={privacy.status || 'contacts'} onChange={e => setPrivacy(current => ({...current,status:e.target.value}))}><option value="everyone">Everyone</option><option value="contacts">Contacts</option><option value="private">Only me</option></select></label><button disabled={busy} onClick={savePreferences}>Save privacy</button><h4>Blocked users</h4>{blocked.length ? blocked.map(row => <div key={row.id}><SafeAvatar src={row.avatar_url} name={row.display_name} size={32}/><span>{row.display_name}</span><button onClick={() => unblock(row.id)}>Unblock</button></div>) : <p>No blocked users.</p>}</section>}
+      {tab === 'privacy' && <PrivacySettingsSection
+        privacy={privacy}
+        setPrivacy={setPrivacy}
+        conversations={conversations}
+        blocked={blocked}
+        onUnblock={unblock}
+        onSave={savePreferences}
+        busy={busy}
+      />}
       {tab === 'security' && <section><h3>Security</h3><label>Current password<input type="password" value={oldPassword} onChange={e => setOldPassword(e.target.value)}/></label><label>New password<input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}/></label><button disabled={busy || !oldPassword || !newPassword} onClick={changePassword}><Key size={15}/>Update password</button><h4>Authenticator 2FA</h4>{factors.length ? factors.map(factor => <div key={factor.id}><span>{factor.friendly_name || 'Authenticator'} · verified</span><button onClick={() => removeMfa(factor.id)}>Disable</button></div>) : <button onClick={startMfa}>Set up authenticator</button>}{enrollment && <div><img src={enrollment.totp.qr_code} alt="Authenticator QR code"/><code>{enrollment.totp.secret}</code><input inputMode="numeric" maxLength={6} value={mfaCode} onChange={e => setMfaCode(e.target.value.replace(/\D/g,''))}/><button onClick={verifyMfa}>Verify code</button></div>}</section>}
       {tab === 'devices' && <section><h3>Registered devices</h3>{devices.length ? devices.map(row => <div key={row.id}><strong>{row.device_name}</strong><span>{new Date(row.last_seen_at).toLocaleString()}</span></div>) : <p>No devices registered.</p>}<h4>Sessions</h4>{sessions.map(row => <div key={row.id}><span>{row.revoked_at ? 'Revoked' : 'Active'} · {new Date(row.last_seen_at).toLocaleString()}</span></div>)}<button disabled={busy} onClick={revokeOtherSessions}>Sign out other sessions</button></section>}
       {tab === 'notifications' && <section><h3>Notifications</h3><label><input type="checkbox" checked={notifications.sound !== false} onChange={e => setNotifications(current => ({...current,sound:e.target.checked}))}/>Sound</label><label><input type="checkbox" checked={notifications.previews !== false} onChange={e => setNotifications(current => ({...current,previews:e.target.checked}))}/>Message previews</label><button onClick={() => run(onRequestNotificationPermission, 'Notification permission updated.')}>Enable push notifications</button><button onClick={savePreferences}>Save preferences</button></section>}

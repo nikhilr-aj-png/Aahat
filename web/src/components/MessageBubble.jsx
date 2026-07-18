@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Smile, Trash2, Check, CheckCheck, Reply, Play, Pause, FileText, Edit3, ChevronDown, ChevronLeft, ListChecks, RefreshCw, Download, Film } from 'lucide-react';
+import { formatDeviceTime } from '../utils/dateTime';
 
 const formatBytes = (bytes) => {
   if (!bytes) return '';
@@ -197,9 +198,7 @@ function MessageBubble({
   const canDeleteForEveryone = isMe && !isDeletedTombstone && Date.now() - new Date(msg.created_at).getTime() <= 12 * 60 * 60 * 1000;
 
   // Format time
-  const timeText = msg.created_at
-    ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : '';
+  const timeText = formatDeviceTime(msg.created_at);
 
   // Reactions grouped
   const reactionGroups = {};

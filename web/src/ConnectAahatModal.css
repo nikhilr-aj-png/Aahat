@@ -1,0 +1,131 @@
+.connect-aahat-modal {
+  width: min(100%, 470px);
+}
+
+.connect-aahat-form {
+  display: grid;
+  gap: 18px;
+}
+
+.connect-step-bar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.connect-step-bar > i {
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(190, 178, 235, .13);
+}
+
+.connect-step-bar > i.active {
+  background: linear-gradient(90deg, #8b68ff, #603cf4);
+  box-shadow: 0 0 14px rgba(112, 72, 247, .34);
+}
+
+.connect-step-copy {
+  display: grid;
+  gap: 5px;
+}
+
+.connect-step-copy > span {
+  color: #a99adb;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.connect-step-copy strong {
+  color: #f4f0ff;
+  font-size: 14px;
+}
+
+.connect-step-copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.connect-aahat-modal .connect-id-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 12px 14px;
+  gap: 11px;
+  color: #b9ade8;
+  border: 1px solid rgba(149, 120, 255, .19);
+  border-radius: 13px;
+  background: rgba(116, 78, 242, .08);
+}
+
+.connect-id-summary > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.connect-id-summary small {
+  color: #898fa3;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.connect-id-summary strong {
+  overflow: hidden;
+  color: #f0ecfb;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connect-id-summary button {
+  padding: 5px;
+  color: #afa3da;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.connect-aahat-error {
+  margin: 0;
+  padding: 10px 12px;
+  color: #ffc3ca;
+  font-size: 11px;
+  line-height: 1.5;
+  border: 1px solid rgba(248, 113, 113, .2);
+  border-radius: 11px;
+  background: rgba(127, 29, 29, .16);
+}
+
+.connect-aahat-modal .form-actions {
+  margin-top: 2px;
+}
+
+.connect-aahat-modal .admin-btn:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+  transform: none;
+}
+
+@media (max-width: 520px) {
+  .connect-aahat-modal {
+    width: calc(100vw - 24px);
+    max-width: none !important;
+    padding: 20px;
+  }
+
+  .connect-aahat-modal .form-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .connect-aahat-modal .admin-btn {
+    width: 100%;
+    padding-inline: 12px;
+  }
+}

@@ -20,18 +20,25 @@ test('Aahat invitation acceptance gates direct conversations', async () => {
   assert.match(migration, /responded_at = now\(\)[\s\S]+get_or_create_direct_conversation/i);
 });
 
-test('web UI uses PIN invitations instead of starting a chat from an ID', async () => {
+test('web UI supports public ID connections while private mode keeps PIN invitations', async () => {
   const [app, hook, settings] = await Promise.all([
     read('web/src/App.jsx'),
     read('web/src/hooks/useAahatContacts.js'),
     read('web/src/components/SettingsPanelProduction.jsx')
   ]);
-  assert.match(app, /requestContact\(newChatId, newChatPin\)/);
+  assert.match(app, /newChatStep === 'pin' \? newChatPin : ''/);
+  assert.match(app, /AAHAT_PIN_REQUIRED/);
+  assert.match(app, /Private profile found/);
+  assert.match(app, /Public profiles open instantly/);
+  assert.match(hook, /pinRequiredError\.code = 'AAHAT_PIN_REQUIRED'/);
   assert.doesNotMatch(app, /startDirectChatByVirtualNumber/);
-  assert.match(hook, /request_contact_by_aahat_credentials/);
+  assert.match(hook, /connect_by_aahat_id/);
   assert.match(hook, /respond_to_contact_request/);
   assert.match(settings, /Your 10-digit Aahat ID/);
   assert.match(settings, /Your 6-digit connection PIN/);
+  assert.match(settings, /aahat_connection_mode/);
+  assert.match(settings, /!publicConnections &&/);
+  assert.match(settings, /Your PIN stays hidden/);
 });
 
 test('accepted invitations refresh contacts on both devices', async () => {

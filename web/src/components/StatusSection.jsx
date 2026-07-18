@@ -2,6 +2,7 @@ import React, { useState, useRef, useMemo } from 'react';
 import { Plus, Eye, X, ChevronLeft, ChevronRight, Image, Trash2, Clock, Users } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 import { prepareChatMedia } from '../utils/mediaCompression';
+import { formatDeviceTime } from '../utils/dateTime';
 
 const GRADIENT_OPTIONS = [
   'linear-gradient(135deg, #5F34F7 0%, #8659F1 100%)',
@@ -20,7 +21,7 @@ export default function StatusSection({
   myStatuses, otherStatuses,
   user, profile,
   onPostStatus, onViewStatus, onDeleteStatus,
-  onUploadFile,
+  onUploadFile, conversations = [],
   channels = [], myChannels = [], activeChannelId, activeChannelPosts = [],
   setActiveChannelId, onCreateChannel, onSubscribeToChannel, onUnsubscribeFromChannel, onCreateChannelPost
 }) {
@@ -58,13 +59,20 @@ export default function StatusSection({
   const [viewTimerProgress, setViewTimerProgress] = useState(0);
   const timerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const statusAudience = profile?.privacy_settings?.status || 'contacts';
+  const selectedStatusContacts = useMemo(() => {
+    const allowed = new Set((conversations || []).filter(item => item.type === 'direct').map(item => item.otherMemberId));
+    const selected = Array.isArray(profile?.privacy_settings?.status_members) ? profile.privacy_settings.status_members : [];
+    return selected.filter(id => allowed.has(id));
+  }, [conversations, profile?.privacy_settings?.status_members]);
+
 
   // Post text status
   const handlePostText = async () => {
     if (!textContent.trim()) return;
     setIsCreating(true);
     try {
-      await onPostStatus('text', textContent.trim(), selectedGradient);
+      await onPostStatus('text', textContent.trim(), selectedGradient, null, statusAudience, selectedStatusContacts);
       setTextContent('');
       setShowCreateModal(false);
     } catch (err) {
@@ -83,7 +91,7 @@ export default function StatusSection({
       const preparedFile = await prepareChatMedia(file);
       const url = await onUploadFile(preparedFile);
       const type = preparedFile.type.startsWith('video/') ? 'video' : 'image';
-      await onPostStatus(type, url);
+      await onPostStatus(type, url, null, null, statusAudience, selectedStatusContacts);
       setShowCreateModal(false);
     } catch (err) {
       alert('Failed to upload: ' + err.message);
@@ -470,7 +478,7 @@ export default function StatusSection({
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                       <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-light)' }}>{'\u{1F4E2}'} {activeChannel.name}</span>
-                      <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{formatDeviceTime(post.created_at)}</span>
                     </div>
                     <p style={{ margin: 0, fontSize: '13px', color: 'white', whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{post.content}</p>
                   </div>

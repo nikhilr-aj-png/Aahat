@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '../supabase';
+import { formatDeviceTime } from '../utils/dateTime';
 
 /**
  * useConversations — Manages conversations (direct, group, self),
@@ -124,7 +125,7 @@ export function useConversations(user) {
             const msgDate = new Date(latestMsg.created_at);
             const today = new Date();
             if (msgDate.toDateString() === today.toDateString()) {
-              previewTime = msgDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              previewTime = formatDeviceTime(msgDate);
             } else {
               const yesterday = new Date(today);
               yesterday.setDate(yesterday.getDate() - 1);
@@ -223,8 +224,7 @@ export function useConversations(user) {
             conv.previewText = msg.content || '📎 Attachment';
           }
 
-          const now = new Date();
-          conv.previewTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          conv.previewTime = formatDeviceTime(msg.created_at);
           conv.lastMessageAt = msg.created_at;
 
           // Increment unread if not from current user and not viewing this conversation

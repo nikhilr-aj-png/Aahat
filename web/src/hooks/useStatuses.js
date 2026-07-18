@@ -77,25 +77,21 @@ export function useStatuses(user) {
   }, [statuses, user]);
 
   // Post a new status
-  const postStatus = useCallback(async (type, content, bgGradient = null, mediaUrl = null, privacy = 'contacts') => {
+  const postStatus = useCallback(async (type, content, bgGradient = null, mediaUrl = null, privacy = 'contacts', selectedContactIds = []) => {
     if (!user) return;
 
-    const { data, error } = await supabase
-      .from('statuses')
-      .insert({
-        user_id: user.id,
-        type,
-        content: type === 'text' ? content : null,
-        media_url: type !== 'text' ? (mediaUrl || content) : null,
-        bg_gradient: bgGradient,
-        privacy,
-      })
-      .select()
-      .single();
+    const { data: statusId, error } = await supabase.rpc('create_aahat_status', {
+      p_type: type,
+      p_content: type === 'text' ? content : null,
+      p_media_url: type !== 'text' ? (mediaUrl || content) : null,
+      p_bg_gradient: bgGradient,
+      p_privacy: privacy,
+      p_selected_contact_ids: selectedContactIds
+    });
 
     if (error) throw error;
     await fetchStatuses();
-    return data;
+    return statusId;
   }, [user, fetchStatuses]);
 
   // Mark a status as viewed

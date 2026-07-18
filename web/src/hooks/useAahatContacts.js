@@ -50,29 +50,44 @@ export function useAahatContacts(user, onContactsChanged) {
     const channel = supabase
       .channel(`aahat-contact-requests-${user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'contact_requests' }, () => {
-        Promise.all([
-          refresh(),
-          onContactsChanged?.()
-        ]).catch(error => console.warn('Could not refresh Aahat contacts:', error));
+        Promise.all([refresh(), onContactsChanged?.()])
+          .catch(error => console.warn('Could not refresh Aahat contacts:', error));
       })
       .subscribe();
-    return () => supabase.removeChannel(channel);
+    const contactsChannel = supabase
+      .channel(`aahat-user-contacts-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_contacts', filter: `owner_id=eq.${user.id}` }, () => {
+        Promise.all([refresh(), onContactsChanged?.()])
+          .catch(error => console.warn('Could not refresh connected contacts:', error));
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(contactsChannel);
+    };
   }, [user, refresh, onContactsChanged]);
 
   const requestContact = useCallback(async (aahatId, pinCode) => {
     const normalizedId = (aahatId || '').replace(/\D/g, '');
     const normalizedPin = (pinCode || '').replace(/\D/g, '');
     if (!/^\d{10}$/.test(normalizedId)) throw new Error('Enter a valid 10-digit Aahat ID.');
-    if (!/^\d{6}$/.test(normalizedPin)) throw new Error('Enter the 6-digit connection PIN.');
+    if (normalizedPin && !/^\d{6}$/.test(normalizedPin)) throw new Error('Enter the complete 6-digit connection PIN.');
 
-    const { data, error } = await supabase.rpc('request_contact_by_aahat_credentials', {
+    const { data, error } = await supabase.rpc('connect_by_aahat_id', {
       p_aahat_id: normalizedId,
-      p_pin_code: normalizedPin
+      p_pin_code: normalizedPin || null
     });
-    if (error) throw error;
-    await refresh();
+    if (error) {
+      if (!normalizedPin && /private connections/i.test(error.message || '')) {
+        const pinRequiredError = new Error('This profile is private. Enter the 6-digit connection PIN to send an invitation.');
+        pinRequiredError.code = 'AAHAT_PIN_REQUIRED';
+        throw pinRequiredError;
+      }
+      throw error;
+    }
+    await Promise.all([refresh(), data?.[0]?.conversation_id ? onContactsChanged?.() : Promise.resolve()]);
     return data?.[0] || null;
-  }, [refresh]);
+  }, [onContactsChanged, refresh]);
 
   const respondToRequest = useCallback(async (requestId, accept) => {
     const { data: conversationId, error } = await supabase.rpc('respond_to_contact_request', {
@@ -91,6 +106,15 @@ export function useAahatContacts(user, onContactsChanged) {
     return pinCode;
   }, []);
 
+  const removeContact = useCallback(async contactId => {
+    const { data, error } = await supabase.rpc('remove_contact_for_both', {
+      p_contact_id: contactId
+    });
+    if (error) throw error;
+    await Promise.all([refresh(), onContactsChanged?.()]);
+    return data === true;
+  }, [onContactsChanged, refresh]);
+
   return {
     credentials,
     incomingRequests,
@@ -99,6 +123,7 @@ export function useAahatContacts(user, onContactsChanged) {
     refresh,
     requestContact,
     respondToRequest,
-    rotatePin
+    rotatePin,
+    removeContact
   };
 }

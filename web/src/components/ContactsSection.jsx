@@ -1,5 +1,7 @@
-import { Check, Clock3, Copy, MessageSquare, RefreshCw, UserPlus, Users, X } from 'lucide-react';
+import { useState } from 'react';
+import { AlertTriangle, Check, Clock3, Copy, MessageSquare, MoreVertical, RefreshCw, Trash2, UserPlus, Users, X } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
+import './ContactActions.css';
 
 const copyText = async value => {
   if (value) await navigator.clipboard.writeText(value);
@@ -15,11 +17,15 @@ export default function ContactsSection({
   onAddContact,
   onSelectConversation,
   onRespond,
-  onRotatePin
+  onRotatePin,
+  onRemoveContact
 }) {
   const directContacts = conversations.filter(conversation => conversation.type === 'direct');
   const pendingIncoming = incomingRequests.filter(request => request.status === 'pending');
   const pendingOutgoing = outgoingRequests.filter(request => request.status === 'pending');
+  const [openContactMenu, setOpenContactMenu] = useState(null);
+  const [contactToDelete, setContactToDelete] = useState(null);
+  const [removingContact, setRemovingContact] = useState(false);
 
   const respond = async (request, accept) => {
     try {
@@ -34,6 +40,20 @@ export default function ContactsSection({
     if (!confirm('Generate a new connection PIN? Your old PIN will stop working immediately.')) return;
     try { await onRotatePin(); }
     catch (error) { alert(error.message || 'Could not generate a new PIN.'); }
+  };
+
+  const removeSelectedContact = async () => {
+    if (!contactToDelete?.otherMemberId) return;
+    setRemovingContact(true);
+    try {
+      await onRemoveContact(contactToDelete.otherMemberId);
+      setContactToDelete(null);
+      setOpenContactMenu(null);
+    } catch (error) {
+      alert(error.message || 'Could not remove this contact.');
+    } finally {
+      setRemovingContact(false);
+    }
   };
 
   return (
@@ -85,16 +105,34 @@ export default function ContactsSection({
         {isLoading ? <div className="aahat-empty">Loading contacts…</div> : directContacts.length === 0 ? (
           <div className="aahat-empty"><Users size={32}/><p>No connected contacts yet.</p><small>Enter a friend's AHID and PIN, then wait for them to accept.</small></div>
         ) : directContacts.map(conversation => (
-          <article className="aahat-contact-card" key={conversation.id} onClick={() => onSelectConversation(conversation.id)}>
+          <article className="aahat-contact-card" key={conversation.id} onClick={() => { setOpenContactMenu(null); onSelectConversation(conversation.id); }}>
             <div className="avatar-wrapper">
               <SafeAvatar src={conversation.avatarUrl} name={conversation.name} size={44}/>
               <div className={`status-badge ${isUserOnline(conversation.otherMemberId) ? 'active' : 'offline'}`}/>
             </div>
             <div><strong>{conversation.name}</strong><small>{isUserOnline(conversation.otherMemberId) ? 'Online' : 'Offline'}</small></div>
-            <button><MessageSquare size={15}/>Chat</button>
+            <div className="contact-card-actions" onClick={event => event.stopPropagation()}>
+              <button className="contact-chat-button" onClick={() => onSelectConversation(conversation.id)}><MessageSquare size={15}/>Chat</button>
+              <button className="contact-menu-trigger" aria-label={`More actions for ${conversation.name}`} onClick={() => setOpenContactMenu(current => current === conversation.id ? null : conversation.id)}><MoreVertical size={17}/></button>
+            </div>
+            {openContactMenu === conversation.id && <div className="contact-menu-popover" onClick={event => event.stopPropagation()}>
+              <button onClick={() => { setContactToDelete(conversation); setOpenContactMenu(null); }}><Trash2 size={15}/>Remove contact</button>
+            </div>}
           </article>
         ))}
       </section>
+
+      {contactToDelete && <div className="contact-delete-overlay" onClick={() => !removingContact && setContactToDelete(null)}>
+        <div className="contact-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-contact-title" onClick={event => event.stopPropagation()}>
+          <div className="contact-delete-icon"><AlertTriangle size={24}/></div>
+          <h3 id="remove-contact-title">Remove {contactToDelete.name}?</h3>
+          <p>This permanently removes the connection for <strong>both of you</strong> and closes the direct chat. To message again, one of you must connect again.</p>
+          <div className="contact-delete-actions">
+            <button disabled={removingContact} onClick={() => setContactToDelete(null)}>Cancel</button>
+            <button className="danger" disabled={removingContact} onClick={removeSelectedContact}><Trash2 size={15}/>{removingContact ? 'Removing…' : 'Remove for both'}</button>
+          </div>
+        </div>
+      </div>}
     </div>
   );
 }
