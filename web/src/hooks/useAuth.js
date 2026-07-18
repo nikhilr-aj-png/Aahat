@@ -154,7 +154,7 @@ export function useAuth() {
     }).eq('id', user.id).then(({ error }) => {
       if (error) console.warn('Could not sync profile presence:', error.message);
     });
-    const shouldBeOnline = () => document.visibilityState === 'visible' && navigator.onLine;
+    const shouldBeOnline = () => navigator.onLine;
     const handleVisibility = () => { void syncPresence(shouldBeOnline()); };
     const handlePageHide = () => { void syncPresence(false); };
     handleVisibility();

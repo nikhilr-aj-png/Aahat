@@ -114,7 +114,9 @@ test('presence tracks visibility and connectivity without overwriting typing', a
   assert.match(presence, /event: 'leave'/);
   assert.match(presence, /typingRef\.current/);
   assert.match(presence, /window\.addEventListener\('offline'/);
-  assert.match(auth, /handleVisibility\(\);/);
+  assert.match(presence, /generationRef\.current/);
+  assert.match(presence, /setTimeout\([\s\S]+2500/);
+  assert.doesNotMatch(presence, /\['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'\][\s\S]+setOnlineUsers\(new Map\(\)\)/);  assert.match(auth, /handleVisibility\(\);/);
   assert.match(auth, /window\.setInterval\(handleVisibility, 15000\)/);
   assert.match(contacts, /\? 'Online' : 'Offline'/);
 });
@@ -124,4 +126,25 @@ test('conversation previews exclude messages deleted for the current user', asyn
   assert.match(conversations, /event: '\*', schema: 'public', table: 'messages'/);
   assert.match(conversations, /payload\.eventType !== 'INSERT'[\s\S]+fetchConversations\(\)/);
   assert.match(conversations, /previewText: '', previewTime: ''/);
+});
+test('background FCM push is token-scoped, one-time, and service-worker handled', async () => {
+  const [migration, fn, app, firebase, worker] = await Promise.all([
+    read('supabase/migrations/20260718_fcm_background_push.sql'),
+    read('supabase/functions/send-message-push/index.ts'),
+    read('web/src/App.jsx'),
+    read('web/src/firebase.js'),
+    read('web/public/sw.js')
+  ]);
+  assert.match(migration, /create table if not exists public\.push_tokens/);
+  assert.match(migration, /function public\.register_push_token/);
+  assert.match(migration, /trigger trg_dispatch_message_push/);
+  assert.match(migration, /push_dispatched_at/);
+  assert.match(fn, /firebase\.messaging/);
+  assert.match(fn, /\.is\('push_dispatched_at', null\)/);
+  assert.match(fn, /fcm\.googleapis\.com\/v1\/projects/);
+  assert.match(app, /rpc\('register_push_token'/);
+  assert.match(app, /URLSearchParams\(window\.location\.search\)/);
+  assert.match(firebase, /publicVapidKey/);
+  assert.match(worker, /onBackgroundMessage/);
+  assert.match(worker, /notificationclick/);
 });

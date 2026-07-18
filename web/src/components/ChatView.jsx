@@ -113,6 +113,21 @@ export default function ChatView({
     return () => window.cancelAnimationFrame(frame);
   }, [messages, typingUsers]);
 
+  // When the on-screen keyboard changes the visible viewport, keep the latest
+  // message visible without scrolling the document or moving the chat header.
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return undefined;
+    const keepLatestVisible = () => {
+      if (!stickToBottomRef.current) return;
+      window.requestAnimationFrame(() => {
+        const list = messagesListRef.current;
+        if (list) list.scrollTo({ top: list.scrollHeight, behavior: 'auto' });
+      });
+    };
+    viewport.addEventListener('resize', keepLatestVisible);
+    return () => viewport.removeEventListener('resize', keepLatestVisible);
+  }, [conversation?.id]);
   const handleScroll = () => {
     if (!messagesListRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = messagesListRef.current;
@@ -442,6 +457,13 @@ export default function ChatView({
           onCancelEdit={() => setEditingMessage(null)}
           onSetTyping={onSetTyping}
           conversationId={conversation.id}
+          onInputFocus={() => {
+            stickToBottomRef.current = true;
+            window.requestAnimationFrame(() => {
+              const list = messagesListRef.current;
+              if (list) list.scrollTo({ top: list.scrollHeight, behavior: 'auto' });
+            });
+          }}
         />
       </div>
 

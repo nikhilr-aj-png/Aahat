@@ -202,3 +202,26 @@ test('selection mode uses the whole message and direct status hides bio', async 
   assert.match(theme, /\.message-bubble-wrapper\.selection-mode[\s\S]+width:\s*100%/);
   assert.match(theme, /max-width:\s*calc\(100% - 32px\)/);
 });
+test('mobile keyboard keeps the header pinned and resizes only messages', async () => {
+  const [app, chatView, chatInput, styles] = await Promise.all([
+    read('web/src/App.jsx'),
+    read('web/src/components/ChatView.jsx'),
+    read('web/src/components/ChatInput.jsx'),
+    read('web/src/index.css')
+  ]);
+  assert.match(app, /window\.visualViewport/);
+  assert.match(app, /--aahat-chat-viewport-height/);
+  assert.match(chatView, /viewport\.addEventListener\('resize', keepLatestVisible\)/);
+  assert.match(chatInput, /onFocus=\{onInputFocus\}/);
+  assert.match(styles, /Stable mobile keyboard viewport/);
+  assert.match(styles, /\.app-container\.mobile-chat-open \.chat-header[\s\S]+position:\s*sticky/);
+  assert.match(styles, /\.app-container\.mobile-chat-open \.messages-list[\s\S]+flex:\s*1 1 auto/);
+});
+
+test('live chat does not contain demo smart auto-fill messages', async () => {
+  const input = await read('web/src/components/ChatInput.jsx');
+  assert.doesNotMatch(input, /AI_SUGGESTIONS/);
+  assert.doesNotMatch(input, /triggerAISuggestion/);
+  assert.doesNotMatch(input, /btn-ai-assistant/);
+  assert.doesNotMatch(input, /telemetry charts/);
+});

@@ -1,24 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
-import { Paperclip, Send, X, Camera, Mic, MicOff, Sparkles, Smile, RefreshCw, FileText } from 'lucide-react';
+import { Paperclip, Send, X, Camera, Mic, MicOff, Smile, RefreshCw, FileText } from 'lucide-react';
 
 const POPULAR_EMOJIS = ['😊', '😂', '🔥', '👍', '❤️', '👏', '🙌', '🎉', '✨', '💡'];
 const SAFE_POPULAR_EMOJIS = POPULAR_EMOJIS.map((emoji, index) => [
   '\u{1F60A}', '\u{1F602}', '\u{1F525}', '\u{1F44D}', '\u{2764}\u{FE0F}',
   '\u{1F44F}', '\u{1F64C}', '\u{1F389}', '\u{2728}', '\u{1F4A1}'
 ][index] || emoji);
-const AI_SUGGESTIONS = [
-  "Hey! Checking out the glassmorphic designs right now!",
-  "Great to meet you. Let's sync up later today!",
-  "That looks incredibly premium! Love the soft dark theme.",
-  "Let me check the telemetry charts and update the code.",
-  "Absolutely! Let's schedule a video call in 10 minutes."
-];
+
 
 /**
  * ChatInput — Message input bar with file attachments, camera upload simulation,
- * voice note recording simulation, emoji shortcuts, and smart AI assistant completions.
+ * voice note recording, attachments, camera capture, and emoji shortcuts.
  */
-export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply, editingMessage, onCancelEdit, onSetTyping, conversationId }) {
+export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply, editingMessage, onCancelEdit, onSetTyping, conversationId, onInputFocus }) {
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -293,11 +287,6 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
     }
   };
 
-  const triggerAISuggestion = () => {
-    const randomIndex = Math.floor(Math.random() * AI_SUGGESTIONS.length);
-    setInputText(AI_SUGGESTIONS[randomIndex]);
-  };
-
   const insertEmoji = (emoji) => {
     setInputText(prev => prev + emoji);
     setShowEmojiPicker(false);
@@ -450,24 +439,13 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
                 value={inputText}
                 onChange={e => handleTypingChange(e.target.value)}
                 onKeyDown={handleKeyDown}
+                onFocus={onInputFocus}
                 disabled={isUploading}
                 id="message-input"
                 autoComplete="off"
               />
             )}
 
-            {/* Smart AI Assistant Button */}
-            {!isRecording && (
-              <button
-                type="button"
-                className="btn-ai-autocomplete"
-                onClick={triggerAISuggestion}
-                title="AI Smart Autocomplete Suggestion"
-                id="btn-ai-assistant"
-              >
-                <Sparkles size={14} />
-              </button>
-            )}
           </div>
 
           {/* Voice Record Toggle Button */}

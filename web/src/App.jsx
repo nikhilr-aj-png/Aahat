@@ -109,6 +109,30 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Lock an open mobile chat to the browser's actually visible area. This keeps
+  // the contact header fixed while only the message list shrinks for the keyboard.
+  useEffect(() => {
+    const isOpenMobileChat = isMobile && activeTab === 'chats' && selectedConversationId;
+    if (!isOpenMobileChat) return undefined;
+    const viewport = window.visualViewport;
+    const syncViewport = () => {
+      const height = Math.round(viewport?.height || window.innerHeight);
+      const offsetTop = Math.round(viewport?.offsetTop || 0);
+      document.documentElement.style.setProperty('--aahat-chat-viewport-height', `${height}px`);
+      document.documentElement.style.setProperty('--aahat-chat-viewport-top', `${offsetTop}px`);
+    };
+    syncViewport();
+    viewport?.addEventListener('resize', syncViewport);
+    viewport?.addEventListener('scroll', syncViewport);
+    window.addEventListener('resize', syncViewport);
+    return () => {
+      viewport?.removeEventListener('resize', syncViewport);
+      viewport?.removeEventListener('scroll', syncViewport);
+      window.removeEventListener('resize', syncViewport);
+      document.documentElement.style.removeProperty('--aahat-chat-viewport-height');
+      document.documentElement.style.removeProperty('--aahat-chat-viewport-top');
+    };
+  }, [isMobile, activeTab, selectedConversationId]);
   // Read means the conversation is actually open in a visible browser tab.
   useEffect(() => {
     if (!selectedConversationId || activeMessages.length === 0 || activeTab !== 'chats') return undefined;
@@ -248,24 +272,37 @@ export default function App() {
       supabase.removeChannel(toastChannel);
     };
   }, [user, conversations]);
-  // FCM Registration
-  const handleRequestNotificationPermission = useCallback(async () => {
+  // FCM registration is tied to the current account through a security-definer
+  // RPC so a shared browser token cannot remain attached to a previous user.
+  const registerPushToken = useCallback(async (showFeedback = false) => {
     try {
       const token = await requestNotificationPermission();
       if (token && user) {
-        const { error } = await supabase.from('push_tokens').upsert({
-          user_id: user.id, token, provider: 'fcm', is_active: true, updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id,token' });
+        const { error } = await supabase.rpc('register_push_token', {
+          p_token: token,
+          p_provider: 'fcm'
+        });
         if (error) throw error;
-        alert("Push notifications enabled successfully!");
-      } else {
+        if (showFeedback) alert("Push notifications enabled successfully!");
+      } else if (showFeedback) {
         alert("Notification permission denied or failed.");
       }
     } catch (e) {
-      alert("Error enabling notifications: " + e.message);
+      if (showFeedback) alert("Error enabling notifications: " + e.message);
+      else console.warn('Could not refresh push token:', e.message);
     }
   }, [user]);
 
+  const handleRequestNotificationPermission = useCallback(
+    () => registerPushToken(true),
+    [registerPushToken]
+  );
+
+  useEffect(() => {
+    if (user && 'Notification' in window && Notification.permission === 'granted') {
+      void registerPushToken(false);
+    }
+  }, [user, registerPushToken]);
   // Popstate for mobile back
   useEffect(() => {
     const handlePopState = () => {
@@ -291,6 +328,16 @@ export default function App() {
     setIsMobileSidebarOpen(false);
   }, [selectConversation]);
 
+  // A background notification opens the exact conversation encoded by the
+  // service worker, then removes the routing query from the address bar.
+  useEffect(() => {
+    const conversationId = new URLSearchParams(window.location.search).get('conversation');
+    if (!conversationId || !conversations.some(item => item.id === conversationId)) return;
+    handleSelectConversation(conversationId);
+    const cleanUrl = new URL(window.location.href);
+    cleanUrl.searchParams.delete('conversation');
+    window.history.replaceState(window.history.state, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
+  }, [conversations, handleSelectConversation]);
   const handleMobileBack = useCallback(() => {
     if (window.history.state?.isChatOpen) {
       window.history.back();
