@@ -111,6 +111,25 @@ export default function ClockIntegrityGate({ children }) {
 
   if (state === 'valid') return children;
 
+  if (state === 'checking') {
+    return (
+      <main className="clock-gate-shell is-checking" role="status" aria-live="polite" aria-label="Preparing Aahat">
+        <section className="clock-gate-splash">
+          <div className="clock-splash-mark" aria-hidden="true">
+            <span className="clock-splash-orbit"><i /></span>
+            <span className="clock-splash-halo" />
+            <img src="/logo.png" alt="" className="clock-splash-logo" />
+          </div>
+          <p className="clock-splash-brand">AAHAT</p>
+          <h1>Preparing your secure space</h1>
+          <p className="clock-splash-copy">Syncing trusted time before your conversations open.</p>
+          <div className="clock-splash-progress" aria-hidden="true"><span /></div>
+          <p className="clock-splash-status"><span />Protected time check</p>
+        </section>
+      </main>
+    );
+  }
+
   const isInvalid = state === 'invalid';
   const isUnavailable = state === 'unavailable';
   return (

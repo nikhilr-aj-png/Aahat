@@ -1,0 +1,58 @@
+.touch-refresh-indicator {
+  --pull-distance: 0px;
+  --pull-rotation: 0deg;
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 5000;
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 15px 0 8px;
+  gap: 9px;
+  color: #dcd6f5;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  border: 1px solid rgba(164, 151, 255, .2);
+  border-radius: 999px;
+  background: rgba(14, 9, 38, .94);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .34), 0 0 24px rgba(95, 52, 247, .12);
+  backdrop-filter: blur(16px) saturate(125%);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, calc(-130% + min(var(--pull-distance), 76px))) scale(.94);
+  transition: opacity .16s ease, transform .16s ease, border-color .16s ease;
+}
+
+.touch-refresh-indicator.is-visible {
+  opacity: 1;
+}
+
+.touch-refresh-indicator.is-ready,
+.touch-refresh-indicator.is-refreshing {
+  color: #fff;
+  border-color: rgba(144, 120, 255, .48);
+}
+
+.touch-refresh-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  color: #a99cff;
+  border-radius: 50%;
+  background: rgba(95, 52, 247, .16);
+  transform: rotate(var(--pull-rotation));
+}
+
+.touch-refresh-indicator.is-refreshing .touch-refresh-icon svg {
+  animation: touch-refresh-spin .7s linear infinite;
+}
+
+@keyframes touch-refresh-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .touch-refresh-indicator { transition: opacity .1s linear; }
+  .touch-refresh-indicator.is-refreshing .touch-refresh-icon svg { animation-duration: 1.5s; }
+}

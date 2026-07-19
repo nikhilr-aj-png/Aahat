@@ -298,3 +298,41 @@ test('tablet app shell follows the dynamic viewport and keeps the bottom edge vi
   assert.match(polish, /\.app-container \{[\s\S]*?height: 100%;[\s\S]*?max-height: 100%;[\s\S]*?min-height: 0;/);
   assert.match(polish, /\.settings-panel-container,[\s\S]*?\.status-section-container \{[\s\S]*?min-height: 0;/);
 });
+
+test('trusted-time startup uses a compact branded splash while failures stay actionable', async () => {
+  const [gate, styles] = await Promise.all([
+    read('web/src/components/ClockIntegrityGate.jsx'),
+    read('web/src/clock-integrity.css')
+  ]);
+  assert.match(gate, /state === 'checking'/);
+  assert.match(gate, /clock-gate-splash/);
+  assert.match(gate, /Preparing your secure space/);
+  assert.match(gate, /role="status" aria-live="polite"/);
+  assert.match(gate, /role="alert" aria-live="assertive"/);
+  assert.match(gate, /Check again/);
+  assert.match(styles, /\.clock-splash-orbit/);
+  assert.match(styles, /\.clock-splash-progress/);
+  assert.match(styles, /prefers-reduced-motion/);
+});
+
+test('every touch-capable device can pull from the top edge to refresh Aahat', async () => {
+  const [component, styles, main] = await Promise.all([
+    read('web/src/components/TouchPullToRefresh.jsx'),
+    read('web/src/components/TouchPullToRefresh.css'),
+    read('web/src/main.jsx')
+  ]);
+  assert.match(component, /navigator\.maxTouchPoints/);
+  assert.match(component, /touch\.clientY > EDGE_START_PX/);
+  assert.match(component, /scrollTop > 0/);
+  assert.match(component, /REFRESH_THRESHOLD_PX/);
+  assert.match(component, /document\.addEventListener\('touchmove', handleTouchMove, \{ passive: false \}\)/);
+  assert.match(component, /event\.preventDefault\(\)/);
+  assert.match(component, /window\.location\.reload\(\)/);
+  assert.match(component, /Release to refresh/);
+  assert.doesNotMatch(component, /innerWidth|matchMedia|769px|1366px/);
+  assert.match(styles, /\.touch-refresh-indicator/);
+  assert.match(styles, /safe-area-inset-top/);
+  assert.match(styles, /z-index: 5000/);
+  assert.match(main, /import TouchPullToRefresh/);
+  assert.match(main, /<TouchPullToRefresh \/>/);
+});

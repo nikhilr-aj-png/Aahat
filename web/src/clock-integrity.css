@@ -107,3 +107,188 @@
   .clock-gate-retry .is-spinning { animation-duration: 1.6s; }
 }
 
+/* Compact branded startup state. Blocking/error states continue to use the
+   actionable card above, while a normal time check feels like an app launch. */
+.clock-gate-shell.is-checking {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(105, 72, 255, .17), transparent 28%),
+    radial-gradient(circle at 15% 10%, rgba(76, 48, 190, .11), transparent 32%),
+    linear-gradient(145deg, #09051d 0%, #0d0826 48%, #080517 100%);
+}
+
+.clock-gate-shell.is-checking::before,
+.clock-gate-shell.is-checking::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  border: 1px solid rgba(142, 119, 255, .075);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.clock-gate-shell.is-checking::before {
+  width: min(78vw, 760px);
+  aspect-ratio: 1;
+  animation: clock-splash-breathe 5.5s ease-in-out infinite;
+}
+
+.clock-gate-shell.is-checking::after {
+  width: min(54vw, 520px);
+  aspect-ratio: 1;
+  opacity: .72;
+  animation: clock-splash-breathe 5.5s 1.1s ease-in-out infinite reverse;
+}
+
+.clock-gate-splash {
+  width: min(100%, 360px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.clock-splash-mark {
+  position: relative;
+  width: 116px;
+  height: 116px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 24px;
+}
+
+.clock-splash-logo {
+  position: relative;
+  z-index: 3;
+  width: 70px;
+  height: 70px;
+  object-fit: contain;
+  border-radius: 21px;
+  filter: drop-shadow(0 16px 24px rgba(50, 22, 170, .38));
+  animation: clock-splash-float 2.8s ease-in-out infinite;
+}
+
+.clock-splash-halo {
+  position: absolute;
+  inset: 19px;
+  border-radius: 28px;
+  background: rgba(95, 52, 247, .22);
+  filter: blur(18px);
+  animation: clock-splash-pulse 2.4s ease-in-out infinite;
+}
+
+.clock-splash-orbit {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(167, 151, 255, .2);
+  border-radius: 50%;
+  animation: clock-splash-spin 3.2s linear infinite;
+}
+
+.clock-splash-orbit::before {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border: 1px dashed rgba(134, 105, 255, .13);
+  border-radius: inherit;
+}
+
+.clock-splash-orbit i {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9d8cff;
+  box-shadow: 0 0 0 5px rgba(157, 140, 255, .1), 0 0 18px #735fff;
+}
+
+.clock-splash-brand {
+  margin: 0 0 8px;
+  color: #a99cff;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .34em;
+}
+
+.clock-gate-splash h1 {
+  margin: 0;
+  max-width: 330px;
+  color: #f5f2ff;
+  font-size: clamp(1.45rem, 4vw, 1.9rem);
+  line-height: 1.18;
+  letter-spacing: -.035em;
+}
+
+.clock-splash-copy {
+  max-width: 300px;
+  margin: 12px 0 0;
+  color: #9690ad;
+  font-size: .88rem;
+  line-height: 1.55;
+}
+
+.clock-splash-progress {
+  width: min(100%, 230px);
+  height: 3px;
+  margin-top: 26px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .075);
+}
+
+.clock-splash-progress span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, #8d79ff, #c0b6ff, transparent);
+  animation: clock-splash-progress 1.35s ease-in-out infinite;
+}
+
+.clock-splash-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 13px 0 0;
+  color: #77718c;
+  font-size: .69rem;
+  font-weight: 650;
+  letter-spacing: .03em;
+}
+
+.clock-splash-status span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #58d7bb;
+  box-shadow: 0 0 9px rgba(88, 215, 187, .65);
+  animation: clock-splash-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes clock-splash-spin { to { transform: rotate(360deg); } }
+@keyframes clock-splash-progress { from { transform: translateX(-120%); } to { transform: translateX(340%); } }
+@keyframes clock-splash-float { 50% { transform: translateY(-4px) scale(1.015); } }
+@keyframes clock-splash-pulse { 50% { opacity: .48; transform: scale(.9); } }
+@keyframes clock-splash-breathe { 50% { opacity: .42; transform: scale(1.045); } }
+
+@media (max-width: 420px) {
+  .clock-gate-splash { padding: 18px; }
+  .clock-splash-mark { width: 104px; height: 104px; margin-bottom: 20px; }
+  .clock-splash-logo { width: 64px; height: 64px; border-radius: 19px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clock-gate-shell.is-checking::before,
+  .clock-gate-shell.is-checking::after,
+  .clock-splash-logo,
+  .clock-splash-halo,
+  .clock-splash-orbit,
+  .clock-splash-status span { animation: none; }
+  .clock-splash-progress span { animation-duration: 2.8s; }
+}
+
