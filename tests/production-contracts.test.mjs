@@ -228,6 +228,7 @@ test('voice and video calling attach remote audio and recover signaling gaps', a
 });
 
 test('chat header search and info use full-history server methods with safe fallbacks', async () => {
+
   const [hook, chat, migration] = await Promise.all([
     read('web/src/hooks/useMessagesProduction.js'),
     read('web/src/components/ChatView.jsx'),
@@ -241,6 +242,22 @@ test('chat header search and info use full-history server methods with safe fall
   assert.match(chat, /<video src=\{media\.attachment_url\} controls/);
   assert.match(migration, /function public\.search_conversation_messages/);
   assert.match(migration, /function public\.list_conversation_media/);
+});
+
+test('incoming call reconnect stays background-only and does not duplicate subscriptions', async () => {
+  const calling = await read('web/src/hooks/useCallingSecure.js');
+
+  assert.match(calling, /logBackgroundReconnect/);
+  assert.match(calling, /Supabase will retry in the background/);
+  assert.match(calling, /userChannelRef\.current !== channel/);
+  assert.match(calling, /if \(channel\) supabase\.removeChannel\(channel\)/);
+  assert.match(calling, /\[receiveInvitation, user\?\.id\]/);
+  assert.doesNotMatch(calling, /Incoming call service is reconnecting/);
+  assert.doesNotMatch(calling, /Incoming calls will reconnect when this device is online/);
+  assert.doesNotMatch(
+    calling,
+    /CHANNEL_ERROR[\s\S]{0,180}setCallError/
+  );
 });
 
 test('three-dot actions confirm destructive work and never delete membership', async () => {
@@ -313,22 +330,27 @@ test('trusted-time startup stays hidden and a clock change opens only a compact 
   assert.match(styles, /width: min\(100%, 350px\)/);
 });
 
-test('every touch-capable device can pull from the top edge to refresh Aahat', async () => {
+test('touch devices pull to refresh from chat areas only when their scroll position starts at the top', async () => {
   const [component, styles, main] = await Promise.all([
     read('web/src/components/TouchRefreshGesture.jsx'),
     read('web/src/components/TouchPullToRefresh.css'),
     read('web/src/main.jsx')
   ]);
   assert.match(component, /navigator\.maxTouchPoints/);
-  assert.match(component, /touch-refresh-edge/);
-  assert.match(component, /onPointerDown=\{handlePointerDown\}/);
-  assert.match(component, /setPointerCapture/);
+  assert.match(component, /CHAT_GESTURE_AREA/);
+  assert.match(component, /findScrollableParent/);
+  assert.match(component, /scrollParent\.scrollTop <= TOP_TOLERANCE_PX/);
+  assert.match(component, /document\.addEventListener\('touchmove', handleTouchMove, \{ passive: false/);
+  assert.match(component, /event\.preventDefault\(\)/);
+  assert.match(component, /Math\.abs\(deltaX\)/);
+  assert.match(component, /GESTURE_EXCLUSIONS/);
+  assert.match(component, /deltaY \* PULL_RESISTANCE/);
   assert.match(component, /REFRESH_THRESHOLD_PX/);
   assert.match(component, /window\.location\.reload\(\)/);
   assert.match(component, /Release to refresh/);
-  assert.doesNotMatch(component, /innerWidth|matchMedia|769px|1366px/);
-  assert.match(styles, /\.touch-refresh-edge/);
-  assert.match(styles, /touch-action: none/);
+  assert.doesNotMatch(component, /innerWidth|769px|1366px/);
+  assert.doesNotMatch(styles, /\.touch-refresh-edge/);
+  assert.match(styles, /overscroll-behavior-y: contain/);
   assert.match(styles, /\.touch-refresh-indicator/);
   assert.match(styles, /safe-area-inset-top/);
   assert.match(styles, /z-index: 5000/);

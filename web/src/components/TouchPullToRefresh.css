@@ -1,14 +1,6 @@
-.touch-refresh-edge {
-  position: fixed;
-  top: 0;
-  right: 0;
-  left: 0;
-  z-index: 4999;
-  height: max(20px, env(safe-area-inset-top));
-  background: transparent;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
+.chat-list-section,
+.messages-list {
+  overscroll-behavior-y: contain;
 }
 
 .touch-refresh-indicator {

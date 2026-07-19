@@ -335,25 +335,34 @@ export function useCallingSecure(user) {
   }, [loadContact, sendCallEvent, subscribeToCall, updateLocalCall, user?.id]);
 
   useEffect(() => {
-    if (!user) return undefined;
+    if (!user?.id) return undefined;
     let disposed = false;
+    let channel = null;
+    const logBackgroundReconnect = status => {
+      console.warn(`Incoming call channel ${String(status).toLowerCase()}; Supabase will retry in the background.`);
+    };
+
     const connect = async () => {
       await supabase.realtime.setAuth();
-      const channel = supabase
+      if (disposed) return;
+      channel = supabase
         .channel(`call:user:${user.id}`, { config: { private: true, broadcast: { ack: true, self: false } } })
         .on('broadcast', { event: 'invite' }, message => receiveInvitation(message.payload).catch(error => setCallError(error.message)));
+      userChannelRef.current = channel;
       channel.subscribe(status => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') setCallError('Incoming call service is reconnecting.');
+        if (disposed || userChannelRef.current !== channel) return;
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') logBackgroundReconnect(status);
       });
-      if (!disposed) userChannelRef.current = channel;
     };
-    connect().catch(error => setCallError(error.message || 'Incoming call service failed.'));
+    connect().catch(error => {
+      if (!disposed) logBackgroundReconnect(error.message || 'connection failed');
+    });
     return () => {
       disposed = true;
-      if (userChannelRef.current) supabase.removeChannel(userChannelRef.current);
-      userChannelRef.current = null;
+      if (channel) supabase.removeChannel(channel);
+      if (userChannelRef.current === channel) userChannelRef.current = null;
     };
-  }, [receiveInvitation, user]);
+  }, [receiveInvitation, user?.id]);
 
   useEffect(() => {
     if (!user || callStateRef.current) return undefined;
