@@ -18,5 +18,5 @@
   "background_color": "#09051D",
   "theme_color": "#09051D",
   "display": "standalone",
-  "orientation": "portrait-primary"
+  "orientation": "landscape-primary"
 }

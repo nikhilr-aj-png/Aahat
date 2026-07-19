@@ -3,10 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/logo.png" />
-    <link rel="manifest" href="/manifest.json" />
+    <link id="aahat-manifest" rel="manifest" href="/manifest.json" />
+    <script>
+      (() => {
+        const userAgent = navigator.userAgent || '';
+        const touchPoints = navigator.maxTouchPoints || 0;
+        const smallestSide = Math.min(screen.width, screen.height);
+        const largestSide = Math.max(screen.width, screen.height);
+        const coarsePointer = window.matchMedia?.('(pointer: coarse)').matches === true;
+        const isIPadDesktopMode = /Macintosh/i.test(userAgent) && touchPoints > 1;
+        const isAndroidTablet = /Android/i.test(userAgent) && !/Mobile/i.test(userAgent);
+        const isTabletSizedTouchscreen = touchPoints > 0
+          && coarsePointer
+          && smallestSide >= 600
+          && largestSide <= 1600;
+        const isTablet = /iPad|Tablet|PlayBook|Silk/i.test(userAgent)
+          || isIPadDesktopMode
+          || isAndroidTablet
+          || isTabletSizedTouchscreen;
+
+        if (isTablet) {
+          document.getElementById('aahat-manifest').href = '/manifest-tablet.json';
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Aahat (आहट) — a premium private messenger for real-time conversations." />
-    <meta name="theme-color" content="#26127B" />
+    <meta name="theme-color" content="#09051D" />
     <meta property="og:title" content="Aahat (आहट) — Private Messenger" />
     <meta property="og:description" content="Premium real-time messaging with a glassmorphic dark interface." />
     <meta property="og:type" content="website" />

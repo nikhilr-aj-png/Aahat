@@ -491,9 +491,9 @@ export default function App() {
 
   if (isAuthLoading) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg-gradient)', color: 'var(--text-primary)' }}>
+      <div className="app-loading-screen" role="status" aria-live="polite">
         <BrandLogo />
-        <span style={{ fontSize: '14px', fontWeight: '500', letterSpacing: '1px', opacity: 0.8 }}>Loading Aahat...</span>
+        <span className="app-loading-label">Loading Aahat...</span>
       </div>
     );
   }

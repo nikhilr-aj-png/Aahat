@@ -1,9 +1,10 @@
-const CACHE_NAME = 'aahat-v3';
+const CACHE_NAME = 'aahat-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/logo.png',
-  '/manifest.json'
+  '/manifest.json',
+  '/manifest-tablet.json'
 ];
 
 self.addEventListener('install', (event) => {

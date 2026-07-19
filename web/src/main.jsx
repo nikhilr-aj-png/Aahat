@@ -9,6 +9,7 @@ import App from './App.jsx'
 import TouchRefreshGesture from './components/TouchRefreshGesture.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import ClockIntegrityGate from './components/ClockIntegrityGate.jsx'
+import { applyInstalledPwaOrientation } from './utils/pwaOrientation.js'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -22,6 +23,18 @@ createRoot(document.getElementById('root')).render(
     </ErrorBoundary>
   </StrictMode>,
 )
+const syncInstalledOrientation = () => {
+  void applyInstalledPwaOrientation();
+};
+
+syncInstalledOrientation();
+window.addEventListener('pageshow', syncInstalledOrientation);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    syncInstalledOrientation();
+  }
+});
+
 
 // Register the production PWA worker only in production. A service worker on
 // localhost can keep old CSS/JS alive and make visual fixes appear stale.

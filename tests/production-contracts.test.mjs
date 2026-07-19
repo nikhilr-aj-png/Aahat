@@ -335,3 +335,36 @@ test('every touch-capable device can pull from the top edge to refresh Aahat', a
   assert.match(main, /import TouchRefreshGesture/);
   assert.match(main, /<TouchRefreshGesture \/>/);
 });
+
+test('startup loader is one solid viewport and installed PWA orientation follows the device class', async () => {
+  const [app, styles, mobileManifestSource, tabletManifestSource, html, orientation, worker] = await Promise.all([
+    read('web/src/App.jsx'),
+    read('web/src/index.css'),
+    read('web/public/manifest.json'),
+    read('web/public/manifest-tablet.json'),
+    read('web/index.html'),
+    read('web/src/utils/pwaOrientation.js'),
+    read('web/public/sw.js')
+  ]);
+  const mobileManifest = JSON.parse(mobileManifestSource);
+  const tabletManifest = JSON.parse(tabletManifestSource);
+
+  assert.match(app, /className="app-loading-screen"/);
+  assert.match(app, /className="app-loading-label"/);
+  assert.match(styles, /\.app-loading-screen \{[\s\S]*?position: fixed;[\s\S]*?inset: 0;/);
+  assert.match(styles, /\.app-loading-screen \{[\s\S]*?width: 100%;[\s\S]*?height: 100dvh;/);
+  assert.match(styles, /\.app-loading-screen \{[\s\S]*?background: #09051d;/);
+  assert.doesNotMatch(app, /Loading Aahat[\s\S]{0,200}var\(--bg-gradient\)/);
+
+  assert.equal(mobileManifest.orientation, 'portrait-primary');
+  assert.equal(tabletManifest.orientation, 'landscape-primary');
+  assert.equal(mobileManifest.background_color, '#09051D');
+  assert.equal(tabletManifest.background_color, '#09051D');
+  assert.match(html, /id="aahat-manifest"/);
+  assert.match(html, /manifest-tablet\.json/);
+  assert.match(html, /smallestSide >= 600/);
+  assert.match(orientation, /display-mode: standalone/);
+  assert.match(orientation, /isTabletDevice\(\) \? 'landscape' : 'portrait'/);
+  assert.match(orientation, /screen\.orientation\.lock/);
+  assert.match(worker, /manifest-tablet\.json/);
+});
