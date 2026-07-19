@@ -298,7 +298,7 @@ export default function ChatView({
   };
   const handleForwardToContact = async targetConvId => {
     if (!forwardingMessages.length) return;
-    await Promise.all(forwardingMessages.map(message => onForwardMessage?.(message.content, message.attachment_url, targetConvId)));
+    await Promise.all(forwardingMessages.map(message => onForwardMessage?.(message, targetConvId)));
     setForwardingMessages([]);
     setSelectedMessageIds(new Set());
     alert(`${forwardingMessages.length} message(s) forwarded successfully!`);

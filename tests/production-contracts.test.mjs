@@ -236,6 +236,7 @@ test('chat header search and info use full-history server methods with safe fall
   assert.match(hook, /rpc\('search_conversation_messages'/);
   assert.match(hook, /PGRST202/);
   assert.match(hook, /rpc\('list_conversation_media'/);
+  assert.match(hook, /\.not\('attachment_url', 'is', null\)/);
   assert.match(chat, /Searching the full conversation/);
   assert.match(chat, /<video src=\{media\.attachment_url\} controls/);
   assert.match(migration, /function public\.search_conversation_messages/);
@@ -283,4 +284,17 @@ test('status creator fills the workspace and public channel creation is atomic',
   assert.match(channels, /public-channel-directory/);
   assert.match(migration, /insert into public\.channels[\s\S]*insert into public\.channel_members/);
   assert.match(migration, /Repair channels created by the former two-query client flow/);
+});
+
+test('tablet app shell follows the dynamic viewport and keeps the bottom edge visible', async () => {
+  const [base, polish] = await Promise.all([
+    read('web/src/index.css'),
+    read('web/src/resonance.css')
+  ]);
+  assert.match(base, /#root[\s\S]*?height: 100vh;[\s\S]*?height: 100dvh;/);
+  assert.match(base, /height: calc\(100dvh - 24px\)/);
+  assert.match(polish, /@media \(min-width: 769px\) and \(max-width: 1366px\)/);
+  assert.match(polish, /padding-bottom: max\(8px, env\(safe-area-inset-bottom\)\)/);
+  assert.match(polish, /\.app-container \{[\s\S]*?height: 100%;[\s\S]*?max-height: 100%;[\s\S]*?min-height: 0;/);
+  assert.match(polish, /\.settings-panel-container,[\s\S]*?\.status-section-container \{[\s\S]*?min-height: 0;/);
 });

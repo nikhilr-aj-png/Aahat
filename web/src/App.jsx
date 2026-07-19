@@ -80,7 +80,7 @@ export default function App() {
     callState, callDuration, isMuted: isCallMuted, isCameraOff, isSpeakerOn, isScreenSharing,
     localStream, remoteStream, callError, clearCallError,
     startCall, answerCall, hangup, rejectCall,
-    toggleMute: toggleCallMute, toggleCamera, toggleScreenShare, setIsSpeakerOn
+    toggleMute: toggleCallMute, toggleCamera, switchCamera, toggleScreenShare, setIsSpeakerOn
   } = useCalling(user);
 
   // --- Statuses ---
@@ -622,19 +622,18 @@ export default function App() {
               onSetTyping={setTyping}
               currentUserId={user?.id}
               isUserOnline={isUserOnline}
-              onForwardMessage={async (text, attachmentUrl, targetConvId) => {
+              onForwardMessage={async (message, targetConvId) => {
                 if (!user || !targetConvId) return;
-                const messageType = attachmentUrl
-                  ? (attachmentUrl.match(/\.(mp4|webm|mov)/i) ? 'video'
-                    : attachmentUrl.match(/\.(pdf|doc|docx|zip)/i) ? 'file'
-                    : 'image')
-                  : 'text';
                 await supabase.from('messages').insert({
                   conversation_id: targetConvId,
                   sender_id: user.id,
-                  content: text || '',
-                  attachment_url: attachmentUrl || null,
-                  message_type: messageType
+                  content: message.content || '',
+                  attachment_url: message.attachment_url || null,
+                  attachment_name: message.attachment_name || null,
+                  attachment_size: message.attachment_size || null,
+                  attachment_mime_type: message.attachment_mime_type || null,
+                  message_type: message.message_type || 'text',
+                  forwarded_from_id: message.id
                 });
               }}
               onFetchGroupMembers={fetchGroupMembers}
@@ -773,9 +772,10 @@ export default function App() {
           remoteStream={remoteStream}
           onHangup={hangup}
           onReject={rejectCall}
-          onAnswer={() => answerCall(callState.callId, callState.contact?.id, callState.type)}
+          onAnswer={answerCall}
           onToggleMute={toggleCallMute}
           onToggleCamera={toggleCamera}
+          onSwitchCamera={switchCamera}
           onToggleScreenShare={toggleScreenShare}
           onToggleSpeaker={() => setIsSpeakerOn(!isSpeakerOn)}
         />

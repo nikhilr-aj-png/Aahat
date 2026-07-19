@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabase';
+export { useCallingSecure as useCalling } from './useCallingSecure';
+
 
 /**
  * useCalling — WebRTC voice/video calling with Supabase Realtime signaling.
@@ -21,7 +23,7 @@ const ICE_SERVERS = [
   ...TURN_SERVER
 ];
 
-export function useCalling(user) {
+export function useCallingLegacy(user) {
   const [callState, setCallState] = useState(null);
   // callState shape: { callId, conversationId, contact, type: 'voice'|'video', isRinging, isIncoming, duration }
 

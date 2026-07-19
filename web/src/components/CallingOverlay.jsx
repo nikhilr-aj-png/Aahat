@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume2, VolumeX, Monitor } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume2, VolumeX, Monitor, RefreshCw } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 
 /**
@@ -21,6 +21,7 @@ export default function CallingOverlay({
   onToggleMute,
   onToggleCamera,
   onToggleScreenShare,
+  onSwitchCamera,
   onToggleSpeaker
 }) {
   const localVideoRef = useRef(null);
@@ -48,6 +49,14 @@ export default function CallingOverlay({
 
   const { contact, type, isRinging, isIncoming } = callState;
   const isVideo = type === 'video';
+  const statusLabels = {
+    calling: 'Calling…', ringing: isIncoming ? 'Incoming call…' : 'Ringing…',
+    connecting: 'Connecting securely…', connected: 'Connected',
+    disconnected: 'Network changed · reconnecting…', failed: 'Call failed',
+    rejected: 'Call declined', missed: 'Missed call', ended: 'Call ended', busy: 'User is busy'
+  };
+  const statusLabel = statusLabels[callState.status] || (isRinging ? 'Ringing…' : 'Connecting…');
+
 
   // Format duration
   const formatDuration = (seconds) => {
@@ -151,10 +160,7 @@ export default function CallingOverlay({
                 {contact?.name || 'Unknown'}
               </h2>
               <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-                {isIncoming
-                  ? `Incoming ${isVideo ? 'video' : 'voice'} call...`
-                  : `Calling...`
-                }
+                {isIncoming ? `Incoming ${isVideo ? 'video' : 'voice'} call · ${statusLabel}` : statusLabel}
               </p>
             </div>
 
@@ -235,6 +241,9 @@ export default function CallingOverlay({
               </p>
             </div>
 
+              <small style={{ display: 'block', marginTop: '5px', color: 'var(--text-secondary)' }}>
+                {statusLabel}
+              </small>
             {/* Bottom: controls */}
             <div style={{
               display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center',
@@ -284,6 +293,21 @@ export default function CallingOverlay({
                 {isSpeakerOn ? <Volume2 size={20} /> : <VolumeX size={20} />}
               </button>
 
+
+              {isVideo && (
+                <button
+                  onClick={onSwitchCamera}
+                  style={{
+                    width: '48px', height: '48px', borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.1)',
+                    border: '1px solid rgba(255,255,255,0.15)', color: 'white',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}
+                  title="Switch camera"
+                >
+                  <RefreshCw size={20} />
+                </button>
+              )}
               {isVideo && (
                 <button
                   onClick={onToggleScreenShare}

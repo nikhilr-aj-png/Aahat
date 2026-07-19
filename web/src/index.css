@@ -101,6 +101,7 @@ body {
   background: var(--bg-gradient);
   color: var(--text-primary);
   min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
   line-height: 1.5;
 }
@@ -108,6 +109,7 @@ body {
 #root {
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -402,6 +404,7 @@ body {
   width: 100%;
   max-width: 1280px;
   height: calc(100vh - 32px);
+  height: calc(100dvh - 32px);
   background: var(--panel-bg);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
@@ -3597,6 +3600,7 @@ body {
   .app-container {
     max-width: 960px;
     height: calc(100vh - 24px);
+    height: calc(100dvh - 24px);
   }
 
   .chat-details-sidebar {

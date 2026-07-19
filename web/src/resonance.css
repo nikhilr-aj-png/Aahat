@@ -342,3 +342,40 @@ body::before {
   stroke-width: 2.5;
   filter: drop-shadow(0 1px 1px rgba(255, 255, 255, .22));
 }
+/* Tablet browser chrome can make 100vh taller than the visible page. Keep the
+   shell inside the dynamic viewport and reserve device safe areas. */
+@media (min-width: 769px) and (max-width: 1366px) {
+  html,
+  body {
+    width: 100%;
+    min-height: 100dvh;
+    overscroll-behavior: none;
+  }
+
+  #root {
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    padding-top: max(8px, env(safe-area-inset-top));
+    padding-right: max(8px, env(safe-area-inset-right));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    padding-left: max(8px, env(safe-area-inset-left));
+    align-items: stretch;
+  }
+
+  .app-container {
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+  }
+
+  .main-content-window,
+  .chat-area-container,
+  .chat-view,
+  .settings-panel-container,
+  .settings-panel,
+  .contacts-section,
+  .status-section-container {
+    min-height: 0;
+  }
+}
