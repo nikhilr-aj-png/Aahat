@@ -6,7 +6,7 @@ import './resonance.css'
 import './settings-professional.css'
 import './aahat-contacts.css'
 import App from './App.jsx'
-import TouchPullToRefresh from './components/TouchPullToRefresh.jsx'
+import TouchRefreshGesture from './components/TouchRefreshGesture.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import ClockIntegrityGate from './components/ClockIntegrityGate.jsx'
 
@@ -14,7 +14,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
       <>
-        <TouchPullToRefresh />
+        <TouchRefreshGesture />
         <ClockIntegrityGate>
           <App />
         </ClockIntegrityGate>

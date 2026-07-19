@@ -109,31 +109,14 @@ export default function ClockIntegrityGate({ children }) {
     return () => window.clearInterval(retry);
   }, [state, verifyClock]);
 
-  if (state === 'valid') return children;
-
-  if (state === 'checking') {
-    return (
-      <main className="clock-gate-shell is-checking" role="status" aria-live="polite" aria-label="Preparing Aahat">
-        <section className="clock-gate-splash">
-          <div className="clock-splash-mark" aria-hidden="true">
-            <span className="clock-splash-orbit"><i /></span>
-            <span className="clock-splash-halo" />
-            <img src="/logo.png" alt="" className="clock-splash-logo" />
-          </div>
-          <p className="clock-splash-brand">AAHAT</p>
-          <h1>Preparing your secure space</h1>
-          <p className="clock-splash-copy">Syncing trusted time before your conversations open.</p>
-          <div className="clock-splash-progress" aria-hidden="true"><span /></div>
-          <p className="clock-splash-status"><span />Protected time check</p>
-        </section>
-      </main>
-    );
-  }
+  if (state !== 'invalid') return children;
 
   const isInvalid = state === 'invalid';
   const isUnavailable = state === 'unavailable';
   return (
-    <main className="clock-gate-shell" role="alert" aria-live="assertive">
+    <>
+      {children}
+      <main className="clock-gate-shell is-time-warning" role="alert" aria-live="assertive">
       <section className="clock-gate-card">
         <img src="/logo.png" alt="Aahat" className="clock-gate-logo" />
         <div className={`clock-gate-icon ${isInvalid ? 'is-warning' : ''}`}>
@@ -159,5 +142,6 @@ export default function ClockIntegrityGate({ children }) {
         <p className="clock-gate-hint">Use network-provided time · 12/24-hour display follows your device</p>
       </section>
     </main>
+    </>
   );
 }

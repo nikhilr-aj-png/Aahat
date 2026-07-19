@@ -107,6 +107,26 @@
   .clock-gate-retry .is-spinning { animation-duration: 1.6s; }
 }
 
+.clock-gate-shell.is-time-warning {
+  position: fixed;
+  inset: 0;
+  z-index: 6000;
+  min-height: 0;
+  padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: rgba(5, 3, 18, .58);
+  backdrop-filter: blur(7px);
+}
+
+.clock-gate-shell.is-time-warning .clock-gate-card {
+  width: min(100%, 350px);
+  padding: 24px 22px;
+  border-radius: 20px;
+  box-shadow: 0 20px 56px rgba(0, 0, 0, .42);
+}
+
+.clock-gate-shell.is-time-warning .clock-gate-logo { width: 48px; height: 48px; margin-bottom: 14px; }
+.clock-gate-shell.is-time-warning .clock-gate-icon { width: 48px; height: 48px; margin-bottom: 14px; border-radius: 15px; }
+
 /* Compact branded startup state. Blocking/error states continue to use the
    actionable card above, while a normal time check feels like an app launch. */
 .clock-gate-shell.is-checking {
