@@ -59,7 +59,7 @@
 .member-search-box { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; width: 100%; min-height: 46px; padding: 0 14px; gap: 10px; color: #9da7ba; border: 1px solid rgba(162,150,213,.22); border-radius: 13px; background: rgba(6,4,22,.52); box-sizing: border-box; }
 .settings-panel .settings-content input.member-search-input { width: 100% !important; min-width: 0; min-height: 44px !important; padding: 0 !important; color: #f0edf8 !important; border: 0 !important; outline: 0 !important; background: transparent !important; box-shadow: none !important; }
 .settings-panel .settings-content input.member-search-input::-webkit-search-cancel-button { filter: invert(1); opacity: .55; }
-.member-picker-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 60px; max-height: 128px; padding-right: 4px; gap: 8px; overflow-x: hidden; overflow-y: auto; align-content: start; scrollbar-color: rgba(128, 93, 255, .75) rgba(255,255,255,.04); scrollbar-width: thin; }
+.member-picker-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 60px; max-height: 128px; padding-right: 4px; gap: 8px; overflow-x: hidden; overflow-y: auto; align-content: start; scrollbar-color: rgba(128, 93, 255, .75) rgba(255,255,255,.04); scrollbar-width: thin; }
 .settings-panel .settings-content .member-picker-list button { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; height: 60px; min-height: 60px; padding: 10px; gap: 10px; color: inherit; text-align: left; border: 1px solid rgba(162,150,213,.12); border-radius: 13px; background: rgba(255,255,255,.022); box-shadow: none; }
 .settings-panel .settings-content .member-picker-list button.selected { border-color: rgba(119, 82, 250, .5); background: rgba(101, 65, 229, .12); }
 .member-picker-list button > span { display: grid; min-width: 0; gap: 2px; }
@@ -73,15 +73,15 @@
 .blocked-user-row > span { color: #d9d5e3; font-size: 12px; }
 .settings-panel .settings-content .blocked-user-row button { min-height: 34px; padding: 0 12px; color: #f5d0d0; border: 1px solid rgba(239,68,68,.2); background: rgba(239,68,68,.09); box-shadow: none; }
 
-  .member-picker-list { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 196px; }
 @media (max-width: 860px) {
   .settings-panel .settings-content .privacy-switch-grid { grid-template-columns: 1fr; }
   .audience-option-grid { grid-template-columns: 1fr; }
+  .member-picker-list { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 128px; }
 }
 @media (max-width: 520px) {
   .settings-panel .settings-content > section.settings-privacy { padding: 18px 14px; gap: 17px; }
   .audience-option-grid, .member-picker-list { grid-template-columns: 1fr; }
-  .member-picker-list { max-height: 196px; }
+  .member-picker-list { max-height: 128px; }
   .member-picker-top { grid-template-columns: minmax(0, 1fr); align-items: stretch !important; gap: 10px; }
   .member-search-box { width: 100%; max-width: 100%; }
 }

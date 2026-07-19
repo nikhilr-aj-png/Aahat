@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabase';
 
 /**
@@ -9,6 +9,9 @@ export function useAuth() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [mfaChallenge, setMfaChallenge] = useState(null);
+  const sessionGenerationRef = useRef(0);
+
 
   // Fetch full profile from profiles table
   const fetchProfile = useCallback(async (userId) => {
@@ -83,21 +86,51 @@ export function useAuth() {
 
   // Handle session change
   const handleSession = useCallback(async (session) => {
+    const generation = ++sessionGenerationRef.current;
     if (!session) {
       setUser(null);
       setProfile(null);
+      setMfaChallenge(null);
+      setIsLoading(false);
+      return;
+    }
+
+    const { data: assurance, error: assuranceError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (generation !== sessionGenerationRef.current) return;
+    if (assuranceError) {
+      setUser(null);
+      setProfile(null);
+      setMfaChallenge({ user: session.user, factors: [], error: 'Aahat could not verify your secure session. Check your connection and try again.' });
+      setIsLoading(false);
+      return;
+    }
+
+    if (assurance?.nextLevel === 'aal2' && assurance?.currentLevel !== 'aal2') {
+      const { data: factorData, error: factorError } = await supabase.auth.mfa.listFactors();
+      if (generation !== sessionGenerationRef.current) return;
+      const verifiedFactors = (factorData?.totp || []).filter(factor => factor.status === 'verified');
+      setUser(null);
+      setProfile(null);
+      setMfaChallenge({
+        user: session.user,
+        factors: verifiedFactors,
+        error: factorError ? 'Aahat could not load your authenticator. Check your connection and try again.' : ''
+      });
       setIsLoading(false);
       return;
     }
 
     const currentProfile = await ensureProfile(session.user);
+    if (generation !== sessionGenerationRef.current) return;
     if (currentProfile?.account_status && currentProfile.account_status !== 'active') {
       await supabase.auth.signOut();
       setUser(null);
       setProfile(null);
+      setMfaChallenge(null);
       setIsLoading(false);
       return;
     }
+    setMfaChallenge(null);
     setUser(session.user);
 
     // Update online status
@@ -108,6 +141,13 @@ export function useAuth() {
 
     setIsLoading(false);
   }, [ensureProfile]);
+
+  const refreshMfaSession = useCallback(async () => {
+    setIsLoading(true);
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    await handleSession(session);
+  }, [handleSession]);
 
   // Initialize auth state
   useEffect(() => {
@@ -211,8 +251,11 @@ export function useAuth() {
         .eq('id', user.id);
     }
     await supabase.auth.signOut();
+    sessionGenerationRef.current += 1;
     setUser(null);
     setProfile(null);
+    setMfaChallenge(null);
+    setIsLoading(false);
   }, [user]);
 
   const resetPassword = useCallback(async (email) => {
@@ -248,7 +291,6 @@ export function useAuth() {
       .eq('id', user.id)
       .select()
       .single();
-
     if (error) throw error;
     setProfile(data);
     return data;
@@ -257,6 +299,8 @@ export function useAuth() {
   return {
     user,
     profile,
+    mfaChallenge,
+    refreshMfaSession,
     isLoading,
     signUp,
     signIn,

@@ -24,9 +24,12 @@ test('selected status audiences are persisted and enforced by RLS', async () => 
   assert.match(privacy, /Only people you choose/);
   assert.doesNotMatch(privacy, /label: 'Only me'/);
   assert.match(privacy, /status: 'contacts'/);
-  assert.match(privacyCss, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(privacyCss, /\.member-picker-list \{[^}]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)[^}]*max-height: 128px/);
   assert.match(privacyCss, /max-height: 128px/);
   assert.match(privacyCss, /overflow-y: auto/);
+  assert.match(privacyCss, /@media \(max-width: 860px\)[\s\S]+grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)[\s\S]+max-height: 128px/);
+  assert.match(privacyCss, /@media \(max-width: 520px\)[\s\S]+grid-template-columns: 1fr[\s\S]+max-height: 128px/);
+  assert.doesNotMatch(privacyCss, /\.member-picker-list \{ grid-template-columns: repeat\(2,[^}]+max-height: 196px/);
 });
 
 test('public Aahat ID connections are atomic while private profiles require PIN and approval', async () => {

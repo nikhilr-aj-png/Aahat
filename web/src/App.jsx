@@ -11,6 +11,7 @@ import { supabase, isSupabaseConfigured } from './supabase';
 
 import AuthScreen from './components/AuthScreenProduction';
 import PasswordRecoveryGate from './components/PasswordRecoveryGate';
+import MfaChallengeScreen from './components/MfaChallengeScreen';
 import Sidebar from './components/Sidebar';
 import ChatView from './components/ChatView';
 import StatusSection from './components/StatusSection';
@@ -37,6 +38,7 @@ export default function App() {
   // --- Auth ---
   const {
     user, profile, isLoading: isAuthLoading,
+    mfaChallenge, refreshMfaSession,
     signOut, updateProfile
   } = useAuth();
 
@@ -500,6 +502,14 @@ export default function App() {
         <span className="app-loading-label">Loading Aahat...</span>
       </div>
     );
+  }
+
+  if (mfaChallenge) {
+    return <MfaChallengeScreen
+      challenge={mfaChallenge}
+      onVerified={refreshMfaSession}
+      onSignOut={signOut}
+    />;
   }
 
   if (!user) {
