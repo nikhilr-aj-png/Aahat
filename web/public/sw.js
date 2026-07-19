@@ -104,6 +104,7 @@ if (self.FIREBASE_CONFIG) {
       badge: '/logo.png',
       tag: payload.data?.conversationId ? `conversation-${payload.data.conversationId}` : undefined,
       renotify: true,
+      silent: payload.data?.soundEnabled === 'false',
       data: payload.data || {}
     };
 

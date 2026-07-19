@@ -1,0 +1,28 @@
+.device-security-section { display: block !important; }
+.device-section-heading, .session-explainer { display: flex !important; flex-direction: row !important; align-items: center !important; gap: 13px !important; }
+.device-section-heading { margin-bottom: 18px; }
+.device-heading-icon, .registered-device-icon { display: grid; place-items: center; flex: 0 0 auto; color: #c6b8ff; border: 1px solid rgba(138,104,255,.27); background: rgba(108,70,235,.13); }
+.device-heading-icon { width: 45px; height: 45px; border-radius: 14px; }
+.device-section-heading h3, .session-explainer h4 { margin: 0; color: #f5f1ff; }
+.device-section-heading p, .session-explainer p { margin: 4px 0 0; color: #9b94b3; font-size: 12px; line-height: 1.5; }
+.registered-device-list, .login-session-list { display: grid !important; gap: 10px !important; }
+.registered-device-card, .login-session-card { display: flex !important; flex-direction: row !important; align-items: center !important; min-height: 72px; padding: 13px 15px !important; gap: 12px !important; border: 1px solid rgba(141,119,211,.18) !important; border-radius: 15px !important; background: rgba(255,255,255,.018) !important; }
+.registered-device-icon { width: 42px; height: 42px; border-radius: 13px; }
+.registered-device-copy, .login-session-card > div { display: flex !important; flex: 1; flex-direction: column !important; align-items: flex-start !important; min-width: 0; gap: 5px !important; }
+.registered-device-copy > span, .login-session-card > div > span { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.registered-device-copy strong, .login-session-card strong { color: #f2eeff; font-size: 14px; letter-spacing: 0; }
+.registered-device-copy i, .login-session-card i { padding: 3px 8px; color: #7ee2c2; border: 1px solid rgba(54,203,159,.22); border-radius: 999px; background: rgba(35,177,136,.1); font-size: 9px; font-style: normal; font-weight: 750; text-transform: uppercase; }
+.registered-device-copy small, .login-session-card small { overflow: hidden; max-width: 100%; color: #9891ad; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.registered-device-card > button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; color: #d8cff7; border: 1px solid rgba(143,121,213,.22); border-radius: 11px; background: rgba(255,255,255,.025); }
+.session-explainer { margin: 24px 0 13px; padding-top: 22px; border-top: 1px solid rgba(141,119,211,.16); }
+.session-explainer > svg { flex: 0 0 auto; color: #9d87ff; }
+.session-status-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #4ee0ae; box-shadow: 0 0 0 4px rgba(53,210,164,.08); }
+.session-status-dot.is-revoked { background: #777087; box-shadow: none; }
+.revoke-other-sessions { display: inline-flex !important; align-items: center; justify-content: center; gap: 8px; margin-top: 17px; }
+.device-empty-state { margin: 0; padding: 22px; color: #9891ad; text-align: center; border: 1px dashed rgba(141,119,211,.2); border-radius: 14px; }
+@media (max-width: 560px) {
+  .registered-device-card { align-items: flex-start !important; flex-wrap: wrap; }
+  .registered-device-copy { width: calc(100% - 56px); }
+  .registered-device-card > button { width: 100%; margin-left: 54px; }
+  .revoke-other-sessions { width: 100%; }
+}

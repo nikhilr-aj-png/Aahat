@@ -10,6 +10,7 @@ import TouchRefreshGesture from './components/TouchRefreshGesture.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import ClockIntegrityGate from './components/ClockIntegrityGate.jsx'
 import { applyInstalledPwaOrientation } from './utils/pwaOrientation.js'
+import { refreshDeviceTimeFormat } from './utils/dateTime.js'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -28,9 +29,13 @@ const syncInstalledOrientation = () => {
 };
 
 syncInstalledOrientation();
-window.addEventListener('pageshow', syncInstalledOrientation);
+window.addEventListener('pageshow', () => {
+  refreshDeviceTimeFormat();
+  syncInstalledOrientation();
+});
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
+    refreshDeviceTimeFormat();
     syncInstalledOrientation();
   }
 });

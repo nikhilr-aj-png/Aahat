@@ -1,0 +1,52 @@
+.data-support-section { display: block !important; width: min(100%, 1040px) !important; }
+.settings-panel .settings-content .data-support-section > .data-support-header,
+.settings-panel .settings-content .data-support-section > .data-media-grid,
+.settings-panel .settings-content .data-support-section > .data-export-card,
+.settings-panel .settings-content .data-support-section > .support-request-card,
+.settings-panel .settings-content .data-support-section > .account-danger-zone { box-sizing: border-box; }
+.data-support-header { display: flex !important; align-items: center !important; min-height: 0 !important; margin-bottom: 20px; padding: 0 !important; gap: 14px !important; border: 0 !important; background: transparent !important; }
+.data-support-header > span, .data-card-icon { display: grid; place-items: center; width: 47px; height: 47px; flex: 0 0 auto !important; color: #c8baff !important; border: 1px solid rgba(139,105,255,.28); border-radius: 15px; background: rgba(107,69,236,.13); }
+.data-support-header > div { display: flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 3px !important; }
+.data-support-header h3 { margin: 0; color: #f6f2ff; font-size: 24px; }
+.data-support-header p, .data-export-card p, .support-card-heading p, .account-danger-zone p { margin: 0; color: #9c94af; font-size: 11px; line-height: 1.55; }
+.data-media-grid { display: grid !important; grid-template-columns: repeat(2,minmax(0,1fr)); min-height: 0 !important; padding: 0 !important; gap: 11px !important; border: 0 !important; background: transparent !important; }
+.data-media-grid article { display: flex; align-items: flex-start; min-height: 104px; padding: 16px; gap: 12px; border: 1px solid rgba(143,120,209,.18); border-radius: 15px; background: rgba(255,255,255,.018); }
+.data-media-grid article > span { display: grid; place-items: center; width: 39px; height: 39px; flex: 0 0 auto; color: #bcaeff; border-radius: 12px; background: rgba(111,72,240,.13); }
+.data-media-grid article > div { min-width: 0; }
+.data-media-grid strong, .data-export-card strong, .support-card-heading strong, .account-danger-zone strong { display: block; color: #f2eeff; font-size: 13px; }
+.data-media-grid p { margin: 6px 0 0; color: #9d96af; font-size: 11px; line-height: 1.55; }
+.data-export-card, .account-danger-zone { display: grid !important; grid-template-columns: auto minmax(0,1fr) auto; align-items: center !important; min-height: 88px !important; margin-top: 14px; padding: 15px 17px !important; gap: 13px !important; border: 1px solid rgba(143,120,209,.18) !important; border-radius: 16px !important; background: rgba(255,255,255,.018) !important; }
+.data-export-card > div, .account-danger-zone > div { display: flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 4px !important; }
+.data-export-card button { white-space: nowrap; }
+.support-request-card { display: grid; grid-template-columns: 1fr 1fr; margin-top: 14px; padding: 18px; gap: 14px 16px; border: 1px solid rgba(143,120,209,.18); border-radius: 17px; background: rgba(255,255,255,.018); }
+.support-card-heading { display: flex; grid-column: 1/-1; align-items: center; gap: 12px; }
+.support-card-heading > div { min-width: 0; }
+.support-request-card label { position: relative; }
+.support-request-card label > span { position: absolute; top: 0; right: 0; color: #7f7892; font-size: 9px; font-weight: 600; }
+.support-request-card textarea { min-height: 108px !important; }
+.support-request-card button[type="submit"] { grid-column: 1/-1; }
+.account-danger-zone { margin-top: 14px; border-color: rgba(239,82,104,.2) !important; background: rgba(180,38,61,.045) !important; }
+.account-danger-zone > span { display: grid; place-items: center; width: 47px; height: 47px; color: #ffadb8; border-radius: 15px; background: rgba(221,54,76,.1); }
+.account-danger-zone > button { color: #ffc1c8 !important; border: 1px solid rgba(239,82,104,.28) !important; background: rgba(211,48,70,.11) !important; white-space: nowrap; }
+.delete-account-backdrop { position: fixed; inset: 0; z-index: 5000; display: grid !important; place-items: center; padding: 18px !important; border: 0 !important; background: rgba(5,3,17,.78) !important; backdrop-filter: blur(12px); }
+.delete-account-dialog { position: relative; width: min(100%,460px); padding: 26px; text-align: center; border: 1px solid rgba(239,82,104,.25); border-radius: 22px; background: #130c2c; box-shadow: 0 28px 90px rgba(0,0,0,.48); }
+.delete-dialog-close { position: absolute; top: 14px; right: 14px; min-width: 38px !important; padding: 0 !important; color: #aaa1ba !important; background: rgba(255,255,255,.035) !important; }
+.delete-dialog-icon { display: grid; place-items: center; width: 58px; height: 58px; margin: 0 auto 15px; color: #ffabb5; border-radius: 18px; background: rgba(218,49,72,.11); }
+.delete-account-dialog h4 { margin: 0; color: #fff4f5; font-size: 20px; }
+.delete-account-dialog p { margin: 9px 0 15px; color: #a79eaf; font-size: 12px; line-height: 1.6; }
+.delete-account-dialog code { display: block; margin-bottom: 12px; padding: 10px; color: #ffb4bd; border: 1px solid rgba(239,82,104,.18); border-radius: 10px; background: rgba(219,49,72,.07); font-size: 11px; }
+.delete-account-dialog input { text-align: center; }
+.delete-dialog-actions { display: grid !important; grid-template-columns: 1fr 1fr; min-height: 0 !important; margin-top: 14px; padding: 0 !important; gap: 10px !important; border: 0 !important; background: transparent !important; }
+.delete-dialog-actions button { width: 100%; }
+.delete-dialog-actions .confirm-delete { color: #fff !important; background: linear-gradient(135deg,#e34259,#bd2942) !important; }
+@media (max-width:720px) {
+  .data-media-grid, .support-request-card { grid-template-columns: 1fr; }
+  .support-request-card label, .support-request-card button[type="submit"] { grid-column: 1; }
+  .data-export-card, .account-danger-zone { grid-template-columns: auto minmax(0,1fr); }
+  .data-export-card > button, .account-danger-zone > button { grid-column: 1/-1; width: 100%; }
+}
+@media (max-width:480px) {
+  .data-support-header h3 { font-size: 20px; }
+  .data-media-grid article { min-height: 0; }
+  .delete-account-dialog { padding: 24px 18px 18px; }
+}

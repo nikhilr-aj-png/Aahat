@@ -8,6 +8,7 @@ import ChatInput from './ChatInput';
 import SafeAvatar from './SafeAvatar';
 
 import { supabase } from '../supabase';
+import { formatDeviceTime } from '../utils/dateTime';
 
 /**
  * ChatView â€” Main chat area (V2).
@@ -315,7 +316,7 @@ export default function ChatView({
       : seen.toDateString() === yesterday.toDateString()
         ? 'yesterday'
         : seen.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-    const time = seen.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const time = formatDeviceTime(seen);
     return `Last seen ${day} at ${time}`;
   };
 

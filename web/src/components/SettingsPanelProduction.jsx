@@ -6,7 +6,10 @@ import SafeAvatar from './SafeAvatar';
 import AvatarCropModal from './AvatarCropModal';
 import PrivacySettingsSection from './PrivacySettingsSection';
 import SecuritySettingsSection from './SecuritySettingsSection';
-import { CHAT_MEDIA_LIMITS } from '../utils/mediaCompression';
+import DeviceSessionsSection from './DeviceSessionsSection';
+import NotificationSettingsSection from './NotificationSettingsSection';
+import DataSupportSection from './DataSupportSection';
+import { getDeviceIdentity, isLegacyGenericDeviceName } from '../utils/deviceIdentity';
 import './ProfileConnectionMode.css';
 import './ProfileCredentialsLayout.css';
 
@@ -26,8 +29,6 @@ const friendlyError = (error) => {
   }
   return text || 'We could not complete that action. Please try again.';
 };
-
-const deviceName = () => `${navigator.platform || 'Web'} · ${/Mobile/i.test(navigator.userAgent) ? 'Mobile' : 'Browser'}`;
 
 const managedAvatarPath = (url, userId) => {
   if (!url || !userId) return null;
@@ -85,8 +86,8 @@ export default function SettingsPanelProduction({ user, profile, conversations, 
     if (!user) return;
     const [blockedResult, devicesResult, sessionsResult, factorsResult] = await Promise.all([
       supabase.rpc('get_my_blocked_users'),
-      supabase.from('user_devices').select('id,device_name,platform,last_seen_at,created_at').eq('user_id', user.id).order('last_seen_at', { ascending: false }),
-      supabase.from('user_sessions').select('id,client_session_id,user_agent,created_at,last_seen_at,revoked_at').eq('user_id', user.id).order('last_seen_at', { ascending: false }),
+      supabase.from('user_devices').select('id,device_name,platform,device_fingerprint,last_seen_at,created_at').eq('user_id', user.id).order('last_seen_at', { ascending: false }),
+      supabase.from('user_sessions').select('id,client_session_id,user_agent,created_at,last_seen_at,revoked_at,device:user_devices!user_sessions_device_id_fkey(device_name,platform)').eq('user_id', user.id).order('last_seen_at', { ascending: false }),
       supabase.auth.mfa.listFactors()
     ]);
     if (!blockedResult.error) setBlocked(blockedResult.data || []);
@@ -102,8 +103,14 @@ export default function SettingsPanelProduction({ user, profile, conversations, 
     const register = async () => {
       const fingerprint = newStableId('aahat_device_fingerprint');
       const clientSessionId = newStableId('aahat_client_session_id');
+      const identity = await getDeviceIdentity();
+      const { data: existingDevice } = await supabase.from('user_devices')
+        .select('device_name').eq('user_id', user.id).eq('device_fingerprint', fingerprint).maybeSingle();
+      const registeredName = existingDevice?.device_name && !isLegacyGenericDeviceName(existingDevice.device_name)
+        ? existingDevice.device_name
+        : identity.name;
       const { data: device, error: deviceError } = await supabase.from('user_devices').upsert({
-        user_id: user.id, device_name: deviceName(), platform: 'web', device_fingerprint: fingerprint,
+        user_id: user.id, device_name: registeredName, platform: identity.platform, device_fingerprint: fingerprint,
         last_seen_at: new Date().toISOString()
       }, { onConflict: 'user_id,device_fingerprint' }).select('id').single();
       let registrationError = deviceError;
@@ -254,34 +261,47 @@ export default function SettingsPanelProduction({ user, profile, conversations, 
     await loadSecurityData();
   }, 'Other sessions revoked.');
 
+  const renameDevice = (deviceId, deviceName) => run(async () => {
+    const { error } = await supabase.from('user_devices').update({ device_name: deviceName }).eq('id', deviceId).eq('user_id', user.id);
+    if (error) throw error;
+    await loadSecurityData();
+  }, 'Device name updated.', 'device-rename');
+
   const submitSupport = () => run(async () => {
     if (!supportSubject.trim() || !supportDetails.trim()) throw new Error('Subject and details are required.');
+    if (supportSubject.trim().length > 120 || supportDetails.trim().length > 2000) throw new Error('Support request is too long.');
     const { error } = await supabase.from('reports').insert({ reporter_id: user.id, reason: `support:${supportSubject.trim()}`, details: supportDetails.trim() });
     if (error) throw error;
     setSupportSubject(''); setSupportDetails('');
-  }, 'Support request submitted.');
+  }, 'Support request submitted.', 'support-request');
 
   const exportData = () => run(async () => {
-    const [contacts, memberships, statuses, reports] = await Promise.all([
+    const [contacts, memberships, messages, statuses, calls, reports] = await Promise.all([
       supabase.from('user_contacts').select('*').eq('owner_id', user.id),
       supabase.from('conversation_members').select('*,conversation:conversations(*)').eq('user_id', user.id),
+      supabase.from('messages').select('*').eq('sender_id', user.id).order('created_at', { ascending: true }),
       supabase.from('statuses').select('*').eq('user_id', user.id),
+      supabase.from('calls').select('*').or(`caller_id.eq.${user.id},receiver_id.eq.${user.id}`).order('started_at', { ascending: true }),
       supabase.from('reports').select('*').eq('reporter_id', user.id)
     ]);
-    for (const result of [contacts, memberships, statuses, reports]) if (result.error) throw result.error;
-    const payload = { exported_at: new Date().toISOString(), profile, contacts: contacts.data, conversations: memberships.data, statuses: statuses.data, reports: reports.data };
+    for (const result of [contacts, memberships, messages, statuses, calls, reports]) if (result.error) throw result.error;
+    const payload = { exported_at: new Date().toISOString(), profile, contacts: contacts.data, conversations: memberships.data, messages: messages.data, statuses: statuses.data, calls: calls.data, reports: reports.data };
+    const objectUrl = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
-    link.download = `aahat-export-${new Date().toISOString().slice(0, 10)}.json`; link.click(); URL.revokeObjectURL(link.href);
-  }, 'Export created.');
+    link.href = objectUrl;
+    link.download = `aahat-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+  }, 'Export created.', 'data-export');
 
-  const deleteAccount = () => run(async () => {
-    const phrase = prompt('Type DELETE MY AAHAT ACCOUNT to permanently delete your account.');
+  const deleteAccount = phrase => run(async () => {
     if (phrase !== 'DELETE MY AAHAT ACCOUNT') throw new Error('Account deletion cancelled.');
     const { error } = await supabase.functions.invoke('delete-account', { body: { confirmation: phrase } });
     if (error) throw error;
     await onLogout();
-  });
+  }, null, 'delete-account');
 
   const tabs = [['profile', User, 'Profile'], ['privacy', Shield, 'Privacy'], ['security', Lock, 'Security'], ['devices', Laptop, 'Devices'], ['notifications', Bell, 'Notifications'], ['data', Download, 'Data & support']];
   return <div className="settings-panel">
@@ -375,9 +395,34 @@ export default function SettingsPanelProduction({ user, profile, conversations, 
         onCancelMfa={cancelMfa}
         onDisableMfa={removeMfa}
       />}
-      {tab === 'devices' && <section><h3>Registered devices</h3>{devices.length ? devices.map(row => <div key={row.id}><strong>{row.device_name}</strong><span>{new Date(row.last_seen_at).toLocaleString()}</span></div>) : <p>No devices registered.</p>}<h4>Sessions</h4>{sessions.map(row => <div key={row.id}><span>{row.revoked_at ? 'Revoked' : 'Active'} · {new Date(row.last_seen_at).toLocaleString()}</span></div>)}<button disabled={busy} onClick={revokeOtherSessions}>Sign out other sessions</button></section>}
-      {tab === 'notifications' && <section><h3>Notifications</h3><label><input type="checkbox" checked={notifications.sound !== false} onChange={e => setNotifications(current => ({...current,sound:e.target.checked}))}/>Sound</label><label><input type="checkbox" checked={notifications.previews !== false} onChange={e => setNotifications(current => ({...current,previews:e.target.checked}))}/>Message previews</label><button onClick={() => run(onRequestNotificationPermission, 'Notification permission updated.')}>Enable push notifications</button><button onClick={savePreferences}>Save preferences</button></section>}
-      {tab === 'data' && <section><h3>Data and support</h3><div className="settings-about-media"><div><strong>About media sharing</strong><p>Photos: up to {CHAT_MEDIA_LIMITS.imageInputBytes / 1024 / 1024}MB. Every photo, including camera captures, is converted to JPG and compressed below {CHAT_MEDIA_LIMITS.imageOutputBytes / 1024 / 1024}MB before upload.</p></div><div><strong>Video and documents</strong><p>Videos: up to {CHAT_MEDIA_LIMITS.videoInputBytes / 1024 / 1024}MB and {CHAT_MEDIA_LIMITS.videoDurationSeconds / 60} minutes; compressed upload up to {CHAT_MEDIA_LIMITS.videoOutputBytes / 1024 / 1024}MB. PDF files: up to {CHAT_MEDIA_LIMITS.pdfBytes / 1024 / 1024}MB.</p></div></div><button onClick={exportData}><Download size={15}/>Export my data</button><label>Subject<input value={supportSubject} onChange={e => setSupportSubject(e.target.value)}/></label><label>Details<textarea value={supportDetails} onChange={e => setSupportDetails(e.target.value)}/></label><button onClick={submitSupport}>Submit support request</button><hr/><button className="danger" onClick={deleteAccount}><Trash2 size={15}/>Delete account permanently</button></section>}
+      {tab === 'devices' && <DeviceSessionsSection
+        devices={devices}
+        sessions={sessions}
+        currentFingerprint={newStableId('aahat_device_fingerprint')}
+        currentSessionId={newStableId('aahat_client_session_id')}
+        busy={busy}
+        onRenameDevice={renameDevice}
+        onRevokeOtherSessions={revokeOtherSessions}
+      />}
+      {tab === 'notifications' && <NotificationSettingsSection
+        notifications={notifications}
+        setNotifications={setNotifications}
+        permission={'Notification' in window ? Notification.permission : 'unsupported'}
+        busy={busy}
+        onEnablePush={() => run(onRequestNotificationPermission, 'Push notifications enabled.', 'notification-permission')}
+        onSave={savePreferences}
+      />}
+      {tab === 'data' && <DataSupportSection
+        subject={supportSubject}
+        details={supportDetails}
+        setSubject={setSupportSubject}
+        setDetails={setSupportDetails}
+        busy={busy}
+        busyAction={busyAction}
+        onExport={exportData}
+        onSubmitSupport={submitSupport}
+        onDeleteAccount={deleteAccount}
+      />}
     </main>
     {cropFile && <AvatarCropModal file={cropFile} busy={busy} onCancel={() => !busy && setCropFile(null)} onSave={saveCroppedAvatar}/>}
   </div>;

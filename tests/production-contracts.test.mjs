@@ -179,18 +179,18 @@ test('12-hour hard delete keeps a privacy-safe tombstone and cleans media', asyn
 });
 
 test('photo limits warn above 5MB and are documented outside the composer', async () => {
-  const [input, compression, settings, styles] = await Promise.all([
+  const [input, compression, dataSupport, styles] = await Promise.all([
     read('web/src/components/ChatInput.jsx'),
     read('web/src/utils/mediaCompression.js'),
-    read('web/src/components/SettingsPanelProduction.jsx'),
-    read('web/src/settings-professional.css')
+    read('web/src/components/DataSupportSection.jsx'),
+    read('web/src/components/DataSupportSection.css')
   ]);
   assert.match(compression, /imageInputBytes: 5 \* 1024 \* 1024/);
   assert.match(compression, /Photo is too large\. Select a photo up to/);
   assert.doesNotMatch(input, /chat-media-limits|Photos up to/);
-  assert.match(settings, /About media sharing/);
-  assert.match(settings, /including camera captures/);
-  assert.match(styles, /\.settings-about-media/);
+  assert.match(dataSupport, /<strong>Photos<\/strong>/);
+  assert.match(dataSupport, /Camera and gallery images/);
+  assert.match(styles, /\.data-media-grid/);
 });
 test('voice-note Storage lifecycle is owner-scoped and deletion-ready', async () => {
   const [migration, input, hook, deleteMigration] = await Promise.all([

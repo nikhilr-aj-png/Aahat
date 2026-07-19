@@ -106,11 +106,23 @@ Deno.serve(async request => {
       return new Response(JSON.stringify({ sent: 0, reason: 'no_active_tokens' }), { headers: jsonHeaders });
     }
 
+    const { data: recipientProfile } = await admin
+      .from('profiles')
+      .select('notification_settings')
+      .eq('id', notification.user_id)
+      .maybeSingle();
+    const notificationSettings = recipientProfile?.notification_settings && typeof recipientProfile.notification_settings === 'object'
+      ? recipientProfile.notification_settings as Record<string, unknown>
+      : {};
+    const previewsEnabled = notification.type === 'call' || notificationSettings.previews !== false;
+    const soundEnabled = notification.type === 'call' || notificationSettings.sound !== false;
     const accessToken = await getGoogleAccessToken(serviceAccount);
     const messageData = notification.data && typeof notification.data === 'object' ? notification.data : {};
     const stringData = {
-      title: String(notification.title || 'Aahat'),
-      body: String(notification.body || (notification.type === 'call' ? 'Incoming call' : 'You have a new message.')),
+      title: String(previewsEnabled ? (notification.title || 'Aahat') : 'Aahat'),
+      body: String(previewsEnabled ? (notification.body || (notification.type === 'call' ? 'Incoming call' : 'You have a new message.')) : 'New message'),
+      previewsEnabled: String(previewsEnabled),
+      soundEnabled: String(soundEnabled),
       notificationType: String(notification.type || 'message'),
       notificationId: String(notification.id),
       conversationId: String(messageData.conversation_id || ''),

@@ -29,6 +29,31 @@ const BrandLogo = () => (
   <img src="/logo.png" alt="Aahat" className="brand-logo-image" />
 );
 
+const playNotificationChime = async () => {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  const context = new AudioContextClass();
+  try {
+    if (context.state === 'suspended') await context.resume();
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.42);
+    gain.connect(context.destination);
+    [660, 880].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      oscillator.connect(gain);
+      oscillator.start(context.currentTime + (index * 0.11));
+      oscillator.stop(context.currentTime + 0.3 + (index * 0.11));
+    });
+    window.setTimeout(() => context.close().catch(() => undefined), 650);
+  } catch {
+    context.close().catch(() => undefined);
+  }
+};
+
 /**
  * App â€” Root component for Aahat messaging application (V2).
  * Uses normalized database hooks for auth, conversations, messages,
@@ -228,6 +253,11 @@ export default function App() {
       const data = notification.data && typeof notification.data === 'object' ? notification.data : {};
       const conversationId = data.conversation_id;
       const messageId = data.message_id;
+      const notificationSettings = profile?.notification_settings || {};
+      const previewsEnabled = notificationSettings.previews !== false;
+      const soundEnabled = notificationSettings.sound !== false;
+      const displayTitle = previewsEnabled ? (notification.title || 'Aahat') : 'Aahat';
+      const displayBody = previewsEnabled ? (notification.body || 'Sent a message') : 'New message';
 
       if (messageId) {
         const { error } = await supabase.rpc('mark_message_delivered', { p_message_id: messageId });
@@ -240,30 +270,32 @@ export default function App() {
       }
 
       const conv = conversations.find(item => item.id === conversationId);
+      if (soundEnabled && document.visibilityState === 'visible') void playNotificationChime();
       setActiveToast({
         id: notification.id,
         notificationId: notification.id,
-        sender: notification.title || conv?.name || 'New message',
-        text: notification.body || 'Sent a message',
+        sender: previewsEnabled ? (displayTitle || conv?.name) : 'Aahat',
+        text: displayBody,
         conversationId,
         avatarUrl: conv?.avatarUrl || ''
       });
 
       if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
         const options = {
-          body: notification.body || 'Sent a message',
+          body: displayBody,
           icon: conv?.avatarUrl || '/logo.png',
           badge: '/logo.png',
           tag: `message-${conversationId || notification.id}`,
-          data: { conversationId }
+          data: { conversationId },
+          silent: !soundEnabled
         };
         try {
           if ('serviceWorker' in navigator) {
             const registrations = await navigator.serviceWorker.getRegistrations();
-            if (registrations[0]) await registrations[0].showNotification(notification.title || 'Aahat', options);
-            else new Notification(notification.title || 'Aahat', options);
+            if (registrations[0]) await registrations[0].showNotification(displayTitle, options);
+            else new Notification(displayTitle, options);
           } else {
-            new Notification(notification.title || 'Aahat', options);
+            new Notification(displayTitle, options);
           }
         } catch (error) {
           console.warn('Could not display browser notification:', error.message);
@@ -298,26 +330,18 @@ export default function App() {
       mounted = false;
       supabase.removeChannel(toastChannel);
     };
-  }, [user, conversations]);
+  }, [user, conversations, profile?.notification_settings]);
   // FCM registration is tied to the current account through a security-definer
   // RPC so a shared browser token cannot remain attached to a previous user.
-  const registerPushToken = useCallback(async (showFeedback = false) => {
-    try {
-      const token = await requestNotificationPermission();
-      if (token && user) {
-        const { error } = await supabase.rpc('register_push_token', {
-          p_token: token,
-          p_provider: 'fcm'
-        });
-        if (error) throw error;
-        if (showFeedback) alert("Push notifications enabled successfully!");
-      } else if (showFeedback) {
-        alert("Notification permission denied or failed.");
-      }
-    } catch (e) {
-      if (showFeedback) alert("Error enabling notifications: " + e.message);
-      else console.warn('Could not refresh push token:', e.message);
-    }
+  const registerPushToken = useCallback(async () => {
+    const token = await requestNotificationPermission();
+    if (!token || !user) throw new Error('Notification permission was not granted or push is unsupported on this device.');
+    const { error } = await supabase.rpc('register_push_token', {
+      p_token: token,
+      p_provider: 'fcm'
+    });
+    if (error) throw error;
+    return true;
   }, [user]);
 
   const handleRequestNotificationPermission = useCallback(
@@ -327,7 +351,7 @@ export default function App() {
 
   useEffect(() => {
     if (user && 'Notification' in window && Notification.permission === 'granted') {
-      void registerPushToken(false);
+      void registerPushToken().catch(error => console.warn('Could not refresh push token:', error.message));
     }
   }, [user, registerPushToken]);
   // Popstate for mobile back
