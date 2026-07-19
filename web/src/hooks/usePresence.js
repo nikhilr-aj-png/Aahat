@@ -2,20 +2,23 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabase';
 
 /**
- * usePresence — Stable Supabase Realtime presence with a short disconnect grace.
- * The grace prevents momentary channel reconnects from flashing users offline.
+ * Realtime Presence is authoritative for connectivity. Privacy permissions are
+ * loaded through a recipient-scoped RPC, so hidden activity never reaches UI.
  */
-export function usePresence(user) {
+export function usePresence(user, profile, contactIds = []) {
   const [onlineUsers, setOnlineUsers] = useState(new Map());
+  const [activityVisibility, setActivityVisibility] = useState(new Map());
   const channelRef = useRef(null);
   const typingRef = useRef({ isTyping: false, typingIn: null });
   const offlineTimersRef = useRef(new Map());
   const generationRef = useRef(0);
   const userId = user?.id;
+  const onlineSharingEnabled = profile?.privacy_settings?.online !== false;
+  const contactIdsKey = [...new Set((contactIds || []).filter(Boolean).map(String))].sort().join(',');
 
   useEffect(() => {
     const generation = ++generationRef.current;
-    if (!userId) {
+    if (!userId || !onlineSharingEnabled) {
       offlineTimersRef.current.forEach(timer => window.clearTimeout(timer));
       offlineTimersRef.current.clear();
       setOnlineUsers(new Map());
@@ -54,8 +57,6 @@ export function usePresence(user) {
       Object.entries(state).forEach(([key, presences]) => {
         if (!presences.length) return;
         const latest = presences[presences.length - 1];
-        // Supabase may key presenceState by a presence reference. The UUID we
-        // explicitly track in the payload is the stable identity used by chats.
         const presenceUserId = String(latest.user_id || key);
         observed.set(presenceUserId, {
           lastSeen: latest.last_seen,
@@ -76,7 +77,7 @@ export function usePresence(user) {
     };
 
     const trackCurrentPresence = async () => {
-      if (!navigator.onLine || generationRef.current !== generation) return;
+      if (!navigator.onLine || document.visibilityState !== 'visible' || generationRef.current !== generation) return;
       await channel.track({
         user_id: userId,
         last_seen: new Date().toISOString(),
@@ -103,18 +104,21 @@ export function usePresence(user) {
 
     channelRef.current = channel;
     const handleConnectivity = () => {
-      if (navigator.onLine) void trackCurrentPresence();
-      else {
+      if (navigator.onLine && document.visibilityState === 'visible') {
+        void trackCurrentPresence();
+      } else {
         void channel.untrack();
         scheduleAllOffline();
       }
     };
     const heartbeat = window.setInterval(handleConnectivity, 15000);
+    document.addEventListener('visibilitychange', handleConnectivity);
     window.addEventListener('online', handleConnectivity);
     window.addEventListener('offline', handleConnectivity);
 
     return () => {
       window.clearInterval(heartbeat);
+      document.removeEventListener('visibilitychange', handleConnectivity);
       window.removeEventListener('online', handleConnectivity);
       window.removeEventListener('offline', handleConnectivity);
       if (generationRef.current === generation) generationRef.current += 1;
@@ -124,20 +128,60 @@ export function usePresence(user) {
       supabase.removeChannel(channel);
       if (channelRef.current === channel) channelRef.current = null;
     };
-  }, [userId]);
+  }, [onlineSharingEnabled, userId]);
 
-  // Realtime Presence is authoritative. Database is_online can be stale when a
-  // browser is killed before its pagehide update reaches the server.
+  useEffect(() => {
+    if (!userId || !contactIdsKey) {
+      setActivityVisibility(new Map());
+      return undefined;
+    }
+    let active = true;
+    const ids = contactIdsKey.split(',');
+    const refreshVisibility = async () => {
+      const { data, error } = await supabase.rpc('get_visible_contact_activity', { p_user_ids: ids });
+      if (!active) return;
+      if (error) {
+        console.warn('Could not load activity privacy:', error.message);
+        setActivityVisibility(new Map());
+        return;
+      }
+      setActivityVisibility(new Map((data || []).map(row => [String(row.user_id), row])));
+    };
+    void refreshVisibility();
+    const channel = supabase.channel(`activity-privacy-${userId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, () => void refreshVisibility())
+      .subscribe();
+    const poll = window.setInterval(refreshVisibility, 15000);
+    const handleFocus = () => void refreshVisibility();
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      active = false;
+      window.clearInterval(poll);
+      window.removeEventListener('focus', handleFocus);
+      supabase.removeChannel(channel);
+    };
+  }, [contactIdsKey, userId]);
+
+  const canViewOnlineStatus = useCallback(id => {
+    if (!id) return false;
+    return activityVisibility.get(String(id))?.show_online === true;
+  }, [activityVisibility]);
+
   const isUserOnline = useCallback(id => {
     if (!id) return false;
-    return onlineUsers.has(String(id));
-  }, [onlineUsers]);
+    const normalizedId = String(id);
+    return canViewOnlineStatus(normalizedId) && onlineUsers.has(normalizedId);
+  }, [canViewOnlineStatus, onlineUsers]);
+
+  const getLastSeen = useCallback(id => {
+    if (!id) return null;
+    const visible = activityVisibility.get(String(id));
+    return visible?.show_last_seen === true ? visible.last_seen || null : null;
+  }, [activityVisibility]);
+
   const setTyping = useCallback(async (conversationId, isTyping) => {
     if (!userId || !channelRef.current) return;
-    typingRef.current = {
-      isTyping,
-      typingIn: isTyping ? conversationId : null
-    };
+    typingRef.current = { isTyping, typingIn: isTyping ? conversationId : null };
     await channelRef.current.track({
       user_id: userId,
       last_seen: new Date().toISOString(),
@@ -148,12 +192,12 @@ export function usePresence(user) {
   const getTypingUsers = useCallback(conversationId => {
     const typingUsers = [];
     onlineUsers.forEach((presence, id) => {
-      if (presence.isTyping && presence.typingIn === conversationId && id !== userId) {
+      if (presence.isTyping && presence.typingIn === conversationId && id !== userId && isUserOnline(id)) {
         typingUsers.push(id);
       }
     });
     return typingUsers;
-  }, [onlineUsers, userId]);
+  }, [isUserOnline, onlineUsers, userId]);
 
-  return { onlineUsers, isUserOnline, setTyping, getTypingUsers };
+  return { onlineUsers, canViewOnlineStatus, isUserOnline, getLastSeen, setTyping, getTypingUsers };
 }

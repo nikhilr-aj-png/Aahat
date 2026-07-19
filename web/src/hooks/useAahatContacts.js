@@ -23,8 +23,7 @@ export function useAahatContacts(user, onContactsChanged) {
           .from('contact_requests')
           .select(`
             id, requester_id, recipient_id, status, created_at, responded_at,
-            requester:profiles!contact_requests_requester_id_fkey(id, display_name, avatar_url, virtual_number),
-            recipient:profiles!contact_requests_recipient_id_fkey(id, display_name, avatar_url, virtual_number)
+            requester:profiles!contact_requests_requester_id_fkey(id, display_name, avatar_url, virtual_number)
           `)
           .order('created_at', { ascending: false })
       ]);
@@ -73,7 +72,7 @@ export function useAahatContacts(user, onContactsChanged) {
     if (!/^\d{10}$/.test(normalizedId)) throw new Error('Enter a valid 10-digit Aahat ID.');
     if (normalizedPin && !/^\d{6}$/.test(normalizedPin)) throw new Error('Enter the complete 6-digit connection PIN.');
 
-    const { data, error } = await supabase.rpc('connect_by_aahat_id', {
+    const { data, error } = await supabase.rpc('connect_by_aahat_id_private_safe', {
       p_aahat_id: normalizedId,
       p_pin_code: normalizedPin || null
     });
@@ -115,6 +114,13 @@ export function useAahatContacts(user, onContactsChanged) {
     return data === true;
   }, [onContactsChanged, refresh]);
 
+  const blockContact = useCallback(async contactId => {
+    const { data, error } = await supabase.rpc('block_and_remove_contact', { p_contact_id: contactId });
+    if (error) throw error;
+    await Promise.all([refresh(), onContactsChanged?.()]);
+    return data === true;
+  }, [onContactsChanged, refresh]);
+
   return {
     credentials,
     incomingRequests,
@@ -124,6 +130,7 @@ export function useAahatContacts(user, onContactsChanged) {
     requestContact,
     respondToRequest,
     rotatePin,
-    removeContact
+    removeContact,
+    blockContact
   };
 }

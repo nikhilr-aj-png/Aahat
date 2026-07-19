@@ -5,6 +5,8 @@
 .contact-menu-popover { position: absolute; top: calc(100% - 5px); right: 12px; z-index: 20; display: grid; min-width: 190px; padding: 6px; border: 1px solid rgba(180, 165, 236, .18); border-radius: 13px; background: #171033; box-shadow: 0 18px 46px rgba(0,0,0,.45); }
 .aahat-contact-card .contact-menu-popover button { justify-content: flex-start; min-height: 40px; color: #fca5a5; border: 0; background: transparent; }
 .aahat-contact-card .contact-menu-popover button:hover { background: rgba(239,68,68,.1); }
+.aahat-contact-card .contact-menu-popover button.block { color: #ffc06f; }
+.aahat-contact-card .contact-menu-popover button.block:hover { background: rgba(245,158,11,.1); }
 
 .contact-delete-overlay { position: fixed; inset: 0; z-index: 2400; display: grid; place-items: center; padding: 18px; background: rgba(5, 3, 18, .78); backdrop-filter: blur(14px); }
 .contact-delete-dialog { width: min(100%, 430px); padding: 24px; border: 1px solid rgba(255, 138, 138, .2); border-radius: 22px; background: linear-gradient(145deg, #201337, #100a27); box-shadow: 0 30px 90px rgba(0,0,0,.55); }
@@ -18,10 +20,11 @@
 .contact-delete-actions button:disabled { opacity: .55; cursor: wait; }
 
 @media (max-width: 520px) {
-  .aahat-contact-card { align-items: center; }
+  .aahat-contact-card { align-items: center; flex-wrap: wrap; }
   .aahat-contact-card .contact-card-actions { width: 100%; padding-left: 57px; }
   .aahat-contact-card .contact-chat-button { flex: 1; justify-content: center; }
-  .contact-menu-popover { right: 10px; left: 10px; min-width: 0; }
+  .contact-menu-popover { position: static; width: calc(100% - 57px); min-width: 0; margin: 2px 0 0 57px; box-shadow: none; }
+  .aahat-contact-card .contact-menu-popover button { width: 100%; }
   .contact-delete-dialog { padding: 20px; border-radius: 19px; }
   .contact-delete-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .contact-delete-actions button { justify-content: center; }

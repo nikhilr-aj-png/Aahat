@@ -34,7 +34,7 @@ export function useConversations(user) {
       // Get all profiles for resolving names/avatars
       const { data: allProfiles } = await supabase
         .from('profiles')
-        .select('id, display_name, avatar_url, bio, is_online, last_seen, virtual_number');
+        .select('id, display_name, avatar_url, bio, virtual_number');
 
       const profileMap = {};
       (allProfiles || []).forEach(p => { profileMap[p.id] = p; });
@@ -49,8 +49,6 @@ export function useConversations(user) {
           let displayAvatar = conv.avatar_url || '';
           let displayBio = conv.description || '';
           let otherMember = null;
-          let isOtherOnline = false;
-          let otherLastSeen = '';
           let memberCount = 0;
 
           if (conv.type === 'direct') {
@@ -67,8 +65,6 @@ export function useConversations(user) {
               displayName = otherMember.display_name;
               displayAvatar = otherMember.avatar_url || '';
               displayBio = otherMember.bio || '';
-              isOtherOnline = otherMember.is_online;
-              otherLastSeen = otherMember.last_seen;
             }
             memberCount = 2;
           } else if (conv.type === 'self') {
@@ -76,7 +72,6 @@ export function useConversations(user) {
             displayName = `${myProfile?.display_name || 'You'} (You)`;
             displayAvatar = myProfile?.avatar_url || '';
             displayBio = myProfile?.bio || 'Your personal notes and reminders.';
-            isOtherOnline = true;
             memberCount = 1;
           } else if (conv.type === 'group') {
             const { count } = await supabase
@@ -143,8 +138,6 @@ export function useConversations(user) {
             description: displayBio,
             inviteCode: conv.invite_code,
             createdBy: conv.created_by,
-            isOnline: isOtherOnline,
-            lastSeen: otherLastSeen,
             memberCount,
             otherMemberId: otherMember?.id || null,
             otherMemberVirtualNumber: otherMember?.virtual_number || null,
@@ -279,8 +272,6 @@ export function useConversations(user) {
               name: p.display_name,
               avatarUrl: p.avatar_url || '',
               description: p.bio || '',
-              isOnline: p.is_online,
-              lastSeen: p.last_seen,
             };
           }
           if (c.type === 'self' && p.id === user.id) {
@@ -412,7 +403,7 @@ export function useConversations(user) {
           id,
           role,
           joined_at,
-          profile:profiles(id, display_name, avatar_url, bio, is_online, virtual_number)
+          profile:profiles(id, display_name, avatar_url, bio, virtual_number)
         `)
         .eq('conversation_id', conversationId);
 

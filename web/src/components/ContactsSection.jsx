@@ -1,31 +1,44 @@
-import { useState } from 'react';
-import { AlertTriangle, Check, Clock3, Copy, MessageSquare, MoreVertical, RefreshCw, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, Ban, Check, Clock3, MessageSquare, MoreVertical, Trash2, UserPlus, Users, X } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 import './ContactActions.css';
 
-const copyText = async value => {
-  if (value) await navigator.clipboard.writeText(value);
-};
-
 export default function ContactsSection({
-  credentials,
   conversations,
   incomingRequests,
   outgoingRequests,
   isLoading,
   isUserOnline,
+  canViewOnlineStatus,
   onAddContact,
   onSelectConversation,
   onRespond,
-  onRotatePin,
-  onRemoveContact
+  onRemoveContact,
+  onBlockContact
 }) {
   const directContacts = conversations.filter(conversation => conversation.type === 'direct');
   const pendingIncoming = incomingRequests.filter(request => request.status === 'pending');
   const pendingOutgoing = outgoingRequests.filter(request => request.status === 'pending');
   const [openContactMenu, setOpenContactMenu] = useState(null);
-  const [contactToDelete, setContactToDelete] = useState(null);
+  const [contactAction, setContactAction] = useState(null);
   const [removingContact, setRemovingContact] = useState(false);
+
+  useEffect(() => {
+    if (!openContactMenu) return undefined;
+    const closeOutside = event => {
+      if (event.target.closest('.contact-menu-trigger, .contact-menu-popover')) return;
+      setOpenContactMenu(null);
+    };
+    const closeOnEscape = event => {
+      if (event.key === 'Escape') setOpenContactMenu(null);
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [openContactMenu]);
 
   const respond = async (request, accept) => {
     try {
@@ -36,21 +49,17 @@ export default function ContactsSection({
     }
   };
 
-  const rotate = async () => {
-    if (!confirm('Generate a new connection PIN? Your old PIN will stop working immediately.')) return;
-    try { await onRotatePin(); }
-    catch (error) { alert(error.message || 'Could not generate a new PIN.'); }
-  };
-
-  const removeSelectedContact = async () => {
-    if (!contactToDelete?.otherMemberId) return;
+  const confirmContactAction = async () => {
+    const conversation = contactAction?.conversation;
+    if (!conversation?.otherMemberId) return;
     setRemovingContact(true);
     try {
-      await onRemoveContact(contactToDelete.otherMemberId);
-      setContactToDelete(null);
+      if (contactAction.type === 'block') await onBlockContact(conversation.otherMemberId);
+      else await onRemoveContact(conversation.otherMemberId);
+      setContactAction(null);
       setOpenContactMenu(null);
     } catch (error) {
-      alert(error.message || 'Could not remove this contact.');
+      alert(error.message || `Could not ${contactAction.type} this contact.`);
     } finally {
       setRemovingContact(false);
     }
@@ -61,24 +70,10 @@ export default function ContactsSection({
       <header className="aahat-section-header">
         <div>
           <h2><Users size={22}/>My Contacts</h2>
-          <p>Connect securely using an Aahat ID and PIN.</p>
+          <p>Manage the people you are connected with.</p>
         </div>
         <button onClick={onAddContact} className="admin-btn admin-btn-primary"><UserPlus size={16}/>Add Contact</button>
       </header>
-
-      <section className="aahat-identity-card">
-        <div>
-          <span>Your 10-digit Aahat ID</span>
-          <strong>{credentials?.aahat_id || '----------'}</strong>
-        </div>
-        <button title="Copy Aahat ID" onClick={() => copyText(credentials?.aahat_id)}><Copy size={16}/></button>
-        <div>
-          <span>Your 6-digit connection PIN</span>
-          <strong>{credentials?.pin_code || '------'}</strong>
-        </div>
-        <button title="Copy PIN" onClick={() => copyText(credentials?.pin_code)}><Copy size={16}/></button>
-        <button className="aahat-rotate-pin" onClick={rotate}><RefreshCw size={15}/>New PIN</button>
-      </section>
 
       {pendingIncoming.length > 0 && <section className="aahat-request-section">
         <h3>Invitations <span>{pendingIncoming.length}</span></h3>
@@ -95,41 +90,42 @@ export default function ContactsSection({
       {pendingOutgoing.length > 0 && <section className="aahat-request-section">
         <h3>Sent invitations</h3>
         {pendingOutgoing.map(request => <article className="aahat-request-card" key={request.id}>
-          <SafeAvatar src={request.recipient?.avatar_url} name={request.recipient?.display_name} size={40}/>
-          <div><strong>{request.recipient?.display_name || 'Aahat user'}</strong><small><Clock3 size={12}/>Waiting for acceptance</small></div>
+          <SafeAvatar src="/logo.png" name="Aahat" size={40}/>
+          <div><strong>Aahat</strong><small><Clock3 size={12}/>Waiting for acceptance</small></div>
         </article>)}
       </section>}
 
       <section className="aahat-request-section">
         <h3>Connected people</h3>
         {isLoading ? <div className="aahat-empty">Loading contacts…</div> : directContacts.length === 0 ? (
-          <div className="aahat-empty"><Users size={32}/><p>No connected contacts yet.</p><small>Enter a friend's AHID and PIN, then wait for them to accept.</small></div>
+          <div className="aahat-empty"><Users size={32}/><p>No connected contacts yet.</p><small>Use Add Contact to connect with someone.</small></div>
         ) : directContacts.map(conversation => (
           <article className="aahat-contact-card" key={conversation.id} onClick={() => { setOpenContactMenu(null); onSelectConversation(conversation.id); }}>
             <div className="avatar-wrapper">
               <SafeAvatar src={conversation.avatarUrl} name={conversation.name} size={44}/>
-              <div className={`status-badge ${isUserOnline(conversation.otherMemberId) ? 'active' : 'offline'}`}/>
+              {canViewOnlineStatus?.(conversation.otherMemberId) && <div className={`status-badge ${isUserOnline(conversation.otherMemberId) ? 'active' : 'offline'}`}/>}
             </div>
-            <div><strong>{conversation.name}</strong><small>{isUserOnline(conversation.otherMemberId) ? 'Online' : 'Offline'}</small></div>
+            <div><strong>{conversation.name}</strong>{canViewOnlineStatus?.(conversation.otherMemberId) && <small>{isUserOnline(conversation.otherMemberId) ? 'Online' : 'Offline'}</small>}</div>
             <div className="contact-card-actions" onClick={event => event.stopPropagation()}>
               <button className="contact-chat-button" onClick={() => onSelectConversation(conversation.id)}><MessageSquare size={15}/>Chat</button>
               <button className="contact-menu-trigger" aria-label={`More actions for ${conversation.name}`} onClick={() => setOpenContactMenu(current => current === conversation.id ? null : conversation.id)}><MoreVertical size={17}/></button>
             </div>
             {openContactMenu === conversation.id && <div className="contact-menu-popover" onClick={event => event.stopPropagation()}>
-              <button onClick={() => { setContactToDelete(conversation); setOpenContactMenu(null); }}><Trash2 size={15}/>Remove contact</button>
+              <button onClick={() => { setContactAction({ type: 'remove', conversation }); setOpenContactMenu(null); }}><Trash2 size={15}/>Remove contact</button>
+              <button className="block" onClick={() => { setContactAction({ type: 'block', conversation }); setOpenContactMenu(null); }}><Ban size={15}/>Block & remove</button>
             </div>}
           </article>
         ))}
       </section>
 
-      {contactToDelete && <div className="contact-delete-overlay" onClick={() => !removingContact && setContactToDelete(null)}>
+      {contactAction && <div className="contact-delete-overlay" onClick={() => !removingContact && setContactAction(null)}>
         <div className="contact-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-contact-title" onClick={event => event.stopPropagation()}>
           <div className="contact-delete-icon"><AlertTriangle size={24}/></div>
-          <h3 id="remove-contact-title">Remove {contactToDelete.name}?</h3>
-          <p>This permanently removes the connection for <strong>both of you</strong> and closes the direct chat. To message again, one of you must connect again.</p>
+          <h3 id="remove-contact-title">{contactAction.type === 'block' ? 'Block' : 'Remove'} {contactAction.conversation.name}?</h3>
+          <p>{contactAction.type === 'block' ? <>This blocks the user and removes the contact/chat for <strong>both of you</strong>. They cannot find you using your Aahat ID until you unblock them.</> : <>This removes the connection and direct chat for <strong>both of you</strong>. Either person can connect again later.</>}</p>
           <div className="contact-delete-actions">
-            <button disabled={removingContact} onClick={() => setContactToDelete(null)}>Cancel</button>
-            <button className="danger" disabled={removingContact} onClick={removeSelectedContact}><Trash2 size={15}/>{removingContact ? 'Removing…' : 'Remove for both'}</button>
+            <button disabled={removingContact} onClick={() => setContactAction(null)}>Cancel</button>
+            <button className="danger" disabled={removingContact} onClick={confirmContactAction}>{contactAction.type === 'block' ? <Ban size={15}/> : <Trash2 size={15}/>} {removingContact ? 'Working…' : contactAction.type === 'block' ? 'Block & remove' : 'Remove for both'}</button>
           </div>
         </div>
       </div>}

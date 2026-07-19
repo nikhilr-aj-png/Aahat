@@ -213,7 +213,7 @@ test('selection mode uses the whole message and direct status hides bio', async 
   assert.match(bubble, /selectionMode \? 'selection-mode'/);
   assert.match(bubble, /if \(selectionMode && !event\.target\.closest\('button, a, input'\)\) onToggleSelect/);
   assert.doesNotMatch(chatView, /return conversation\.description \|\| 'Offline'/);
-  assert.match(chatView, /return 'Offline'/);
+  assert.match(chatView, /return onlineStatusVisible \? 'Offline' : ''/);
   assert.match(theme, /Compact selectable messages/);
   assert.match(theme, /\.message-bubble-wrapper\.selection-mode[\s\S]+width:\s*100%/);
   assert.match(theme, /max-width:\s*calc\(100% - 32px\)/);

@@ -61,6 +61,14 @@
   background: rgba(116, 78, 242, .08);
 }
 
+.connect-aahat-modal .connect-id-summary > img {
+  width: 38px;
+  height: 38px;
+  object-fit: cover;
+  border-radius: 11px;
+  box-shadow: 0 8px 20px rgba(92, 54, 222, .28);
+}
+
 .connect-id-summary > span {
   display: grid;
   min-width: 0;

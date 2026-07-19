@@ -30,7 +30,6 @@
 .aahat-section-header p { margin: 0; color: var(--text-secondary); font-size: 13px; }
 .aahat-section-header button, .aahat-request-card button, .aahat-contact-card button { display: inline-flex; align-items: center; gap: 6px; }
 
-.aahat-identity-card,
 .settings-aahat-card {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr) auto auto;
@@ -43,11 +42,10 @@
   background: linear-gradient(135deg, rgba(124, 58, 237, .14), rgba(14, 165, 233, .08));
 }
 
-.aahat-identity-card > div,
 .settings-aahat-card > div { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-.aahat-identity-card span, .settings-aahat-card span { color: var(--text-secondary); font-size: 11px; }
-.aahat-identity-card strong, .settings-aahat-card strong { font-size: 19px; letter-spacing: .16em; font-variant-numeric: tabular-nums; }
-.aahat-identity-card button, .settings-aahat-card button {
+.settings-aahat-card span { color: var(--text-secondary); font-size: 11px; }
+.settings-aahat-card strong { font-size: 19px; letter-spacing: .16em; font-variant-numeric: tabular-nums; }
+.settings-aahat-card button {
   border: 1px solid var(--panel-border);
   border-radius: 9px;
   padding: 9px;
@@ -55,7 +53,6 @@
   color: var(--text-primary);
   cursor: pointer;
 }
-.aahat-identity-card .aahat-rotate-pin { display: inline-flex; align-items: center; gap: 6px; padding-inline: 12px; }
 
 .aahat-request-section { margin-top: 24px; }
 .aahat-request-section h3 { margin: 0 0 10px; font-size: 14px; color: var(--text-secondary); }
@@ -102,8 +99,8 @@
 @media (max-width: 720px) {
   .aahat-contacts-page { padding: 16px 14px 88px; }
   .aahat-section-header { align-items: flex-start; }
-  .aahat-identity-card, .settings-aahat-card { grid-template-columns: 1fr auto; }
-  .aahat-identity-card .aahat-rotate-pin, .settings-aahat-card > button:last-child { grid-column: 1 / -1; }
+  .settings-aahat-card { grid-template-columns: 1fr auto; }
+  .settings-aahat-card > button:last-child { grid-column: 1 / -1; }
   .aahat-request-card { align-items: flex-start; flex-wrap: wrap; }
   .aahat-request-actions { width: 100%; padding-left: 53px; }
 }

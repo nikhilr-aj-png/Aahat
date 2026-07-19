@@ -40,7 +40,7 @@ test('public Aahat ID connections are atomic while private profiles require PIN 
   assert.match(migration, /function public\.connect_by_aahat_id/);
   assert.match(migration, /target_mode = 'private'[\s\S]+6-digit PIN/);
   assert.match(migration, /target_mode = 'public'[\s\S]+insert into public\.user_contacts[\s\S]+get_or_create_direct_conversation/);
-  assert.match(hook, /rpc\('connect_by_aahat_id'/);
+  assert.match(hook, /rpc\('connect_by_aahat_id_private_safe'/);
   assert.match(app, /result\?\.conversation_id[\s\S]+handleSelectConversation/);
   assert.match(app, /Public profiles open instantly/);
   assert.match(app, /Private profile found/);

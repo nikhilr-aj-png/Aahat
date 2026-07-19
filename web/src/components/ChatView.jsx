@@ -27,7 +27,7 @@ export default function ChatView({
   onClearChat, onDeleteChat, onToggleArchive, onToggleMute,
   onSetTyping,
   currentUserId,
-  isUserOnline,
+  isUserOnline, canViewOnlineStatus, getLastSeen,
   onForwardMessage,
   onFetchGroupMembers,
   onAddGroupMember,
@@ -304,13 +304,34 @@ export default function ChatView({
     alert(`${forwardingMessages.length} message(s) forwarded successfully!`);
   };
 
+  const formatLastSeen = value => {
+    const seen = value ? new Date(value) : null;
+    if (!seen || Number.isNaN(seen.getTime())) return '';
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const day = seen.toDateString() === now.toDateString()
+      ? 'today'
+      : seen.toDateString() === yesterday.toDateString()
+        ? 'yesterday'
+        : seen.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    const time = seen.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return `Last seen ${day} at ${time}`;
+  };
+
   // Get online status text
   const getStatusText = () => {
     if (!conversation) return '';
     if (conversation.type === 'group') return `${conversation.memberCount} members`;
     if (conversation.type === 'self') return 'Message yourself';
-    if (conversation.otherMemberId && isUserOnline?.(conversation.otherMemberId)) return 'Online';
-    return 'Offline';
+    const memberId = conversation.otherMemberId;
+    const onlineStatusVisible = Boolean(memberId && canViewOnlineStatus?.(memberId));
+    if (onlineStatusVisible && isUserOnline?.(memberId)) return 'Online';
+    const lastSeenText = formatLastSeen(getLastSeen?.(memberId));
+    if (lastSeenText) {
+      return onlineStatusVisible ? `Offline · ${lastSeenText}` : lastSeenText;
+    }
+    return onlineStatusVisible ? 'Offline' : '';
   };
 
   // Empty state
@@ -346,7 +367,7 @@ export default function ChatView({
                 size={36}
                 className="avatar-image header-avatar"
               />
-              {conversation.type === 'direct' && (
+              {conversation.type === 'direct' && conversation.otherMemberId && canViewOnlineStatus?.(conversation.otherMemberId) && (
                 <div className={`status-badge ${conversation.otherMemberId && isUserOnline?.(conversation.otherMemberId) ? 'active' : 'offline'}`} />
               )}
             </div>
@@ -358,7 +379,7 @@ export default function ChatView({
                   typing...
                 </p>
               ) : (
-                <p className="status-text">{getStatusText()}</p>
+                getStatusText() ? <p className="status-text">{getStatusText()}</p> : null
               )}
             </div>
           </div>

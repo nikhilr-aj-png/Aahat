@@ -22,7 +22,7 @@ import SafeAvatar from './components/SafeAvatar';
 import ContactsSection from './components/ContactsSection';
 import { requestNotificationPermission } from './firebase';
 
-import { ArrowLeft, Lock, MessageSquare, CircleDot, Search, Settings, LogOut, Sparkles, X, Shield, Users } from 'lucide-react';
+import { ArrowLeft, Lock, MessageSquare, CircleDot, Settings, LogOut, Sparkles, X, Shield, Users } from 'lucide-react';
 
 const BrandLogo = () => (
   <img src="/logo.png" alt="Aahat" className="brand-logo-image" />
@@ -61,7 +61,8 @@ export default function App() {
     requestContact,
     respondToRequest,
     rotatePin,
-    removeContact
+    removeContact,
+    blockContact
   } = useAahatContacts(user, refetchConversations);
 
   // --- Messages (for the active conversation) ---
@@ -73,7 +74,10 @@ export default function App() {
   } = useMessages(user, selectedConversationId);
 
   // --- Presence ---
-  const { isUserOnline, setTyping, getTypingUsers } = usePresence(user);
+  const presenceContactIds = conversations
+    .filter(conversation => conversation.type === 'direct' && conversation.otherMemberId)
+    .map(conversation => conversation.otherMemberId);
+  const { canViewOnlineStatus, isUserOnline, getLastSeen, setTyping, getTypingUsers } = usePresence(user, profile, presenceContactIds);
 
   // --- Calling ---
   const {
@@ -429,7 +433,7 @@ export default function App() {
       if (result?.conversation_id) {
         handleSelectConversation(result.conversation_id);
       } else {
-        alert(`Invitation sent to ${result?.display_name || 'this Aahat user'}. You can chat after they accept it.`);
+        alert('Invitation sent to Aahat. You can chat after they accept it.');
       }
     } catch (err) {
       if (err?.code === 'AAHAT_PIN_REQUIRED' && newChatStep === 'id') {
@@ -593,6 +597,7 @@ export default function App() {
               onNewChat={openNewChatModal}
               onNewGroup={() => setShowNewGroupModal(true)}
               isUserOnline={isUserOnline}
+              canViewOnlineStatus={canViewOnlineStatus}
               isLoading={isConvLoading}
             />
             <ChatView
@@ -622,6 +627,8 @@ export default function App() {
               onSetTyping={setTyping}
               currentUserId={user?.id}
               isUserOnline={isUserOnline}
+              canViewOnlineStatus={canViewOnlineStatus}
+              getLastSeen={getLastSeen}
               onForwardMessage={async (message, targetConvId) => {
                 if (!user || !targetConvId) return;
                 await supabase.from('messages').insert({
@@ -647,17 +654,17 @@ export default function App() {
 
         {activeTab === 'contacts' && (
           <ContactsSection
-            credentials={aahatCredentials}
             conversations={conversations}
             incomingRequests={incomingRequests}
             outgoingRequests={outgoingRequests}
             isLoading={areContactsLoading}
             isUserOnline={isUserOnline}
+            canViewOnlineStatus={canViewOnlineStatus}
             onAddContact={openNewChatModal}
             onSelectConversation={handleSelectConversation}
             onRespond={respondToRequest}
-            onRotatePin={rotatePin}
             onRemoveContact={removeContact}
+            onBlockContact={blockContact}
           />
         )}
 
@@ -704,6 +711,7 @@ export default function App() {
           <AdminEmbedPanel
             conversations={conversations}
             messages={activeMessages}
+            isUserOnline={isUserOnline}
           />
         )}
       </div>
@@ -818,7 +826,7 @@ export default function App() {
                 />
               </div>
               : <>
-              <div className="connect-id-summary"><Search size={17}/><span><small>Aahat ID</small><strong>{newChatId}</strong></span><button type="button" title="Change Aahat ID" onClick={() => { setNewChatStep('id'); setNewChatPin(''); setNewChatError(''); }}><ArrowLeft size={17}/></button></div>
+              <div className="connect-id-summary"><img src="/logo.png" alt=""/><span><small>Private profile</small><strong>Aahat</strong></span><button type="button" title="Change Aahat ID" onClick={() => { setNewChatStep('id'); setNewChatPin(''); setNewChatError(''); }}><ArrowLeft size={17}/></button></div>
               <div className="form-group">
                 <label htmlFor="new-chat-pin" style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-secondary)' }}>
                   <Lock size={12}/> Connection PIN

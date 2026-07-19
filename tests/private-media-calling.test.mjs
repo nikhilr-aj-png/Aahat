@@ -5,9 +5,10 @@ import { readFile } from 'node:fs/promises';
 const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('one-to-one calls use WebRTC media and authenticated private Realtime signaling', async () => {
-  const [hook, migration, turnFunction] = await Promise.all([
+  const [hook, migration, repairMigration, turnFunction] = await Promise.all([
     read('web/src/hooks/useCallingSecure.js'),
     read('supabase/migrations/20260718_private_webrtc_and_r2_media.sql'),
+    read('supabase/migrations/202607190001_repair_secure_call_rpc.sql'),
     read('supabase/functions/rtc-credentials/index.ts'),
   ]);
   assert.match(hook, /new RTCPeerConnection/);
@@ -29,6 +30,15 @@ test('one-to-one calls use WebRTC media and authenticated private Realtime signa
   assert.match(migration, /on realtime\.messages for insert to authenticated/);
   assert.match(migration, /can_access_call_realtime_topic/);
   assert.match(migration, /start_direct_call/);
+  assert.match(repairMigration, /create or replace function public\.start_direct_call/);
+  assert.match(repairMigration, /create or replace function public\.set_call_status/);
+  assert.match(repairMigration, /perform realtime\.send/);
+  assert.match(repairMigration, /notify pgrst, 'reload schema'/);
+  assert.match(repairMigration, /grant execute on function public\.start_direct_call\(uuid, uuid, text\) to authenticated/);
+  assert.doesNotMatch(
+    migration,
+    /'call:' \|\| updated_call\.id::text,\s*drop policy/
+  );
   assert.match(migration, /pg_advisory_xact_lock/);
   assert.match(migration, /receiver_id uuid/);
   assert.match(migration, /answered_at timestamptz/);

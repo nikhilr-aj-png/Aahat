@@ -16,7 +16,7 @@ export default function Sidebar({
   isMobileOpen,
   toggleArchive, togglePin, toggleMute, toggleFavorite,
   onNewChat,
-  isUserOnline, isLoading
+  isUserOnline, canViewOnlineStatus, isLoading
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -76,6 +76,7 @@ export default function Sidebar({
   const renderConversationItem = (conv) => {
     const isSelected = conv.id === selectedConversationId;
     const isOnline = conv.type === 'direct' && conv.otherMemberId && isUserOnline?.(conv.otherMemberId);
+    const onlineStatusVisible = conv.type === 'direct' && conv.otherMemberId && canViewOnlineStatus?.(conv.otherMemberId);
     const isSelf = conv.type === 'self';
 
     return (
@@ -93,7 +94,7 @@ export default function Sidebar({
             size={44}
             className="avatar-image"
           />
-          {!isSelf && conv.type !== 'group' && (
+          {!isSelf && conv.type !== 'group' && onlineStatusVisible && (
             <div className={`status-badge ${isOnline ? 'active' : 'offline'}`} />
           )}
           {conv.type === 'group' && (

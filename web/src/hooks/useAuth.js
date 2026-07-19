@@ -103,7 +103,7 @@ export function useAuth() {
     // Update online status
     await supabase
       .from('profiles')
-      .update({ is_online: true, last_seen: new Date().toISOString() })
+      .update({ is_online: currentProfile?.privacy_settings?.online !== false, last_seen: new Date().toISOString() })
       .eq('id', session.user.id);
 
     setIsLoading(false);
@@ -149,12 +149,13 @@ export function useAuth() {
   // authoritative for instant UI; these profile fields provide a durable fallback.
   useEffect(() => {
     if (!user?.id) return undefined;
+    const onlineSharingEnabled = profile?.privacy_settings?.online !== false;
     const syncPresence = (online) => supabase.from('profiles').update({
       is_online: online, last_seen: new Date().toISOString()
     }).eq('id', user.id).then(({ error }) => {
       if (error) console.warn('Could not sync profile presence:', error.message);
     });
-    const shouldBeOnline = () => navigator.onLine;
+    const shouldBeOnline = () => onlineSharingEnabled && navigator.onLine && document.visibilityState === 'visible';
     const handleVisibility = () => { void syncPresence(shouldBeOnline()); };
     const handlePageHide = () => { void syncPresence(false); };
     handleVisibility();
@@ -171,7 +172,7 @@ export function useAuth() {
       window.removeEventListener('pagehide', handlePageHide);
       void syncPresence(false);
     };
-  }, [user?.id]);
+  }, [profile?.privacy_settings?.online, user?.id]);
   // Auth actions
   const signUp = useCallback(async (email, password, name) => {
     const { data, error } = await supabase.auth.signUp({
