@@ -777,7 +777,7 @@ export default function App() {
           onToggleCamera={toggleCamera}
           onSwitchCamera={switchCamera}
           onToggleScreenShare={toggleScreenShare}
-          onToggleSpeaker={() => setIsSpeakerOn(!isSpeakerOn)}
+          onToggleSpeaker={setIsSpeakerOn}
         />
       )}
 

@@ -211,13 +211,24 @@ test('voice-note Storage lifecycle is owner-scoped and deletion-ready', async ()
   assert.match(hook, /storage\.from\(data\.storage_bucket\)\.remove/);
 });
 test('voice and video calling attach remote audio and recover signaling gaps', async () => {
-  const [calling, overlay, app, migration] = await Promise.all([
+  const [calling, secureCalling, overlay, app, migration] = await Promise.all([
     read('web/src/hooks/useCalling.js'),
+    read('web/src/hooks/useCallingSecure.js'),
     read('web/src/components/CallingOverlay.jsx'),
     read('web/src/App.jsx'),
     read('supabase/migrations/20260718_complete_chat_header_actions.sql')
   ]);
   assert.match(overlay, /<audio ref=\{remoteAudioRef\} autoPlay playsInline/);
+  assert.doesNotMatch(overlay, /muted=\{!isSpeakerOn\}/);
+  assert.match(overlay, /selectAudioOutput/);
+  assert.match(overlay, /audio\.setSinkId/);
+  assert.match(overlay, /video\.play\(\)/);
+  assert.match(overlay, /\[isRinging, isVideo, localStream\]/);
+  assert.match(overlay, /window\.ProximitySensor/);
+  assert.match(secureCalling, /createPeerConnection\(conversation\.otherMemberId, callType\)/);
+  assert.match(secureCalling, /createPeerConnection\(current\.contact\.id, current\.type\)/);
+  assert.match(secureCalling, /setRemoteStream\(new MediaStream\(incomingStream\.getTracks\(\)\)\)/);
+  assert.match(app, /onToggleSpeaker=\{setIsSpeakerOn\}/);
   assert.match(calling, /const \[localStream, setLocalStream\]/);
   assert.match(calling, /const \[remoteStream, setRemoteStream\]/);
   assert.match(calling, /restoreIncomingCall/);

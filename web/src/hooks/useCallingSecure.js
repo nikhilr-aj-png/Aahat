@@ -21,7 +21,7 @@ export function useCallingSecure(user) {
   const [callState, setCallState] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
-  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [localStream, setLocalStream] = useState(null);
@@ -97,6 +97,7 @@ export function useCallingSecure(user) {
     setCallDuration(0);
     setIsMuted(false);
     setIsCameraOff(false);
+    setIsSpeakerOn(false);
     setRemoteMediaState({ muted: false, cameraOff: false });
     if (error) setCallError(error);
   }, [cleanupTransport, updateLocalCall]);
@@ -187,7 +188,7 @@ export function useCallingSecure(user) {
       tracks.forEach(track => {
         if (!incomingStream.getTracks().some(existing => existing.id === track.id)) incomingStream.addTrack(track);
       });
-      setRemoteStream(incomingStream);
+      setRemoteStream(new MediaStream(incomingStream.getTracks()));
     };
     pc.onicecandidate = event => {
       if (event.candidate) sendCallEvent('ice', { candidate: event.candidate.toJSON(), receiverId: remoteUserId })
@@ -329,6 +330,7 @@ export function useCallingSecure(user) {
     updateLocalCall(normalizeCall(call, contact, true));
     setCallDuration(0);
     setCallError('');
+    setIsSpeakerOn(invite.type === 'video');
     await subscribeToCall(invite.callId);
     await sendCallEvent('ready');
     await sendCallEvent('ringing');
@@ -404,8 +406,16 @@ export function useCallingSecure(user) {
     setCallDuration(0);
     setIsMuted(false);
     setIsCameraOff(false);
-    await subscribeToCall(call.id);
-    await sendCallEvent('probe');
+    setIsSpeakerOn(callType === 'video');
+    try {
+      await subscribeToCall(call.id);
+      await createPeerConnection(conversation.otherMemberId, callType);
+      await sendCallEvent('probe');
+    } catch (error) {
+      await setDurableStatus(call.id, 'failed');
+      resetCallUi(error.message || 'Could not access the microphone or camera.');
+      return;
+    }
     handshakeTimerRef.current = window.setInterval(() => {
       if (offerSentRef.current) { window.clearInterval(handshakeTimerRef.current); handshakeTimerRef.current = null; return; }
       sendCallEvent('probe').catch(() => undefined);
@@ -417,18 +427,24 @@ export function useCallingSecure(user) {
       await setDurableStatus(call.id, 'missed');
       resetCallUi('No answer. The call ended.');
     }, RING_TIMEOUT_MS);
-  }, [resetCallUi, sendCallEvent, setDurableStatus, subscribeToCall, updateLocalCall, user]);
+  }, [createPeerConnection, resetCallUi, sendCallEvent, setDurableStatus, subscribeToCall, updateLocalCall, user]);
 
   const answerCall = useCallback(async () => {
     const current = callStateRef.current;
     if (!current?.isIncoming) return;
-    answerPendingRef.current = true;
-    updateLocalCall(state => state ? { ...state, status: 'connecting', isRinging: false } : null);
-    await sendCallEvent('accept');
-    await setDurableStatus(current.callId, 'connecting');
-    if (pendingOfferRef.current) await completeAnswer();
-    else await sendCallEvent('ready');
-  }, [completeAnswer, sendCallEvent, setDurableStatus, updateLocalCall]);
+    try {
+      await createPeerConnection(current.contact.id, current.type);
+      answerPendingRef.current = true;
+      updateLocalCall(state => state ? { ...state, status: 'connecting', isRinging: false } : null);
+      await sendCallEvent('accept');
+      await setDurableStatus(current.callId, 'connecting');
+      if (pendingOfferRef.current) await completeAnswer();
+      else await sendCallEvent('ready');
+    } catch (error) {
+      await setDurableStatus(current.callId, 'failed');
+      resetCallUi(error.message || 'Could not access the microphone or camera.');
+    }
+  }, [completeAnswer, createPeerConnection, resetCallUi, sendCallEvent, setDurableStatus, updateLocalCall]);
 
   const hangup = useCallback(async () => {
     const current = callStateRef.current;

@@ -1,5 +1,5 @@
-import { useRef, useEffect } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume2, VolumeX, Monitor, RefreshCw } from 'lucide-react';
+import { useRef, useEffect, useState } from 'react';
+import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume1, Volume2, Monitor, RefreshCw } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 
 /**
@@ -27,28 +27,86 @@ export default function CallingOverlay({
   const localVideoRef = useRef(null);
   const remoteAudioRef = useRef(null);
   const remoteVideoRef = useRef(null);
-
-  // Attach streams to video elements
-  useEffect(() => {
-    if (localVideoRef.current && localStream) {
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [localStream]);
+  const [audioOutputMessage, setAudioOutputMessage] = useState('');
+  const [isNearEarpiece, setIsNearEarpiece] = useState(false);
+  const isVideo = callState?.type === 'video';
+  const isRinging = Boolean(callState?.isRinging);
 
   useEffect(() => {
-    if (remoteVideoRef.current && remoteStream) {
-      remoteVideoRef.current.srcObject = remoteStream;
+    const video = localVideoRef.current;
+    if (!video || !localStream || !isVideo || isRinging) return;
+    video.srcObject = localStream;
+    video.play().catch(() => undefined);
+  }, [isRinging, isVideo, localStream]);
+
+  useEffect(() => {
+    const video = remoteVideoRef.current;
+    const audio = remoteAudioRef.current;
+    if (video && remoteStream && isVideo && !isRinging) {
+      video.srcObject = remoteStream;
+      video.play().catch(() => undefined);
     }
-    if (remoteAudioRef.current && remoteStream) {
-      remoteAudioRef.current.srcObject = remoteStream;
-      remoteAudioRef.current.play().catch(() => undefined);
+    if (audio && remoteStream) {
+      audio.srcObject = remoteStream;
+      audio.play().catch(() => undefined);
     }
-  }, [remoteStream, isSpeakerOn]);
+  }, [isRinging, isVideo, remoteStream]);
+
+  useEffect(() => {
+    if (isVideo || isRinging || isSpeakerOn) {
+      setIsNearEarpiece(false);
+      return undefined;
+    }
+
+    const handleLegacyProximity = event => setIsNearEarpiece(Boolean(event.near));
+    window.addEventListener('userproximity', handleLegacyProximity);
+    let sensor = null;
+    let handleReading = null;
+    if (typeof window.ProximitySensor === 'function') {
+      try {
+        sensor = new window.ProximitySensor({ frequency: 5 });
+        handleReading = () => setIsNearEarpiece(Boolean(sensor.near));
+        sensor.addEventListener('reading', handleReading);
+        sensor.start();
+      } catch (error) {
+        console.warn('Proximity sensor is unavailable in this browser:', error.message);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('userproximity', handleLegacyProximity);
+      if (sensor && handleReading) sensor.removeEventListener('reading', handleReading);
+      sensor?.stop();
+      setIsNearEarpiece(false);
+    };
+  }, [isRinging, isSpeakerOn, isVideo]);
+
+  const chooseAudioOutput = async () => {
+    const audio = remoteAudioRef.current;
+    const selectOutput = navigator.mediaDevices?.selectAudioOutput;
+    if (!audio || typeof audio.setSinkId !== 'function' || typeof selectOutput !== 'function') {
+      setAudioOutputMessage('Audio output is controlled by your phone or browser on this device.');
+      return;
+    }
+
+    try {
+      const output = await selectOutput.call(navigator.mediaDevices);
+      await audio.setSinkId(output.deviceId);
+      await audio.play();
+      const label = output.label || 'Selected audio output';
+      const isPrivateOutput = /earpiece|receiver|head(phone|set)|bluetooth/i.test(label);
+      onToggleSpeaker?.(!isPrivateOutput);
+      setAudioOutputMessage(`Audio: ${label}`);
+    } catch (error) {
+      if (error.name !== 'NotAllowedError' && error.name !== 'AbortError') {
+        setAudioOutputMessage('Could not change the audio output on this device.');
+      }
+    }
+  };
 
   if (!callState) return null;
 
-  const { contact, type, isRinging, isIncoming } = callState;
-  const isVideo = type === 'video';
+  const { contact, isIncoming } = callState;
   const statusLabels = {
     calling: 'Calling…', ringing: isIncoming ? 'Incoming call…' : 'Ringing…',
     connecting: 'Connecting securely…', connected: 'Connected',
@@ -67,7 +125,8 @@ export default function CallingOverlay({
 
   return (
     <div className="calling-overlay" id="calling-overlay">
-      <audio ref={remoteAudioRef} autoPlay playsInline muted={!isSpeakerOn} aria-label="Remote call audio" />
+      <audio ref={remoteAudioRef} autoPlay playsInline aria-label="Remote call audio" />
+      {isNearEarpiece && <div className="call-proximity-shield" aria-hidden="true" />}
       {/* Background */}
       <div className="call-background">
         <div className="call-gradient-1" />
@@ -281,17 +340,21 @@ export default function CallingOverlay({
               )}
 
               <button
-                onClick={onToggleSpeaker}
+                onClick={chooseAudioOutput}
                 style={{
                   width: '48px', height: '48px', borderRadius: '50%',
-                  background: !isSpeakerOn ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.15)', color: !isSpeakerOn ? '#fca5a5' : 'white',
+                  background: isSpeakerOn ? 'rgba(95,52,247,0.4)' : 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.15)', color: 'white',
                   cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}
-                title={isSpeakerOn ? 'Speaker off' : 'Speaker on'}
+                title="Choose speaker, earpiece, headset, or Bluetooth output"
+                aria-label="Choose audio output"
               >
-                {isSpeakerOn ? <Volume2 size={20} /> : <VolumeX size={20} />}
+                {isSpeakerOn ? <Volume2 size={20} /> : <Volume1 size={20} />}
               </button>
+              {audioOutputMessage && (
+                <span className="call-audio-output-message" role="status">{audioOutputMessage}</span>
+              )}
 
 
               {isVideo && (
