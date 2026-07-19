@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume1, Volume2, Monitor, RefreshCw } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Volume1, Volume2, VolumeX, Monitor, RefreshCw } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 
 /**
@@ -29,6 +29,7 @@ export default function CallingOverlay({
   const remoteVideoRef = useRef(null);
   const [audioOutputMessage, setAudioOutputMessage] = useState('');
   const [isNearEarpiece, setIsNearEarpiece] = useState(false);
+  const [audioMode, setAudioMode] = useState('normal');
   const isVideo = callState?.type === 'video';
   const isRinging = Boolean(callState?.isRinging);
 
@@ -42,15 +43,57 @@ export default function CallingOverlay({
   useEffect(() => {
     const video = remoteVideoRef.current;
     const audio = remoteAudioRef.current;
-    if (video && remoteStream && isVideo && !isRinging) {
+    if (!remoteStream) return undefined;
+    const mediaElements = [];
+    const tryPlay = element => {
+      if (!element) return;
+      element.play().catch(error => {
+        if (element === audio && error?.name === 'NotAllowedError') {
+          setAudioOutputMessage('Tap the sound button to start call audio.');
+        }
+      });
+    };
+    if (video && isVideo && !isRinging) {
       video.srcObject = remoteStream;
-      video.play().catch(() => undefined);
+      mediaElements.push(video);
+      tryPlay(video);
     }
-    if (audio && remoteStream) {
+    if (audio) {
       audio.srcObject = remoteStream;
-      audio.play().catch(() => undefined);
+      mediaElements.push(audio);
+      tryPlay(audio);
     }
+    const handleReady = () => mediaElements.forEach(tryPlay);
+    const tracks = remoteStream.getTracks();
+    mediaElements.forEach(element => {
+      element.addEventListener('loadedmetadata', handleReady);
+      element.addEventListener('canplay', handleReady);
+    });
+    tracks.forEach(track => track.addEventListener('unmute', handleReady));
+    return () => {
+      mediaElements.forEach(element => {
+        element.removeEventListener('loadedmetadata', handleReady);
+        element.removeEventListener('canplay', handleReady);
+      });
+      tracks.forEach(track => track.removeEventListener('unmute', handleReady));
+    };
   }, [isRinging, isVideo, remoteStream]);
+
+  useEffect(() => {
+    setAudioMode('normal');
+    setAudioOutputMessage('Normal volume');
+    onToggleSpeaker?.(false);
+  }, [callState?.callId, onToggleSpeaker]);
+
+  useEffect(() => {
+    const audio = remoteAudioRef.current;
+    if (!audio) return;
+    audio.muted = audioMode === 'muted';
+    audio.volume = audioMode === 'normal' ? 0.45 : 1;
+    if (audioMode !== 'muted' && audio.srcObject) audio.play().catch(() => {
+      setAudioOutputMessage('Tap the sound button to start call audio.');
+    });
+  }, [audioMode, remoteStream]);
 
   useEffect(() => {
     if (isVideo || isRinging || isSpeakerOn) {
@@ -81,27 +124,15 @@ export default function CallingOverlay({
     };
   }, [isRinging, isSpeakerOn, isVideo]);
 
-  const chooseAudioOutput = async () => {
+  const cycleAudioMode = () => {
     const audio = remoteAudioRef.current;
-    const selectOutput = navigator.mediaDevices?.selectAudioOutput;
-    if (!audio || typeof audio.setSinkId !== 'function' || typeof selectOutput !== 'function') {
-      setAudioOutputMessage('Audio output is controlled by your phone or browser on this device.');
-      return;
-    }
-
-    try {
-      const output = await selectOutput.call(navigator.mediaDevices);
-      await audio.setSinkId(output.deviceId);
-      await audio.play();
-      const label = output.label || 'Selected audio output';
-      const isPrivateOutput = /earpiece|receiver|head(phone|set)|bluetooth/i.test(label);
-      onToggleSpeaker?.(!isPrivateOutput);
-      setAudioOutputMessage(`Audio: ${label}`);
-    } catch (error) {
-      if (error.name !== 'NotAllowedError' && error.name !== 'AbortError') {
-        setAudioOutputMessage('Could not change the audio output on this device.');
-      }
-    }
+    const nextMode = audioMode === 'normal' ? 'loud' : audioMode === 'loud' ? 'muted' : 'normal';
+    setAudioMode(nextMode);
+    onToggleSpeaker?.(nextMode !== 'normal');
+    setAudioOutputMessage(nextMode === 'normal' ? 'Normal volume' : nextMode === 'loud' ? 'Loud volume' : 'Call audio muted');
+    if (nextMode !== 'muted' && audio?.srcObject) audio.play().catch(() => {
+      setAudioOutputMessage('Tap again to allow call audio.');
+    });
   };
 
   if (!callState) return null;
@@ -340,17 +371,18 @@ export default function CallingOverlay({
               )}
 
               <button
-                onClick={chooseAudioOutput}
+                onClick={cycleAudioMode}
                 style={{
                   width: '48px', height: '48px', borderRadius: '50%',
-                  background: isSpeakerOn ? 'rgba(95,52,247,0.4)' : 'rgba(255,255,255,0.1)',
-                  border: '1px solid rgba(255,255,255,0.15)', color: 'white',
+                  background: audioMode === 'muted' ? 'rgba(239,68,68,0.3)' : audioMode === 'loud' ? 'rgba(95,52,247,0.4)' : 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.15)', color: audioMode === 'muted' ? '#fca5a5' : 'white',
                   cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}
-                title="Choose speaker, earpiece, headset, or Bluetooth output"
-                aria-label="Choose audio output"
+                title={audioMode === 'normal' ? 'Normal volume · tap for loud' : audioMode === 'loud' ? 'Loud volume · tap to mute' : 'Muted · tap for normal volume'}
+                aria-label={`Call audio: ${audioMode}`}
+                aria-pressed={audioMode !== 'normal'}
               >
-                {isSpeakerOn ? <Volume2 size={20} /> : <Volume1 size={20} />}
+                {audioMode === 'muted' ? <VolumeX size={20} /> : audioMode === 'loud' ? <Volume2 size={20} /> : <Volume1 size={20} />}
               </button>
               {audioOutputMessage && (
                 <span className="call-audio-output-message" role="status">{audioOutputMessage}</span>

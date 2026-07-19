@@ -8,6 +8,7 @@ import PrivacySettingsSection from './PrivacySettingsSection';
 import SecuritySettingsSection from './SecuritySettingsSection';
 import { CHAT_MEDIA_LIMITS } from '../utils/mediaCompression';
 import './ProfileConnectionMode.css';
+import './ProfileCredentialsLayout.css';
 
 const newStableId = (key) => {
   let value = localStorage.getItem(key);
@@ -317,18 +318,26 @@ export default function SettingsPanelProduction({ user, profile, conversations, 
         <label>Bio<textarea value={bio} onChange={e => setBio(e.target.value)}/></label>
         <button disabled={busy || !name.trim()} onClick={saveProfile}>Save profile</button>
         <div className={`settings-aahat-card ${publicConnections ? 'has-public-mode' : ''}`}>
-          <div>
-            <span>Your 10-digit Aahat ID</span>
-            <strong>{aahatCredentials?.aahat_id || '----------'}</strong>
-          </div>
-          <button type="button" title="Copy Aahat ID" onClick={() => navigator.clipboard.writeText(aahatCredentials?.aahat_id || '')}><Copy size={15}/></button>
-          {!publicConnections && <>
-            <div>
-              <span>Your 6-digit connection PIN</span>
-              <strong>{aahatCredentials?.pin_code || '------'}</strong>
+          <div className="settings-aahat-credentials">
+            <div className="settings-aahat-credential">
+              <span>Your 10-digit Aahat ID</span>
+              <strong>{aahatCredentials?.aahat_id || '----------'}</strong>
             </div>
-            <button type="button" title="Copy PIN" onClick={() => navigator.clipboard.writeText(aahatCredentials?.pin_code || '')}><Copy size={15}/></button>
-          </>}
+            <button type="button" className="settings-credential-copy" title="Copy Aahat ID" aria-label="Copy Aahat ID" onClick={() => navigator.clipboard.writeText(aahatCredentials?.aahat_id || '')}><Copy size={17}/></button>
+            {!publicConnections && <>
+              <div className="settings-aahat-credential">
+                <span>Your 6-digit connection PIN</span>
+                <strong>{aahatCredentials?.pin_code || '------'}</strong>
+              </div>
+              <div className="settings-pin-actions">
+                <button type="button" className="settings-credential-copy" title="Copy PIN" aria-label="Copy connection PIN" onClick={() => navigator.clipboard.writeText(aahatCredentials?.pin_code || '')}><Copy size={17}/></button>
+                <button type="button" className="settings-pin-rotate" disabled={busy} onClick={() => {
+                  if (!confirm('Generate a new connection PIN? Your old PIN will stop working immediately.')) return;
+                  run(onRotateAahatPin, 'A new connection PIN is active.');
+                }}><RefreshCw size={16}/>Generate new PIN</button>
+              </div>
+            </>}
+          </div>
           <div className="profile-connection-mode">
             <div className={`profile-mode-icon ${publicConnections ? 'is-public' : ''}`}>
               {publicConnections ? <Globe2 size={22}/> : <Lock size={22}/>}
@@ -343,10 +352,6 @@ export default function SettingsPanelProduction({ user, profile, conversations, 
             <button type="button" className={`profile-mode-toggle ${publicConnections ? 'is-on' : ''}`} role="switch" aria-checked={publicConnections} aria-label="Allow instant connections using only your Aahat ID" disabled={busy} onClick={toggleAahatConnectionMode}><span/></button>
           </div>
           <p>{publicConnections ? 'Your Aahat ID is searchable. Switch back to Private whenever you want PIN-protected requests.' : 'Share both only with someone you want to connect with. Their invitation must still be accepted by you.'}</p>
-          {!publicConnections && <button type="button" onClick={() => {
-            if (!confirm('Generate a new connection PIN? Your old PIN will stop working immediately.')) return;
-            run(onRotateAahatPin, 'A new connection PIN is active.');
-          }}><RefreshCw size={15}/>Generate new PIN</button>}
         </div>
       </section>}
       {tab === 'privacy' && <PrivacySettingsSection

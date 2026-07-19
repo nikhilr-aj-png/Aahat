@@ -7,6 +7,24 @@ const TERMINAL_STATES = new Set(['rejected', 'missed', 'failed', 'ended', 'busy'
 const RING_TIMEOUT_MS = 45_000;
 const DISCONNECT_GRACE_MS = 8_000;
 
+const waitForIceGatheringComplete = (pc, timeoutMs = 4_000) => new Promise(resolve => {
+  if (!pc || pc.iceGatheringState === 'complete') {
+    resolve();
+    return;
+  }
+  let timeout = null;
+  const finish = () => {
+    if (timeout) window.clearTimeout(timeout);
+    pc.removeEventListener('icegatheringstatechange', handleStateChange);
+    resolve();
+  };
+  const handleStateChange = () => {
+    if (pc.iceGatheringState === 'complete') finish();
+  };
+  timeout = window.setTimeout(finish, timeoutMs);
+  pc.addEventListener('icegatheringstatechange', handleStateChange);
+});
+
 const normalizeCall = (call, contact, incoming) => ({
   callId: call.id,
   conversationId: call.conversation_id,
@@ -184,9 +202,19 @@ export function useCallingSecure(user) {
     remoteStreamRef.current = incomingStream;
     setRemoteStream(incomingStream);
     pc.ontrack = event => {
-      const tracks = event.streams[0]?.getTracks() || [event.track];
+      const sourceStream = event.streams[0];
+      const tracks = sourceStream?.getTracks() || [event.track];
       tracks.forEach(track => {
         if (!incomingStream.getTracks().some(existing => existing.id === track.id)) incomingStream.addTrack(track);
+        track.onunmute = () => {
+          if (remoteStreamRef.current !== incomingStream) return;
+          setRemoteStream(new MediaStream(incomingStream.getTracks()));
+        };
+        track.onended = () => {
+          if (remoteStreamRef.current !== incomingStream) return;
+          incomingStream.removeTrack(track);
+          setRemoteStream(new MediaStream(incomingStream.getTracks()));
+        };
       });
       setRemoteStream(new MediaStream(incomingStream.getTracks()));
     };
@@ -238,6 +266,7 @@ export function useCallingSecure(user) {
     }
     const offer = await pc.createOffer({ iceRestart });
     await pc.setLocalDescription(offer);
+    await waitForIceGatheringComplete(pc);
     offerSentRef.current = true;
     updateLocalCall(state => state ? { ...state, status: 'connecting', isRinging: false } : null);
     await sendCallEvent('offer', { description: pc.localDescription.toJSON(), iceRestart });
@@ -254,6 +283,7 @@ export function useCallingSecure(user) {
     await flushPendingIce(pc);
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
+    await waitForIceGatheringComplete(pc);
     await sendCallEvent('answer', { description: pc.localDescription.toJSON() });
     await setDurableStatus(current.callId, 'connecting');
   }, [createPeerConnection, flushPendingIce, sendCallEvent, setDurableStatus]);
@@ -330,7 +360,7 @@ export function useCallingSecure(user) {
     updateLocalCall(normalizeCall(call, contact, true));
     setCallDuration(0);
     setCallError('');
-    setIsSpeakerOn(invite.type === 'video');
+    setIsSpeakerOn(false);
     await subscribeToCall(invite.callId);
     await sendCallEvent('ready');
     await sendCallEvent('ringing');
@@ -406,7 +436,7 @@ export function useCallingSecure(user) {
     setCallDuration(0);
     setIsMuted(false);
     setIsCameraOff(false);
-    setIsSpeakerOn(callType === 'video');
+    setIsSpeakerOn(false);
     try {
       await subscribeToCall(call.id);
       await createPeerConnection(conversation.otherMemberId, callType);

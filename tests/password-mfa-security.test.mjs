@@ -25,6 +25,8 @@ test('verified TOTP factors gate application data behind an AAL2 challenge', () 
   assert.match(securityCss, /\.mfa-gate-card \{[^}]*background: #120c2e/);
   assert.doesNotMatch(securityCss, /\.mfa-gate \{[^}]*radial-gradient/);
   assert.match(securityCss, /@media \(max-height: 650px\)/);
+  assert.match(securityCss, /@media \(max-height: 650px\) \{ \.mfa-gate \{ place-items: center; \}/);
+  assert.doesNotMatch(securityCss, /place-items: start center/);
   assert.match(gate, /autoComplete="one-time-code"/);
   assert.match(gate, /invalid or expired/);
 });
