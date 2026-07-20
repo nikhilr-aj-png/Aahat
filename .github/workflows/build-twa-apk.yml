@@ -62,6 +62,7 @@ jobs:
           ls -la "$ANDROID_HOME/"
 
       - name: Build TWA APK
+        id: build_apk
         run: |
           # Generate signing keystore if it doesn't exist
           if [ ! -f "web/aahat-release-key.jks" ]; then
@@ -79,25 +80,26 @@ jobs:
           # Backup our custom twa-manifest.json
           cp twa-manifest.json twa-manifest-temp.json
           
-          # Initialize from web manifest URL
-          bubblewrap init --manifest=https://raw.githubusercontent.com/nikhilr-aj-png/Aahat/main/web/public/manifest.json --skipConfig >> build_log.txt 2>&1 || true
+          # Initialize from web manifest URL (pipe yes for any interactive prompts)
+          yes | bubblewrap init --manifest=https://raw.githubusercontent.com/nikhilr-aj-png/Aahat/main/web/public/manifest.json --skipConfig >> build_log.txt 2>&1 || true
           
           # Restore our custom twa-manifest.json
           cp twa-manifest-temp.json twa-manifest.json
           
           # Update android project configurations from custom twa-manifest.json
-          bubblewrap update >> build_log.txt 2>&1 || true
+          yes | bubblewrap update >> build_log.txt 2>&1 || true
           
-          # Build signed APK
-          bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass" >> build_log.txt 2>&1 || true
+          # Build signed APK (pipe yes for Gradle license prompts)
+          yes | bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass" >> build_log.txt 2>&1 || true
           
           # Check if APK was built
           if [ -f "app-release-signed.apk" ] || ls *.apk 1> /dev/null 2>&1; then
             echo "Build Succeeded!"
+            echo "BUILD_RESULT=success" >> $GITHUB_ENV
           else
-            echo "Build Failed!"
+            echo "Build Failed! See build_log.txt for details."
             cat build_log.txt
-            exit 1
+            echo "BUILD_RESULT=failure" >> $GITHUB_ENV
           fi
 
       - name: Commit and Push APK and Logs
@@ -120,4 +122,12 @@ jobs:
           
           git add web/public/aahat.apk web/aahat-release-key.jks web/public/build_log.txt || true
           git diff-index --quiet HEAD || git commit -m "chore: commit APK / build logs [skip ci]"
-          git push origin HEAD:main
+          git push origin HEAD:main || true
+
+      - name: Fail if build was unsuccessful
+        if: always()
+        run: |
+          if [ "$BUILD_RESULT" = "failure" ]; then
+            echo "Build failed — see committed build_log.txt for details."
+            exit 1
+          fi
