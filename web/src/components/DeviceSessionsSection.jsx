@@ -1,4 +1,4 @@
-import { Check, Laptop, MonitorSmartphone, Pencil, ShieldCheck, Smartphone } from 'lucide-react';
+import { Check, Laptop, LogOut, MonitorSmartphone, Pencil, ShieldCheck, Smartphone, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import './DeviceSessionsSection.css';
 
@@ -19,11 +19,11 @@ export default function DeviceSessionsSection({
   currentSessionId,
   busy,
   onRenameDevice,
-  onRevokeOtherSessions
+  onRevokeSession,
+  onRemoveSession
 }) {
   const [renameTarget, setRenameTarget] = useState(null);
   const [renameValue, setRenameValue] = useState('');
-  const activeOtherSessions = sessions.filter(session => !session.revoked_at && session.client_session_id !== currentSessionId).length;
 
   const openRename = device => {
     setRenameTarget(device);
@@ -75,14 +75,15 @@ export default function DeviceSessionsSection({
         const deviceName = session.device?.device_name || 'Previously registered device';
         return <article className="login-session-card" key={session.id}>
           <span className={`session-status-dot ${session.revoked_at ? 'is-revoked' : ''}`}/>
-          <div><span><strong>{session.revoked_at ? 'Signed out' : 'Active session'}</strong>{isCurrent && <i>Current</i>}</span><small>{deviceName} · {formatActivity(session.last_seen_at)}</small></div>
+          <div style={{ flex: 1 }}><span><strong>{session.revoked_at ? 'Signed out' : 'Active session'}</strong>{isCurrent && <i>Current</i>}</span><small>{deviceName} · {formatActivity(session.last_seen_at)}</small></div>
+          {session.revoked_at ? (
+            <button type="button" className="remove" disabled={busy} onClick={() => onRemoveSession(session.id)} aria-label="Remove session"><Trash2 size={15}/><span>Remove</span></button>
+          ) : (
+            <button type="button" disabled={busy} onClick={() => onRevokeSession(session.id, isCurrent)} aria-label="Sign out session"><LogOut size={15}/><span>Sign out</span></button>
+          )}
         </article>;
       }) : <p className="device-empty-state">No login sessions found.</p>}
     </div>
-
-    <button className="revoke-other-sessions" type="button" disabled={busy || activeOtherSessions === 0} onClick={onRevokeOtherSessions}>
-      <ShieldCheck size={17}/>Sign out other sessions{activeOtherSessions ? ` (${activeOtherSessions})` : ''}
-    </button>
     {renameTarget && <div className="device-rename-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && closeRename()}>
       <form className="device-rename-dialog" onSubmit={saveRename} role="dialog" aria-modal="true" aria-labelledby="device-rename-title">
         <span className="device-rename-icon"><Pencil size={21}/></span>

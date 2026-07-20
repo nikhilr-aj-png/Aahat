@@ -253,13 +253,22 @@ export default function SettingsPanelProduction({ user, profile, conversations, 
     await loadSecurityData();
   }, 'User unblocked.');
 
-  const revokeOtherSessions = () => run(async () => {
-    const current = newStableId('aahat_client_session_id');
-    const { error } = await supabase.auth.signOut({ scope: 'others' });
+  const revokeSession = (sessionId, isCurrent) => run(async () => {
+    const { error } = await supabase.from('user_sessions').update({ revoked_at: new Date().toISOString() }).eq('id', sessionId).eq('user_id', user.id);
     if (error) throw error;
-    await supabase.from('user_sessions').update({ revoked_at: new Date().toISOString() }).eq('user_id', user.id).neq('client_session_id', current);
+    if (isCurrent) {
+      await supabase.auth.signOut({ scope: 'local' });
+      await onLogout();
+    } else {
+      await loadSecurityData();
+    }
+  }, isCurrent ? 'Signed out successfully.' : 'Session signed out.');
+
+  const removeSession = (sessionId) => run(async () => {
+    const { error } = await supabase.from('user_sessions').delete().eq('id', sessionId).eq('user_id', user.id);
+    if (error) throw error;
     await loadSecurityData();
-  }, 'Other sessions revoked.');
+  }, 'Session removed.');
 
   const renameDevice = (deviceId, deviceName) => run(async () => {
     const { error } = await supabase.from('user_devices').update({ device_name: deviceName }).eq('id', deviceId).eq('user_id', user.id);
@@ -402,7 +411,8 @@ export default function SettingsPanelProduction({ user, profile, conversations, 
         currentSessionId={newStableId('aahat_client_session_id')}
         busy={busy}
         onRenameDevice={renameDevice}
-        onRevokeOtherSessions={revokeOtherSessions}
+        onRevokeSession={revokeSession}
+        onRemoveSession={removeSession}
       />}
       {tab === 'notifications' && <NotificationSettingsSection
         notifications={notifications}

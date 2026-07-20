@@ -5,7 +5,14 @@
 .device-heading-icon { width: 45px; height: 45px; border-radius: 14px; }
 .device-section-heading h3, .session-explainer h4 { margin: 0; color: #f5f1ff; }
 .device-section-heading p, .session-explainer p { margin: 4px 0 0; color: #9b94b3; font-size: 12px; line-height: 1.5; }
-.registered-device-list, .login-session-list { display: grid !important; gap: 10px !important; }
+.registered-device-list, .login-session-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  max-height: 242px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
 .registered-device-card, .login-session-card { display: flex !important; flex-direction: row !important; align-items: center !important; min-height: 72px; padding: 13px 15px !important; gap: 12px !important; border: 1px solid rgba(141,119,211,.18) !important; border-radius: 15px !important; background: rgba(255,255,255,.018) !important; }
 .registered-device-icon { width: 42px; height: 42px; border-radius: 13px; }
 .registered-device-copy, .login-session-card > div { display: flex !important; flex: 1; flex-direction: column !important; align-items: flex-start !important; min-width: 0; gap: 5px !important; }
@@ -13,12 +20,14 @@
 .registered-device-copy strong, .login-session-card strong { color: #f2eeff; font-size: 14px; letter-spacing: 0; }
 .registered-device-copy i, .login-session-card i { padding: 3px 8px; color: #7ee2c2; border: 1px solid rgba(54,203,159,.22); border-radius: 999px; background: rgba(35,177,136,.1); font-size: 9px; font-style: normal; font-weight: 750; text-transform: uppercase; }
 .registered-device-copy small, .login-session-card small { overflow: hidden; max-width: 100%; color: #9891ad; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.registered-device-card > button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; color: #d8cff7; border: 1px solid rgba(143,121,213,.22); border-radius: 11px; background: rgba(255,255,255,.025); }
+.registered-device-card > button, .login-session-card > button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; color: #d8cff7; border: 1px solid rgba(143,121,213,.22); border-radius: 11px; background: rgba(255,255,255,.025); cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; transition: var(--transition-fast); }
+.registered-device-card > button:hover, .login-session-card > button:hover { background: rgba(255,255,255,.08); border-color: rgba(143,121,213,.35); }
+.login-session-card > button.remove:hover { background: rgba(239, 68, 68, 0.1); color: #fca5a5; border-color: rgba(239, 68, 68, 0.25); }
+.registered-device-card > button:disabled, .login-session-card > button:disabled { cursor: not-allowed; opacity: 0.5; }
 .session-explainer { margin: 24px 0 13px; padding-top: 22px; border-top: 1px solid rgba(141,119,211,.16); }
 .session-explainer > svg { flex: 0 0 auto; color: #9d87ff; }
 .session-status-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #4ee0ae; box-shadow: 0 0 0 4px rgba(53,210,164,.08); }
 .session-status-dot.is-revoked { background: #777087; box-shadow: none; }
-.revoke-other-sessions { display: inline-flex !important; align-items: center; justify-content: center; gap: 8px; margin-top: 17px; }
 .device-empty-state { margin: 0; padding: 22px; color: #9891ad; text-align: center; border: 1px dashed rgba(141,119,211,.2); border-radius: 14px; }
 .device-rename-backdrop { position: fixed; z-index: 80; inset: 0; display: flex !important; align-items: center !important; justify-content: center !important; padding: 20px; background: rgba(5, 3, 16, .72); backdrop-filter: blur(12px); }
 .device-rename-dialog { position: relative; flex: 0 0 auto; width: min(100%, 450px); padding: 27px; color: #f5f1ff; border: 1px solid rgba(148, 112, 255, .34); border-radius: 23px; background: linear-gradient(155deg, #251651, #110a2a 78%); box-shadow: 0 28px 80px rgba(0,0,0,.52), 0 0 0 1px rgba(255,255,255,.035) inset; }
