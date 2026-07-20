@@ -137,8 +137,36 @@ jobs:
             mv web/build_log.txt web/public/build_log.txt
           fi
           
-          git add web/public/aahat.apk web/aahat-release-key.jks web/public/build_log.txt 2>/dev/null || true
-          git diff-index --quiet HEAD || git commit -m "chore: commit updated APK and build logs" || true
+          # Extract SHA-256 fingerprint and generate assetlinks.json for Digital Asset Links
+          if [ -f "web/aahat-release-key.jks" ]; then
+            FINGERPRINT=$(keytool -list -v -keystore web/aahat-release-key.jks -alias aahat-alias -storepass aahatstorepass 2>/dev/null | grep "SHA256:" | awk '{print $2}')
+            if [ -n "$FINGERPRINT" ]; then
+              echo "Extracted SHA-256 Fingerprint: $FINGERPRINT"
+              mkdir -p web/public/.well-known
+              cat > web/public/.well-known/assetlinks.json <<ASSETEOF
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.aahat.messages",
+      "sha256_cert_fingerprints": [
+        "$FINGERPRINT"
+      ]
+    }
+  }
+]
+ASSETEOF
+              echo "Generated assetlinks.json successfully"
+            else
+              echo "WARNING: Could not extract SHA-256 fingerprint from keystore"
+            fi
+          fi
+          
+          git add web/public/aahat.apk web/aahat-release-key.jks web/public/build_log.txt web/public/.well-known/assetlinks.json 2>/dev/null || true
+          git diff-index --quiet HEAD || git commit -m "chore: commit updated APK, build logs, and assetlinks" || true
           git pull --rebase origin main || true
           git push origin main || true
 
