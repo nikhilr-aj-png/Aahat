@@ -13,7 +13,7 @@
   "startUrl": "/",
   "iconUrl": "https://raw.githubusercontent.com/nikhilr-aj-png/Aahat/main/web/public/logo.png",
   "maskableIconUrl": "https://raw.githubusercontent.com/nikhilr-aj-png/Aahat/main/web/public/logo.png",
-  "splashFadeOutDuration": 300,
+  "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "./aahat-release-key.jks",
     "alias": "aahat-alias"
