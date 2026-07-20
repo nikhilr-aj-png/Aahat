@@ -26,4 +26,8 @@ test('Settings security backend supports device and session registration', async
   assert.match(section, /Current device/);
   assert.match(section, /same phone can have separate browser and PWA sessions/i);
   assert.match(section, /onRenameDevice/);
+  assert.doesNotMatch(section, /window\.prompt/);
+  assert.match(section, /Rename this device/);
+  assert.match(section, /device-rename-dialog/);
+  assert.match(section, /maxLength=\{60\}/);
 });

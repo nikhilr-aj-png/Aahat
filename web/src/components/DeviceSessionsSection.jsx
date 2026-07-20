@@ -1,4 +1,5 @@
-import { Laptop, MonitorSmartphone, Pencil, ShieldCheck, Smartphone } from 'lucide-react';
+import { Check, Laptop, MonitorSmartphone, Pencil, ShieldCheck, Smartphone } from 'lucide-react';
+import { useState } from 'react';
 import './DeviceSessionsSection.css';
 
 const formatActivity = value => {
@@ -20,14 +21,27 @@ export default function DeviceSessionsSection({
   onRenameDevice,
   onRevokeOtherSessions
 }) {
+  const [renameTarget, setRenameTarget] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
   const activeOtherSessions = sessions.filter(session => !session.revoked_at && session.client_session_id !== currentSessionId).length;
 
-  const renameDevice = device => {
-    const nextName = window.prompt('Enter a name you will recognize for this device:', device.device_name || '');
-    if (nextName == null) return;
-    const cleanName = nextName.trim().replace(/\s+/g, ' ');
-    if (!cleanName || cleanName.length > 60 || cleanName === device.device_name) return;
-    onRenameDevice(device.id, cleanName);
+  const openRename = device => {
+    setRenameTarget(device);
+    setRenameValue(device.device_name || '');
+  };
+  const closeRename = () => {
+    if (busy) return;
+    setRenameTarget(null);
+    setRenameValue('');
+  };
+  const saveRename = async event => {
+    event.preventDefault();
+    if (!renameTarget) return;
+    const cleanName = renameValue.trim().replace(/\s+/g, ' ');
+    if (!cleanName || cleanName.length > 60 || cleanName === renameTarget.device_name) return;
+    await onRenameDevice(renameTarget.id, cleanName);
+    setRenameTarget(null);
+    setRenameValue('');
   };
 
   return <section className="device-security-section">
@@ -45,7 +59,7 @@ export default function DeviceSessionsSection({
             <span><strong>{device.device_name}</strong>{isCurrent && <i>Current device</i>}</span>
             <small>Last active {formatActivity(device.last_seen_at)}</small>
           </div>
-          <button type="button" onClick={() => renameDevice(device)} disabled={busy} aria-label={`Rename ${device.device_name}`}><Pencil size={15}/><span>Rename</span></button>
+          <button type="button" onClick={() => openRename(device)} disabled={busy} aria-label={`Rename ${device.device_name}`}><Pencil size={15}/><span>Rename</span></button>
         </article>;
       }) : <p className="device-empty-state">No registered devices found.</p>}
     </div>
@@ -69,5 +83,15 @@ export default function DeviceSessionsSection({
     <button className="revoke-other-sessions" type="button" disabled={busy || activeOtherSessions === 0} onClick={onRevokeOtherSessions}>
       <ShieldCheck size={17}/>Sign out other sessions{activeOtherSessions ? ` (${activeOtherSessions})` : ''}
     </button>
+    {renameTarget && <div className="device-rename-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && closeRename()}>
+      <form className="device-rename-dialog" onSubmit={saveRename} role="dialog" aria-modal="true" aria-labelledby="device-rename-title">
+        <span className="device-rename-icon"><Pencil size={21}/></span>
+        <p className="device-rename-eyebrow">DEVICE NAME</p>
+        <h4 id="device-rename-title">Rename this device</h4>
+        <p>Choose a name that makes this device easy to recognize in your Aahat account.</p>
+        <label>Device name <span>{renameValue.length}/60</span><input autoFocus value={renameValue} maxLength={60} autoComplete="off" onChange={event => setRenameValue(event.target.value)} placeholder="For example, My phone"/></label>
+        <div className="device-rename-actions"><button type="button" onClick={closeRename}>Cancel</button><button type="submit" disabled={busy || !renameValue.trim() || renameValue.trim().replace(/\s+/g, ' ') === renameTarget.device_name}><Check size={16}/>{busy ? 'Saving…' : 'Save name'}</button></div>
+      </form>
+    </div>}
   </section>;
 }

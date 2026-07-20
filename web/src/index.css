@@ -3668,17 +3668,31 @@ body {
 @media (max-width: 768px) {
   html,
   body {
-    min-height: 100%;
-    overflow-x: hidden;
-    overflow-y: auto;
+    height: 100%;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   #root {
     padding: 0;
-    height: auto;
-    min-height: 100vh;
-    min-height: 100dvh;
-    align-items: flex-start;
+    height: 100%;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    align-items: stretch;
+    overflow: hidden;
+  }
+
+  .aahat-contacts-page,
+  .status-section-container,
+  .settings-content,
+  .admin-embed-scroll,
+  .sidebar-details-scroll,
+  .chat-details-sidebar {
+    overscroll-behavior-y: contain;
   }
 
   .app-container {
