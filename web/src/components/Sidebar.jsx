@@ -1,7 +1,7 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { 
   Search, RefreshCw, MessageSquare,
-  Pin, VolumeX, Star, Archive, Plus, Users
+  Pin, VolumeX, Star, Archive, Users
 } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 
@@ -10,7 +10,7 @@ import SafeAvatar from './SafeAvatar';
  * Updated for V2 normalized conversation model.
  */
 export default function Sidebar({
-  user, profile, conversations,
+  conversations,
   selectedConversationId,
   onSelectConversation,
   isMobileOpen,
@@ -20,12 +20,6 @@ export default function Sidebar({
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
-
-  // Self conversation for the profile card
-  const selfConversation = useMemo(
-    () => conversations.find(c => c.type === 'self'),
-    [conversations]
-  );
 
   // Filter conversations based on search and category
   const filteredConversations = useMemo(() => {
@@ -185,32 +179,6 @@ export default function Sidebar({
             <span className="brand-text">Aahat <span className="brand-hindi">{'\u0906\u0939\u091F'}</span></span>
           </div>
 
-          {/* Profile Card */}
-          <div
-            className="profile-card"
-            onClick={() => selfConversation && onSelectConversation(selfConversation.id)}
-            style={{ cursor: 'pointer' }}
-          >
-            <div className="user-info">
-              <SafeAvatar
-                src={profile?.avatar_url || ''}
-                name={profile?.display_name || user?.email?.split('@')[0] || 'U'}
-                size={36}
-                className="user-avatar"
-              />
-              <div className="user-details">
-                <h4>{profile?.display_name || user?.email?.split('@')[0] || 'User'}</h4>
-                <span className="online-status">
-                  <span className="online-dot" /> Online
-                </span>
-              </div>
-            </div>
-            <div className="profile-actions">
-              <button className="btn-icon" onClick={(e) => { e.stopPropagation(); onNewChat(); }} title="New Chat" id="btn-new-chat">
-                <Plus size={18} />
-              </button>
-            </div>
-          </div>
 
           {/* Search */}
           <div className="search-bar">

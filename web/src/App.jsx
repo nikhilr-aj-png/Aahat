@@ -614,8 +614,6 @@ export default function App() {
         {activeTab === 'chats' && (
           <>
             <Sidebar
-              user={user}
-              profile={profile}
               conversations={conversations}
               selectedConversationId={selectedConversationId}
               onSelectConversation={handleSelectConversation}
