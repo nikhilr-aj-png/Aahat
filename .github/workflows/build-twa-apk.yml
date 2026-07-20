@@ -48,9 +48,21 @@ jobs:
           fi
           
           cd web
-          echo "=== Bubblewrap Update ===" > build_log.txt
+          echo "=== Bubblewrap Init & Build ===" > build_log.txt
+          
+          # Backup our custom twa-manifest.json
+          cp twa-manifest.json twa-manifest-temp.json
+          
+          # Initialize from web manifest URL
+          yes | bubblewrap init --manifest=https://raw.githubusercontent.com/nikhilr-aj-png/Aahat/main/web/public/manifest.json --skipConfig >> build_log.txt 2>&1 || true
+          
+          # Restore our custom twa-manifest.json
+          cp twa-manifest-temp.json twa-manifest.json
+          
+          # Update android project configurations from custom twa-manifest.json
           yes | bubblewrap update >> build_log.txt 2>&1 || true
-          echo "=== Bubblewrap Build ===" >> build_log.txt
+          
+          # Build signed APK
           yes | bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass" >> build_log.txt 2>&1 || true
           
           # Check if APK was built
@@ -81,4 +93,4 @@ jobs:
           
           git add web/public/aahat.apk web/aahat-release-key.jks web/public/build_log.txt || true
           git diff-index --quiet HEAD || git commit -m "chore: commit APK / build logs [skip ci]"
-          git push
+          git push origin HEAD:main
