@@ -1,0 +1,58 @@
+name: Build and Deploy TWA APK
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'web/public/aahat.apk'
+      - 'web/aahat-release-key.jks'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Bubblewrap CLI
+        run: npm install -g @bubblewrap/cli
+
+      - name: Build TWA APK
+        run: |
+          # Generate signing keystore if it doesn't exist
+          if [ ! -f "web/aahat-release-key.jks" ]; then
+            keytool -genkey -v -keystore web/aahat-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias aahat-alias -storepass aahatstorepass -keypass aahatkeypass -dname "CN=Aahat, OU=App, O=Aahat, L=Default, S=Default, C=US"
+          fi
+          
+          cd web
+          # Initialize TWA Android project from twa-manifest.json
+          bubblewrap init --twaManifest=twa-manifest.json --skipConfig
+          
+          # Build signed APK using the generated keystore
+          bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass"
+
+      - name: Commit and Push APK
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Copy the generated release APK to the public assets folder
+          mv web/app-release-signed.apk web/public/aahat.apk || mv web/*.apk web/public/aahat.apk
+          
+          git add web/public/aahat.apk web/aahat-release-key.jks
+          git diff-index --quiet HEAD || git commit -m "chore: auto-generate TWA APK and keystore [skip ci]"
+          git push
