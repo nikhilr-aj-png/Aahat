@@ -39,6 +39,8 @@ jobs:
         run: |
           mkdir -p ~/.bubblewrap
           echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$ANDROID_HOME\"}" > ~/.bubblewrap/config.json
+          # Pre-accept Android SDK licenses to prevent prompts during build
+          yes | sdkmanager --licenses || true
 
       - name: Build TWA APK
         run: |
@@ -54,16 +56,16 @@ jobs:
           cp twa-manifest.json twa-manifest-temp.json
           
           # Initialize from web manifest URL
-          yes | bubblewrap init --manifest=https://raw.githubusercontent.com/nikhilr-aj-png/Aahat/main/web/public/manifest.json --skipConfig >> build_log.txt 2>&1 || true
+          bubblewrap init --manifest=https://raw.githubusercontent.com/nikhilr-aj-png/Aahat/main/web/public/manifest.json --skipConfig >> build_log.txt 2>&1 || true
           
           # Restore our custom twa-manifest.json
           cp twa-manifest-temp.json twa-manifest.json
           
           # Update android project configurations from custom twa-manifest.json
-          yes | bubblewrap update >> build_log.txt 2>&1 || true
+          bubblewrap update >> build_log.txt 2>&1 || true
           
           # Build signed APK
-          yes | bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass" >> build_log.txt 2>&1 || true
+          bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass" >> build_log.txt 2>&1 || true
           
           # Check if APK was built
           if [ -f "app-release-signed.apk" ] || ls *.apk 1> /dev/null 2>&1; then
