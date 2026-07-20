@@ -32,6 +32,21 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        run: |
+          # Install build-tools and platform-tools that Bubblewrap needs
+          sdkmanager "build-tools;34.0.0" "platform-tools"
+          # Accept all licenses non-interactively
+          yes | sdkmanager --licenses || true
+          # Create legacy 'tools' symlink so Bubblewrap's path validation passes
+          # (it checks for 'tools' or 'bin' at the SDK root)
+          if [ ! -d "$ANDROID_HOME/tools" ] && [ -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
+            ln -s "$ANDROID_HOME/cmdline-tools/latest" "$ANDROID_HOME/tools"
+          fi
+
       - name: Install Bubblewrap CLI
         run: npm install -g @bubblewrap/cli
 
@@ -39,8 +54,12 @@ jobs:
         run: |
           mkdir -p ~/.bubblewrap
           echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$ANDROID_HOME\"}" > ~/.bubblewrap/config.json
-          # Pre-accept Android SDK licenses to prevent prompts during build
-          yes | sdkmanager --licenses || true
+          # Verify config
+          echo "=== Bubblewrap Config ==="
+          cat ~/.bubblewrap/config.json
+          echo ""
+          echo "=== Android SDK contents ==="
+          ls -la "$ANDROID_HOME/"
 
       - name: Build TWA APK
         run: |
@@ -51,6 +70,11 @@ jobs:
           
           cd web
           echo "=== Bubblewrap Init & Build ===" > build_log.txt
+          echo "ANDROID_HOME=$ANDROID_HOME" >> build_log.txt
+          echo "JAVA_HOME=$JAVA_HOME" >> build_log.txt
+          echo "SDK contents:" >> build_log.txt
+          ls -la "$ANDROID_HOME/" >> build_log.txt 2>&1
+          echo "---" >> build_log.txt
           
           # Backup our custom twa-manifest.json
           cp twa-manifest.json twa-manifest-temp.json
@@ -72,6 +96,7 @@ jobs:
             echo "Build Succeeded!"
           else
             echo "Build Failed!"
+            cat build_log.txt
             exit 1
           fi
 
