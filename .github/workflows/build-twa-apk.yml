@@ -138,7 +138,7 @@ jobs:
           fi
           
           git add web/public/aahat.apk web/aahat-release-key.jks web/public/build_log.txt 2>/dev/null || true
-          git diff-index --quiet HEAD || git commit -m "chore: commit APK / build logs [skip ci]" || true
+          git diff-index --quiet HEAD || git commit -m "chore: commit updated APK and build logs" || true
           git pull --rebase origin main || true
           git push origin main || true
 
