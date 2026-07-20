@@ -46,7 +46,8 @@ jobs:
           yes | sdkmanager --licenses || true
           # Create legacy 'tools' symlink so Bubblewrap's path validation passes
           # (it checks for 'tools' or 'bin' at the SDK root)
-          if [ ! -d "$ANDROID_HOME/tools" ] && [ -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
+          rm -rf "$ANDROID_HOME/tools"
+          if [ -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
             ln -s "$ANDROID_HOME/cmdline-tools/latest" "$ANDROID_HOME/tools"
           fi
 
@@ -84,16 +85,16 @@ jobs:
           echo "---" >> build_log.txt
           
           # Update/generate android project configurations from custom twa-manifest.json
-          echo "=== Running bubblewrap update ===" >> build_log.txt
-          bubblewrap update --skipVersionUpgrade >> build_log.txt 2>&1
+          echo "=== Running bubblewrap update ===" | tee -a build_log.txt
+          bubblewrap update --skipVersionUpgrade 2>&1 | tee -a build_log.txt
           
           # Build signed APK
-          echo "=== Running bubblewrap build ===" >> build_log.txt
-          bubblewrap build --skipPwaValidation >> build_log.txt 2>&1
+          echo "=== Running bubblewrap build ===" | tee -a build_log.txt
+          bubblewrap build --skipPwaValidation 2>&1 | tee -a build_log.txt
           
           # Search for APK files anywhere in current directory tree
-          echo "=== Searching for APK files ===" >> build_log.txt
-          find . -name '*.apk' -type f >> build_log.txt 2>&1
+          echo "=== Searching for APK files ===" | tee -a build_log.txt
+          find . -name '*.apk' -type f 2>&1 | tee -a build_log.txt
           
           # Check if APK was built (search recursively)
           APK_FILE=$(find . -name '*.apk' -type f | head -1)
