@@ -1,6 +1,6 @@
 {
   "packageId": "com.aahat.messages",
-  "host": "messages-aahat.web.app",
+  "host": "aahat.vercel.app",
   "name": "Aahat",
   "launcherName": "Aahat",
   "themeColor": "#0e0926",
