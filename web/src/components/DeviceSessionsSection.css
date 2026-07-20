@@ -8,12 +8,14 @@
 .registered-device-list, .login-session-list {
   display: flex !important;
   flex-direction: column !important;
+  flex-wrap: nowrap !important;
   gap: 10px !important;
-  max-height: 242px;
-  overflow-y: auto;
+  max-height: 268px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   padding-right: 4px;
 }
-.registered-device-card, .login-session-card { display: flex !important; flex-direction: row !important; align-items: center !important; min-height: 72px; padding: 13px 15px !important; gap: 12px !important; border: 1px solid rgba(141,119,211,.18) !important; border-radius: 15px !important; background: rgba(255,255,255,.018) !important; }
+.registered-device-card, .login-session-card { display: flex !important; flex-direction: row !important; align-items: center !important; min-height: 72px; padding: 13px 15px !important; gap: 12px !important; border: 1px solid rgba(141,119,211,.18) !important; border-radius: 15px !important; background: rgba(255,255,255,.018) !important; flex-shrink: 0 !important; }
 .registered-device-icon { width: 42px; height: 42px; border-radius: 13px; }
 .registered-device-copy, .login-session-card > div { display: flex !important; flex: 1; flex-direction: column !important; align-items: flex-start !important; min-width: 0; gap: 5px !important; }
 .registered-device-copy > span, .login-session-card > div > span { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
