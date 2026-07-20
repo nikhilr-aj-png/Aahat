@@ -11,8 +11,8 @@
   "backgroundColor": "#09051d",
   "enableNotifications": true,
   "startUrl": "/",
-  "iconUrl": "https://messages-aahat.web.app/logo.png",
-  "maskableIconUrl": "https://messages-aahat.web.app/logo.png",
+  "iconUrl": "https://raw.githubusercontent.com/nikhilr-aj-png/Aahat/main/web/public/logo.png",
+  "maskableIconUrl": "https://raw.githubusercontent.com/nikhilr-aj-png/Aahat/main/web/public/logo.png",
   "splashFadeOutDuration": 300,
   "signingKey": {
     "path": "./aahat-release-key.jks",
