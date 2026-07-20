@@ -3,22 +3,22 @@ ANDROID_HOME=/usr/local/lib/android/sdk
 JAVA_HOME=/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.19-10/x64
 SDK contents:
 total 72
-drwxrwxrwx 12 root   root    4096 Jul 20 08:50 .
+drwxrwxrwx 12 root   root    4096 Jul 20 08:54 .
 drwxr-xr-x  3 root   root    4096 Jul 14 08:34 ..
 -rw-r--r--  1 root   root      16 Jul 14 08:42 .knownPackages
-drwxrwxrwx  2 root   root    4096 Jul 20 08:50 .temp
+drwxrwxrwx  2 root   root    4096 Jul 20 08:54 .temp
 drwxrwxrwx  8 root   root    4096 Jul 14 08:35 build-tools
 drwxrwxrwx  4 root   root    4096 Jul 14 08:41 cmake
-drwxrwxrwx  4 root   root    4096 Jul 20 08:49 cmdline-tools
-drwxr-xr-x  8 runner runner  4096 Jul 20 08:50 emulator
+drwxrwxrwx  4 root   root    4096 Jul 20 08:54 cmdline-tools
+drwxr-xr-x  8 runner runner  4096 Jul 20 08:54 emulator
 drwxrwxrwx  4 root   root    4096 Jul 14 08:41 extras
-drwxrwxrwx  2 root   root    4096 Jul 20 08:50 licenses
+drwxrwxrwx  2 root   root    4096 Jul 20 08:54 licenses
 drwxrwxrwx  5 root   root    4096 Jul 14 08:40 ndk
 -rw-r--r--  1 root   root   20121 Jul 14 08:42 packages-list.txt
 drwxrwxrwx  3 root   root    4096 Jul 14 08:34 platform-tools
 drwxrwxrwx 16 root   root    4096 Jul 14 08:38 platforms
--rw-r--r--  1 runner runner     0 Jul 20 08:49 repositories.cfg
-lrwxrwxrwx  1 runner runner    47 Jul 20 08:50 tools -> /usr/local/lib/android/sdk/cmdline-tools/latest
+-rw-r--r--  1 runner runner     0 Jul 20 08:54 repositories.cfg
+lrwxrwxrwx  1 runner runner    47 Jul 20 08:54 tools -> /usr/local/lib/android/sdk/cmdline-tools/latest
 ---
 === Running bubblewrap update ===
 ,-----.        ,--.  ,--.  ,--.
