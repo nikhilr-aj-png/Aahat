@@ -7,6 +7,7 @@ on:
     paths-ignore:
       - 'web/public/aahat.apk'
       - 'web/aahat-release-key.jks'
+      - 'web/public/build.log'
   workflow_dispatch:
 
 permissions:
@@ -47,20 +48,37 @@ jobs:
           fi
           
           cd web
-          # Initialize TWA Android project from twa-manifest.json
-          yes | bubblewrap init --twaManifest=twa-manifest.json --skipConfig
+          echo "=== Bubblewrap Init ===" > build.log
+          yes | bubblewrap init --twaManifest=twa-manifest.json --skipConfig >> build.log 2>&1 || true
+          echo "=== Bubblewrap Build ===" >> build.log
+          yes | bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass" >> build.log 2>&1 || true
           
-          # Build signed APK using the generated keystore
-          yes | bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass"
+          # Check if APK was built
+          if [ -f "app-release-signed.apk" ] || ls *.apk 1> /dev/null 2>&1; then
+            echo "Build Succeeded!"
+          else
+            echo "Build Failed!"
+            exit 1
+          fi
 
-      - name: Commit and Push APK
+      - name: Commit and Push APK and Logs
+        if: always()
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Copy the generated release APK to the public assets folder
-          mv web/app-release-signed.apk web/public/aahat.apk || mv web/*.apk web/public/aahat.apk
+          # Move compiled APK to public folder if it exists
+          if [ -f "web/app-release-signed.apk" ]; then
+            mv web/app-release-signed.apk web/public/aahat.apk
+          elif ls web/*.apk 1> /dev/null 2>&1; then
+            mv web/*.apk web/public/aahat.apk
+          fi
           
-          git add web/public/aahat.apk web/aahat-release-key.jks
-          git diff-index --quiet HEAD || git commit -m "chore: auto-generate TWA APK and keystore [skip ci]"
+          # Move log file to public folder if it exists
+          if [ -f "web/build.log" ]; then
+            mv web/build.log web/public/build.log
+          fi
+          
+          git add web/public/aahat.apk web/aahat-release-key.jks web/public/build.log || true
+          git diff-index --quiet HEAD || git commit -m "chore: commit APK / build logs [skip ci]"
           git push
