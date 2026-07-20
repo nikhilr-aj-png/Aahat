@@ -96,8 +96,11 @@ jobs:
           echo "=== Searching for APK files ===" | tee -a build_log.txt
           find . -name '*.apk' -type f 2>&1 | tee -a build_log.txt
           
-          # Check if APK was built (search recursively)
-          APK_FILE=$(find . -name '*.apk' -type f | head -1)
+          # Check if signed APK was built (specifically look for *-signed.apk)
+          APK_FILE=$(find . -name '*-signed.apk' -type f | head -1)
+          if [ -z "$APK_FILE" ]; then
+            APK_FILE=$(find . -name '*.apk' -type f | grep -v 'public/' | head -1)
+          fi
           if [ -n "$APK_FILE" ]; then
             echo "Build Succeeded! APK found at: $APK_FILE"
             echo "BUILD_RESULT=success" >> $GITHUB_ENV
@@ -120,16 +123,13 @@ jobs:
           echo "=== Looking for APK files ==="
           find web -name '*.apk' -type f 2>/dev/null || true
           
-          # Move compiled APK to public folder
-          if [ -n "$APK_PATH" ]; then
+          # Move compiled signed APK to public folder (prefer *-signed.apk)
+          SIGNED_APK=$(find web -name '*-signed.apk' -type f | head -1)
+          if [ -n "$SIGNED_APK" ]; then
+            echo "Copying signed APK: $SIGNED_APK -> web/public/aahat.apk"
+            cp "$SIGNED_APK" web/public/aahat.apk
+          elif [ -n "$APK_PATH" ]; then
             cp "web/$APK_PATH" web/public/aahat.apk 2>/dev/null || cp "$APK_PATH" web/public/aahat.apk 2>/dev/null || true
-          fi
-          # Fallback: search for any APK in web directory
-          if [ ! -f "web/public/aahat.apk" ]; then
-            FOUND_APK=$(find web -name '*.apk' -type f | head -1)
-            if [ -n "$FOUND_APK" ]; then
-              cp "$FOUND_APK" web/public/aahat.apk
-            fi
           fi
           
           # Move log file to public folder if it exists
