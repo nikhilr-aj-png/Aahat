@@ -100,3 +100,6 @@ To make the Android app open in **full-screen mode** without showing the Chrome 
 ]
 ```
 4. Deploy the web app. Once deployed, the browser URL address bar will automatically disappear when launching the Android app.
+
+---
+*Note: This guide is updated automatically to reflect the latest build configuration changes.*
