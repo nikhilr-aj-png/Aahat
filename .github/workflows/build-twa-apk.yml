@@ -69,11 +69,11 @@ jobs:
         id: build_apk
         env:
           BUBBLEWRAP_KEYSTORE_PASSWORD: aahatstorepass
-          BUBBLEWRAP_KEY_PASSWORD: aahatkeypass
+          BUBBLEWRAP_KEY_PASSWORD: aahatstorepass
         run: |
           # Generate signing keystore if it doesn't exist
           if [ ! -f "web/aahat-release-key.jks" ]; then
-            keytool -genkey -v -keystore web/aahat-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias aahat-alias -storepass aahatstorepass -keypass aahatkeypass -dname "CN=Aahat, OU=App, O=Aahat, L=Default, S=Default, C=US"
+            keytool -genkey -v -keystore web/aahat-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias aahat-alias -storepass aahatstorepass -keypass aahatstorepass -dname "CN=Aahat, OU=App, O=Aahat, L=Default, S=Default, C=US"
           fi
           
           cd web
