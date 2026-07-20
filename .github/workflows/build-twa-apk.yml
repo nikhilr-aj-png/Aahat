@@ -38,7 +38,7 @@ jobs:
       - name: Configure Bubblewrap
         run: |
           mkdir -p ~/.bubblewrap
-          echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"/usr/local/lib/android/sdk\"}" > ~/.bubblewrap/config.json
+          echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"$ANDROID_HOME\"}" > ~/.bubblewrap/config.json
 
       - name: Build TWA APK
         run: |
@@ -48,8 +48,8 @@ jobs:
           fi
           
           cd web
-          echo "=== Bubblewrap Init ===" > build_log.txt
-          yes | bubblewrap init --twaManifest=twa-manifest.json --skipConfig >> build_log.txt 2>&1 || true
+          echo "=== Bubblewrap Update ===" > build_log.txt
+          yes | bubblewrap update >> build_log.txt 2>&1 || true
           echo "=== Bubblewrap Build ===" >> build_log.txt
           yes | bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass" >> build_log.txt 2>&1 || true
           
