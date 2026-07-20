@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.aahat.messages",
+      "sha256_cert_fingerprints": [
+        "F3:44:40:98:87:68:20:E6:01:AD:A7:A9:EA:2C:E2:17:80:07:8C:A2:F5:72:80:29:B4:46:04:FA:4F:93:43:9B"
+      ]
+    }
+  }
+]
