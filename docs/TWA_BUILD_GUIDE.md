@@ -91,7 +91,7 @@ To make the Android app open in **full-screen mode** without showing the Chrome 
     ],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.aahat.app",
+      "package_name": "com.aahat.messages",
       "sha256_cert_fingerprints": [
         "YOUR_SHA_256_FINGERPRINT_HERE"
       ]
