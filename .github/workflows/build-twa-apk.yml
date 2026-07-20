@@ -84,9 +84,9 @@ jobs:
           cp twa-manifest.json twa-manifest-temp.json
           
           # Initialize from web manifest URL
-          # Use printf to send newlines for any prompts, then EOF to prevent hanging
+          # Use 'yes' for interactive prompts + 'timeout' to prevent infinite hang
           echo "=== Running bubblewrap init ===" >> build_log.txt
-          printf '\n\n\n\n\n' | bubblewrap init --manifest=https://raw.githubusercontent.com/nikhilr-aj-png/Aahat/main/web/public/manifest.json --skipConfig >> build_log.txt 2>&1 || true
+          timeout 120 bash -c 'yes | bubblewrap init --manifest=https://raw.githubusercontent.com/nikhilr-aj-png/Aahat/main/web/public/manifest.json --skipConfig' >> build_log.txt 2>&1 || true
           
           echo "=== Init complete, files generated ===" >> build_log.txt
           ls -la >> build_log.txt 2>&1
@@ -97,11 +97,11 @@ jobs:
           
           # Update android project configurations from custom twa-manifest.json
           echo "=== Running bubblewrap update ===" >> build_log.txt
-          printf '\n\n\n\n\n' | bubblewrap update >> build_log.txt 2>&1 || true
+          timeout 120 bash -c 'yes | bubblewrap update' >> build_log.txt 2>&1 || true
           
           # Build signed APK
           echo "=== Running bubblewrap build ===" >> build_log.txt
-          printf '\n\n\n\n\n' | bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass" >> build_log.txt 2>&1 || true
+          timeout 300 bash -c 'yes | bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass"' >> build_log.txt 2>&1 || true
           
           # Search for APK files anywhere in current directory tree
           echo "=== Searching for APK files ===" >> build_log.txt
