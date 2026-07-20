@@ -83,24 +83,38 @@ jobs:
           # Backup our custom twa-manifest.json
           cp twa-manifest.json twa-manifest-temp.json
           
-          # Initialize from web manifest URL (close stdin to prevent interactive prompts)
-          bubblewrap init --manifest=https://raw.githubusercontent.com/nikhilr-aj-png/Aahat/main/web/public/manifest.json --skipConfig >> build_log.txt 2>&1 < /dev/null || true
+          # Initialize from web manifest URL
+          # Use printf to send newlines for any prompts, then EOF to prevent hanging
+          echo "=== Running bubblewrap init ===" >> build_log.txt
+          printf '\n\n\n\n\n' | bubblewrap init --manifest=https://raw.githubusercontent.com/nikhilr-aj-png/Aahat/main/web/public/manifest.json --skipConfig >> build_log.txt 2>&1 || true
+          
+          echo "=== Init complete, files generated ===" >> build_log.txt
+          ls -la >> build_log.txt 2>&1
+          echo "---" >> build_log.txt
           
           # Restore our custom twa-manifest.json
           cp twa-manifest-temp.json twa-manifest.json
           
           # Update android project configurations from custom twa-manifest.json
-          bubblewrap update >> build_log.txt 2>&1 < /dev/null || true
+          echo "=== Running bubblewrap update ===" >> build_log.txt
+          printf '\n\n\n\n\n' | bubblewrap update >> build_log.txt 2>&1 || true
           
-          # Build signed APK (close stdin to prevent Gradle license prompt hang)
-          bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass" >> build_log.txt 2>&1 < /dev/null || true
+          # Build signed APK
+          echo "=== Running bubblewrap build ===" >> build_log.txt
+          printf '\n\n\n\n\n' | bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass" >> build_log.txt 2>&1 || true
           
-          # Check if APK was built
-          if [ -f "app-release-signed.apk" ] || ls *.apk 1> /dev/null 2>&1; then
-            echo "Build Succeeded!"
+          # Search for APK files anywhere in current directory tree
+          echo "=== Searching for APK files ===" >> build_log.txt
+          find . -name '*.apk' -type f >> build_log.txt 2>&1 || true
+          
+          # Check if APK was built (search recursively)
+          APK_FILE=$(find . -name '*.apk' -type f | head -1)
+          if [ -n "$APK_FILE" ]; then
+            echo "Build Succeeded! APK found at: $APK_FILE"
             echo "BUILD_RESULT=success" >> $GITHUB_ENV
+            echo "APK_PATH=$APK_FILE" >> $GITHUB_ENV
           else
-            echo "Build Failed! See build_log.txt for details."
+            echo "Build Failed! No APK found. See build_log.txt for details."
             cat build_log.txt
             echo "BUILD_RESULT=failure" >> $GITHUB_ENV
           fi
@@ -116,11 +130,16 @@ jobs:
           echo "=== Looking for APK files ==="
           find web -name '*.apk' -type f 2>/dev/null || true
           
-          # Move compiled APK to public folder if it exists
-          if [ -f "web/app-release-signed.apk" ]; then
-            mv web/app-release-signed.apk web/public/aahat.apk
-          elif ls web/*.apk 1> /dev/null 2>&1; then
-            mv web/*.apk web/public/aahat.apk
+          # Move compiled APK to public folder
+          if [ -n "$APK_PATH" ]; then
+            cp "web/$APK_PATH" web/public/aahat.apk 2>/dev/null || cp "$APK_PATH" web/public/aahat.apk 2>/dev/null || true
+          fi
+          # Fallback: search for any APK in web directory
+          if [ ! -f "web/public/aahat.apk" ]; then
+            FOUND_APK=$(find web -name '*.apk' -type f | head -1)
+            if [ -n "$FOUND_APK" ]; then
+              cp "$FOUND_APK" web/public/aahat.apk
+            fi
           fi
           
           # Move log file to public folder if it exists
