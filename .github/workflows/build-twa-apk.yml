@@ -9,6 +9,9 @@ on:
       - 'web/aahat-release-key.jks'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -31,6 +34,11 @@ jobs:
       - name: Install Bubblewrap CLI
         run: npm install -g @bubblewrap/cli
 
+      - name: Configure Bubblewrap
+        run: |
+          mkdir -p ~/.bubblewrap
+          echo "{\"jdkPath\":\"$JAVA_HOME\",\"androidSdkPath\":\"/usr/local/lib/android/sdk\"}" > ~/.bubblewrap/config.json
+
       - name: Build TWA APK
         run: |
           # Generate signing keystore if it doesn't exist
@@ -40,10 +48,10 @@ jobs:
           
           cd web
           # Initialize TWA Android project from twa-manifest.json
-          bubblewrap init --twaManifest=twa-manifest.json --skipConfig
+          yes | bubblewrap init --twaManifest=twa-manifest.json --skipConfig
           
           # Build signed APK using the generated keystore
-          bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass"
+          yes | bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass"
 
       - name: Commit and Push APK
         run: |
