@@ -7,7 +7,7 @@ on:
     paths-ignore:
       - 'web/public/aahat.apk'
       - 'web/aahat-release-key.jks'
-      - 'web/public/build.log'
+      - 'web/public/build_log.txt'
   workflow_dispatch:
 
 permissions:
@@ -48,10 +48,10 @@ jobs:
           fi
           
           cd web
-          echo "=== Bubblewrap Init ===" > build.log
-          yes | bubblewrap init --twaManifest=twa-manifest.json --skipConfig >> build.log 2>&1 || true
-          echo "=== Bubblewrap Build ===" >> build.log
-          yes | bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass" >> build.log 2>&1 || true
+          echo "=== Bubblewrap Init ===" > build_log.txt
+          yes | bubblewrap init --twaManifest=twa-manifest.json --skipConfig >> build_log.txt 2>&1 || true
+          echo "=== Bubblewrap Build ===" >> build_log.txt
+          yes | bubblewrap build --signingKeyPassword="aahatkeypass" --signingStorePassword="aahatstorepass" >> build_log.txt 2>&1 || true
           
           # Check if APK was built
           if [ -f "app-release-signed.apk" ] || ls *.apk 1> /dev/null 2>&1; then
@@ -75,10 +75,10 @@ jobs:
           fi
           
           # Move log file to public folder if it exists
-          if [ -f "web/build.log" ]; then
-            mv web/build.log web/public/build.log
+          if [ -f "web/build_log.txt" ]; then
+            mv web/build_log.txt web/public/build_log.txt
           fi
           
-          git add web/public/aahat.apk web/aahat-release-key.jks web/public/build.log || true
+          git add web/public/aahat.apk web/aahat-release-key.jks web/public/build_log.txt || true
           git diff-index --quiet HEAD || git commit -m "chore: commit APK / build logs [skip ci]"
           git push
