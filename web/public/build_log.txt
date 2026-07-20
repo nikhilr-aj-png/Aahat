@@ -1,20 +1,76 @@
-=== Bubblewrap Init ===
+=== Bubblewrap Update & Build ===
+ANDROID_HOME=/usr/local/lib/android/sdk
+JAVA_HOME=/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.19-10/x64
+SDK contents:
+total 72
+drwxrwxrwx 12 root   root    4096 Jul 20 07:15 .
+drwxr-xr-x  3 root   root    4096 Jul 14 08:34 ..
+-rw-r--r--  1 root   root      16 Jul 14 08:42 .knownPackages
+drwxrwxrwx  2 root   root    4096 Jul 20 07:15 .temp
+drwxrwxrwx  8 root   root    4096 Jul 14 08:35 build-tools
+drwxrwxrwx  4 root   root    4096 Jul 14 08:41 cmake
+drwxrwxrwx  4 root   root    4096 Jul 20 07:14 cmdline-tools
+drwxr-xr-x  8 runner runner  4096 Jul 20 07:15 emulator
+drwxrwxrwx  4 root   root    4096 Jul 14 08:41 extras
+drwxrwxrwx  2 root   root    4096 Jul 20 07:14 licenses
+drwxrwxrwx  5 root   root    4096 Jul 14 08:40 ndk
+-rw-r--r--  1 root   root   20121 Jul 14 08:42 packages-list.txt
+drwxrwxrwx  3 root   root    4096 Jul 14 08:34 platform-tools
+drwxrwxrwx 16 root   root    4096 Jul 14 08:38 platforms
+-rw-r--r--  1 runner runner     0 Jul 20 07:14 repositories.cfg
+lrwxrwxrwx  1 runner runner    47 Jul 20 07:15 tools -> /usr/local/lib/android/sdk/cmdline-tools/latest
+---
+=== Running bubblewrap update ===
 ,-----.        ,--.  ,--.  ,--.
 |  |) /_,--.,--|  |-.|  |-.|  |,---.,--.   ,--,--.--.,--,--.,---.
 |  .-.  |  ||  | .-. | .-. |  | .-. |  |.'.|  |  .--' ,-.  | .-. |
 |  '--' '  ''  | `-' | `-' |  \   --|   .'.   |  |  \ '-'  | '-' '
 `------' `----' `---' `---'`--'`----'--'   '--`--'   `--`--|  |-'
                                                            `--'    
-Missing required parameter --manifest
-=== Bubblewrap Build ===
+Generating Android Project.
+
+Project updated successfully.
+Build it by running bubblewrap build
+=== Running bubblewrap build ===
 ,-----.        ,--.  ,--.  ,--.
 |  |) /_,--.,--|  |-.|  |-.|  |,---.,--.   ,--,--.--.,--,--.,---.
 |  .-.  |  ||  | .-. | .-. |  | .-. |  |.'.|  |  .--' ,-.  | .-. |
 |  '--' '  ''  | `-' | `-' |  \   --|   .'.   |  |  \ '-'  | '-' '
 `------' `----' `---' `---'`--'`----'--'   '--`--'   `--`--|  |-'
                                                            `--'    
+Using passwords set in the BUBBLEWRAP_KEYSTORE_PASSWORD and BUBBLEWRAP_KEY_PASSWORD environmental variables.
+
+Building the Android App...
 
 
-[7mcli[0m [31mERROR The provided androidSdk isn't correct.[0m
+[7mcli[0m [31mERROR Command failed: /usr/local/lib/android/sdk/build-tools/34.0.0/apksigner sign --ks "./aahat-release-key.jks" --ks-key-alias aahat-alias --ks-pass pass:"aahatstorepass" --key-pass pass:"aahatkeypass" --out ./app-release-signed.apk ./app-release-unsigned-aligned.apk
+Failed to load signer "signer #1"
+java.io.IOException: Failed to obtain key with alias "aahat-alias" from ./aahat-release-key.jks. Wrong password?
+	at com.android.apksigner.SignerParams.loadPrivateKeyAndCertsFromKeyStore(SignerParams.java:350)
+	at com.android.apksigner.SignerParams.loadPrivateKeyAndCerts(SignerParams.java:202)
+	at com.android.apksigner.ApkSignerTool.getSignerConfig(ApkSignerTool.java:438)
+	at com.android.apksigner.ApkSignerTool.sign(ApkSignerTool.java:353)
+	at com.android.apksigner.ApkSignerTool.main(ApkSignerTool.java:92)
+Caused by: java.security.UnrecoverableKeyException: Get Key failed: Given final block not properly padded. Such issues can arise if a bad key is used during decryption.
+	at java.base/sun.security.pkcs12.PKCS12KeyStore.engineGetKey(PKCS12KeyStore.java:450)
+	at java.base/sun.security.util.KeyStoreDelegator.engineGetKey(KeyStoreDelegator.java:91)
+	at java.base/java.security.KeyStore.getKey(KeyStore.java:1070)
+	at com.android.apksigner.SignerParams.getKeyStoreKey(SignerParams.java:405)
+	at com.android.apksigner.SignerParams.loadPrivateKeyAndCertsFromKeyStore(SignerParams.java:318)
+	... 4 more
+Caused by: javax.crypto.BadPaddingException: Given final block not properly padded. Such issues can arise if a bad key is used during decryption.
+	at java.base/com.sun.crypto.provider.CipherCore.unpad(CipherCore.java:862)
+	at java.base/com.sun.crypto.provider.CipherCore.fillOutputBuffer(CipherCore.java:942)
+	at java.base/com.sun.crypto.provider.CipherCore.doFinal(CipherCore.java:735)
+	at java.base/com.sun.crypto.provider.PBES2Core.engineDoFinal(PBES2Core.java:325)
+	at java.base/javax.crypto.Cipher.doFinal(Cipher.java:2220)
+	at java.base/sun.security.pkcs12.PKCS12KeyStore.lambda$engineGetKey$0(PKCS12KeyStore.java:371)
+	at java.base/sun.security.pkcs12.PKCS12KeyStore$RetryWithZero.run(PKCS12KeyStore.java:257)
+	at java.base/sun.security.pkcs12.PKCS12KeyStore.engineGetKey(PKCS12KeyStore.java:361)
+	... 8 more
+[0m
 
 
+=== Searching for APK files ===
+./app-release-unsigned-aligned.apk
+./app/build/outputs/apk/release/app-release-unsigned.apk
