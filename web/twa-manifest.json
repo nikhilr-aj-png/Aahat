@@ -1,0 +1,32 @@
+{
+  "packageId": "com.aahat.app",
+  "host": "messages-aahat.web.app",
+  "name": "Aahat",
+  "launcherName": "Aahat",
+  "themeColor": "#0e0926",
+  "navigationColor": "#0e0926",
+  "navigationColorDark": "#0e0926",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#09051d",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://messages-aahat.web.app/logo.png",
+  "maskableIconUrl": "https://messages-aahat.web.app/logo.png",
+  "splashFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./aahat-release-key.jks",
+    "alias": "aahat-alias"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "features": {},
+  "alphaDependencies": false,
+  "enableSiteSettingsShortcut": true,
+  "orientation": "default",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "recreateActivity": true,
+  "fallbackType": "customtabs"
+}
