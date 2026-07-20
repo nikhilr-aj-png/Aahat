@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { 
   Search, RefreshCw, MessageSquare,
-  Pin, VolumeX, Star, Archive, Users
+  Pin, VolumeX, Star, Archive, Users, Download
 } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 
@@ -175,8 +175,14 @@ export default function Sidebar({
         {/* Header */}
         <div className="sidebar-header">
           <div className="sidebar-brand">
-            <img src="/logo.png" alt="Aahat" className="sidebar-logo" />
-            <span className="brand-text">Aahat <span className="brand-hindi">{'\u0906\u0939\u091F'}</span></span>
+            <div className="sidebar-brand-left">
+              <img src="/logo.png" alt="Aahat" className="sidebar-logo" />
+              <span className="brand-text">Aahat <span className="brand-hindi">{'\u0906\u0939\u091F'}</span></span>
+            </div>
+            <a href="/aahat.apk" download className="app-download-button" aria-label="Download Aahat APK">
+              <Download size={12} />
+              <span>App</span>
+            </a>
           </div>
 
 
