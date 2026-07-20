@@ -20,6 +20,9 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ github.token }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -105,8 +108,13 @@ jobs:
       - name: Commit and Push APK and Logs
         if: always()
         run: |
+          set -x
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Debug: show where APK files ended up
+          echo "=== Looking for APK files ==="
+          find web -name '*.apk' -type f 2>/dev/null || true
           
           # Move compiled APK to public folder if it exists
           if [ -f "web/app-release-signed.apk" ]; then
@@ -120,9 +128,10 @@ jobs:
             mv web/build_log.txt web/public/build_log.txt
           fi
           
-          git add web/public/aahat.apk web/aahat-release-key.jks web/public/build_log.txt || true
-          git diff-index --quiet HEAD || git commit -m "chore: commit APK / build logs [skip ci]"
-          git push origin HEAD:main || true
+          git add web/public/aahat.apk web/aahat-release-key.jks web/public/build_log.txt 2>/dev/null || true
+          git diff-index --quiet HEAD || git commit -m "chore: commit APK / build logs [skip ci]" || true
+          git pull --rebase origin main || true
+          git push origin main || true
 
       - name: Fail if build was unsuccessful
         if: always()
