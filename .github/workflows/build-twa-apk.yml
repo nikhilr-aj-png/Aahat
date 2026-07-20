@@ -143,22 +143,7 @@ jobs:
             if [ -n "$FINGERPRINT" ]; then
               echo "Extracted SHA-256 Fingerprint: $FINGERPRINT"
               mkdir -p web/public/.well-known
-              cat > web/public/.well-known/assetlinks.json <<ASSETEOF
-[
-  {
-    "relation": [
-      "delegate_permission/common.handle_all_urls"
-    ],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "com.aahat.messages",
-      "sha256_cert_fingerprints": [
-        "$FINGERPRINT"
-      ]
-    }
-  }
-]
-ASSETEOF
+              printf '[\n  {\n    "relation": [\n      "delegate_permission/common.handle_all_urls"\n    ],\n    "target": {\n      "namespace": "android_app",\n      "package_name": "com.aahat.messages",\n      "sha256_cert_fingerprints": [\n        "%s"\n      ]\n    }\n  }\n]\n' "$FINGERPRINT" > web/public/.well-known/assetlinks.json
               echo "Generated assetlinks.json successfully"
             else
               echo "WARNING: Could not extract SHA-256 fingerprint from keystore"
