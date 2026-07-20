@@ -24,7 +24,7 @@
 .privacy-heading p { margin: 4px 0 0; color: #9da7ba; font-size: 12px; line-height: 1.5; }
 
 .settings-panel .settings-content .privacy-switch-grid { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch !important; min-height: 0; padding: 0; gap: 12px; border: 0; background: transparent; }
-.settings-panel .settings-content label.privacy-switch-card { position: relative; display: grid !important; grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-height: 82px; padding: 16px; gap: 14px; border: 1px solid rgba(162, 150, 213, .15); border-radius: 17px; background: rgba(255, 255, 255, .028); transition: border-color .18s ease, background .18s ease, transform .18s ease; cursor: pointer; }
+.settings-panel .settings-content label.privacy-switch-card { position: relative; display: grid !important; grid-template-columns: minmax(0, 1fr) auto; align-items: center !important; align-content: center !important; min-height: 88px !important; padding: 18px 20px !important; gap: 14px; border: 1px solid rgba(162, 150, 213, .15); border-radius: 17px; background: rgba(255, 255, 255, .028); transition: border-color .18s ease, background .18s ease, transform .18s ease; cursor: pointer; }
 .settings-panel .settings-content label.privacy-switch-card:hover { transform: translateY(-1px); border-color: rgba(145, 116, 255, .32); background: rgba(116, 85, 234, .07); }
 .privacy-switch-card > span { display: grid; min-width: 0; gap: 4px; }
 .privacy-switch-card strong { color: #f0edf9; font-size: 13px; }
