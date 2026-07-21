@@ -1,0 +1,283 @@
+/* =============================================================
+   Aahat — flat surface pass
+   One solid background per screen. Containers stay for layout but
+   stop drawing themselves: no card outlines, no nested panels, no
+   heavy shadows. Hierarchy comes from spacing, type and hairlines.
+
+   Deliberately NOT flattened: message bubbles, primary buttons,
+   avatars, and floating overlays (modals, dropdowns, camera) —
+   those need a surface to read as raised or interactive.
+   Loaded last so it wins over the older card styles.
+   ============================================================= */
+
+:root {
+  --flat-divider: rgba(255, 255, 255, 0.06);
+  --flat-divider-strong: rgba(255, 255, 255, 0.1);
+  --flat-hover: rgba(255, 255, 255, 0.035);
+}
+
+/* ---------- Settings shell ---------- */
+.settings-panel {
+  background: linear-gradient(135deg, #0F082E 0%, #0b0f19 100%);
+}
+
+.settings-panel .settings-sidebar {
+  border-right: 1px solid var(--flat-divider);
+  background: transparent;
+}
+
+.settings-panel .settings-sidebar button {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-panel .settings-sidebar button.active {
+  color: #e1d8fc;
+  border: 0;
+  background: rgba(134, 89, 241, 0.13);
+  box-shadow: inset 3px 0 0 #5f34f7;
+}
+
+/* The section is a column of groups on the page background, not a card. */
+.settings-panel .settings-content > section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-panel .settings-content section > h4 {
+  margin: 10px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--flat-divider);
+}
+
+/* Checkbox rows: list items, not outlined pills. */
+.settings-panel .settings-content label:has(input[type="checkbox"]):not(.settings-row) {
+  min-height: 58px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--flat-divider);
+  border-radius: 0;
+  background: transparent;
+}
+
+/* Inputs keep an underline for affordance instead of a full outline. */
+.settings-panel .settings-content input:not([type="checkbox"]):not([type="file"]),
+.settings-panel .settings-content textarea,
+.settings-panel .settings-content select {
+  padding: 11px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--flat-divider-strong);
+  border-radius: 0;
+  background: transparent;
+  transition: border-color 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.settings-panel .settings-content input:not([type="checkbox"]):not([type="file"]):focus,
+.settings-panel .settings-content textarea:focus,
+.settings-panel .settings-content select:focus {
+  border-bottom-color: var(--accent-light, #8659F1);
+  box-shadow: none;
+}
+
+/* Nested panels inside settings sections lose their outlines. */
+.settings-panel .settings-content .settings-aahat-card,
+.settings-panel .settings-content .settings-aahat-credentials,
+.settings-panel .settings-content .profile-connection-mode,
+.settings-panel .settings-content .settings-message,
+.settings-panel .settings-content .device-session-card,
+.settings-panel .settings-content .notification-setting-card,
+.settings-panel .settings-content .data-support-card,
+.settings-panel .settings-content .data-media-grid > * {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-panel .settings-content .settings-aahat-card,
+.settings-panel .settings-content .profile-connection-mode {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Cards that were list rows become rows with a hairline. */
+.settings-panel .settings-content .device-session-card,
+.settings-panel .settings-content .notification-setting-card,
+.settings-panel .settings-content .data-support-card {
+  padding: 14px 2px;
+  border-bottom: 1px solid var(--flat-divider);
+}
+
+.settings-panel .settings-content .device-session-card:last-child,
+.settings-panel .settings-content .notification-setting-card:last-child,
+.settings-panel .settings-content .data-support-card:last-child {
+  border-bottom: 0;
+}
+
+/* Status/among messages keep colour but drop the box. */
+.settings-panel .settings-content .settings-message {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--flat-divider);
+}
+
+/* ---------- Conversation list, contacts, status ---------- */
+.sidebar,
+.sidebar-inner,
+.status-section,
+.contacts-section {
+  background: transparent;
+}
+
+.chat-item,
+.contact-row,
+.status-row,
+.aahat-contact-card {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.chat-item + .chat-item,
+.contact-row + .contact-row,
+.status-row + .status-row {
+  border-top: 1px solid var(--flat-divider) !important;
+}
+
+.chat-item:hover,
+.contact-row:hover,
+.status-row:hover {
+  background: var(--flat-hover) !important;
+}
+
+.chat-item.active {
+  background: rgba(134, 89, 241, 0.12) !important;
+}
+
+/* ---------- Chat surface ---------- */
+.chat-view,
+.chat-area-container,
+.messages-list,
+.chat-input-area-wrapper {
+  background: transparent;
+}
+
+.chat-header {
+  border-bottom: 1px solid var(--flat-divider);
+  background: transparent;
+}
+
+.chat-details-sidebar {
+  border-left: 1px solid var(--flat-divider);
+  background: transparent;
+}
+
+.details-block,
+.details-avatar-card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.details-block + .details-block {
+  padding-top: 16px;
+  border-top: 1px solid var(--flat-divider);
+}
+
+/* The composer reads as one field, not a tray of boxes. */
+.chat-input-bar {
+  border: 0;
+  border-top: 1px solid var(--flat-divider);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.chat-input-wrapper {
+  border: 0;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Attachment chips and file cards stay subtly tinted but lose outlines. */
+.attachment-chip,
+.message-file-card,
+.expired-attachment-note,
+.shared-media-row {
+  border: 0;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.expired-attachment-note {
+  background: transparent;
+}
+
+.shared-media-row + .shared-media-row {
+  border-top: 1px solid var(--flat-divider);
+}
+
+/* ---------- Generic de-boxing ---------- */
+.glass-panel,
+.section-card,
+.panel-card,
+.info-card {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Modals and floating layers keep a surface — they must read as raised. */
+.modal-card,
+.chat-dropdown-menu,
+.message-action-menu,
+.emoji-picker-container,
+.settings-avatar-menu,
+.camera-workspace {
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 768px) {
+  .settings-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-panel .settings-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--flat-divider);
+  }
+
+  .settings-panel .settings-content {
+    padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .settings-panel .settings-content > section {
+    width: 100%;
+    gap: 16px;
+  }
+
+  /* Uniform touch targets across every settings list. */
+  .settings-panel .settings-content label:has(input[type="checkbox"]):not(.settings-row),
+  .settings-panel .settings-content .device-session-card,
+  .settings-panel .settings-content .notification-setting-card,
+  .settings-panel .settings-content .data-support-card {
+    min-height: 62px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-panel .settings-content input,
+  .settings-panel .settings-content textarea,
+  .settings-panel .settings-content select {
+    transition: none;
+  }
+}

@@ -24,6 +24,7 @@ export default function ChatView({
   onUploadFile,
   onSearchMessages, onFetchSharedMedia,
   onConsumeAttachment, onResolveAttachmentUrl,
+  timeFormatRevision,
   onBack,
   onStartCall,
   conversations,
@@ -575,6 +576,7 @@ export default function ChatView({
                   onStartSelect={startMessageSelection}
                   onConsumeAttachment={onConsumeAttachment}
                   onResolveAttachmentUrl={onResolveAttachmentUrl}
+                  timeFormatRevision={timeFormatRevision}
                 />
               );
             })}

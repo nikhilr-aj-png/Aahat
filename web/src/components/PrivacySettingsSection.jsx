@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Globe2, Search, ShieldCheck, UserCheck, Users } from 'lucide-react';
+import { Check, Globe2, Search, UserCheck, Users } from 'lucide-react';
 import SafeAvatar from './SafeAvatar';
 import './PrivacySettingsSection.css';
 
@@ -58,82 +58,109 @@ export default function PrivacySettingsSection({
 
   return (
     <section className="settings-privacy">
-      <div className="privacy-heading">
-        <div className="privacy-heading-icon"><ShieldCheck size={22} /></div>
-        <div><h3>Privacy</h3><p>Control how people find you and who can see your activity.</p></div>
-      </div>
+      <header className="settings-section-head">
+        <h3>Privacy</h3>
+        <p>Control how people find you and who can see your activity.</p>
+      </header>
 
-      <div className="privacy-switch-grid">
+      <div className="settings-list-group">
+        <p className="settings-group-label">Activity</p>
         {PRIVACY_SWITCHES.map(([key, label, detail]) => (
-          <label className="privacy-switch-card" key={key}>
-            <span><strong>{label}</strong><small>{detail}</small></span>
+          <label className="settings-row" key={key}>
+            <span className="settings-row-copy">
+              <strong>{label}</strong>
+              <small>{detail}</small>
+            </span>
             <input
               type="checkbox"
               checked={privacy[key] !== false}
               onChange={event => setPrivacy(current => ({ ...current, [key]: event.target.checked }))}
             />
-            <i aria-hidden="true" />
+            <i className="settings-switch" aria-hidden="true" />
           </label>
         ))}
       </div>
 
-      <div className="status-audience-panel">
-        <div className="privacy-section-title"><span>Status audience</span><small>Choose who sees new stories</small></div>
-        <div className="audience-option-grid">
-          {AUDIENCES.map(({ id, label, detail, Icon }) => {
-            const active = (privacy.status || 'contacts') === id;
-            return (
-              <button
-                type="button"
-                key={id}
-                className={`audience-option ${active ? 'active' : ''}`}
-                onClick={() => setPrivacy(current => ({ ...current, status: id }))}
-              >
-                <span className="audience-option-icon"><Icon size={18} /></span>
-                <span><strong>{label}</strong><small>{detail}</small></span>
-                <i>{active && <Check size={13} />}</i>
-              </button>
-            );
-          })}
-        </div>
-
-        {(privacy.status || 'contacts') === 'selected' && (
-          <div className="status-member-picker">
-            <div className="member-picker-top">
-              <div><strong>Select contacts</strong><small>{selectedIds.length} selected</small></div>
-              <div className="member-search-box"><Search size={17} /><input className="member-search-input" type="search" value={contactSearch} onChange={event => setContactSearch(event.target.value)} placeholder="Search contacts" /></div>
-            </div>
-            <div className="member-picker-list">
-              {visibleContacts.length ? visibleContacts.map(contact => {
-                const selected = selectedIds.includes(contact.otherMemberId);
-                return (
-                  <button type="button" key={contact.otherMemberId} className={selected ? 'selected' : ''} onClick={() => toggleStatusMember(contact.otherMemberId)}>
-                    <SafeAvatar src={contact.avatarUrl} name={contact.name} size={38} />
-                    <span><strong>{contact.name}</strong><small>AHID {contact.otherMemberVirtualNumber || 'Private'}</small></span>
-                    <i>{selected && <Check size={14} />}</i>
-                  </button>
-                );
-              }) : <p>No matching connected contacts.</p>}
-            </div>
-          </div>
-        )}
+      <div className="settings-list-group">
+        <p className="settings-group-label">Status audience</p>
+        {AUDIENCES.map(({ id, label, detail, Icon }) => {
+          const active = (privacy.status || 'contacts') === id;
+          return (
+            <button
+              type="button"
+              key={id}
+              className={`settings-row settings-row-selectable ${active ? 'is-active' : ''}`}
+              aria-pressed={active}
+              onClick={() => setPrivacy(current => ({ ...current, status: id }))}
+            >
+              <span className="settings-row-icon"><Icon size={18} /></span>
+              <span className="settings-row-copy">
+                <strong>{label}</strong>
+                <small>{detail}</small>
+              </span>
+              <span className="settings-row-check">{active && <Check size={16} />}</span>
+            </button>
+          );
+        })}
       </div>
 
-      <button className="privacy-save-button" disabled={busy || ((privacy.status || 'contacts') === 'selected' && selectedIds.length === 0)} onClick={onSave}>
+      {(privacy.status || 'contacts') === 'selected' && (
+        <div className="settings-list-group">
+          <p className="settings-group-label">
+            Select contacts<span className="settings-group-meta">{selectedIds.length} selected</span>
+          </p>
+          <div className="settings-search-row">
+            <Search size={17} />
+            <input
+              type="search"
+              value={contactSearch}
+              onChange={event => setContactSearch(event.target.value)}
+              placeholder="Search contacts"
+              aria-label="Search contacts"
+            />
+          </div>
+          <div className="settings-scroll-list">
+            {visibleContacts.length ? visibleContacts.map(contact => {
+              const selected = selectedIds.includes(contact.otherMemberId);
+              return (
+                <button
+                  type="button"
+                  key={contact.otherMemberId}
+                  className={`settings-row settings-row-selectable ${selected ? 'is-active' : ''}`}
+                  aria-pressed={selected}
+                  onClick={() => toggleStatusMember(contact.otherMemberId)}
+                >
+                  <SafeAvatar src={contact.avatarUrl} name={contact.name} size={36} />
+                  <span className="settings-row-copy">
+                    <strong>{contact.name}</strong>
+                    <small>AHID {contact.otherMemberVirtualNumber || 'Private'}</small>
+                  </span>
+                  <span className="settings-row-check">{selected && <Check size={16} />}</span>
+                </button>
+              );
+            }) : <p className="settings-empty-state">No matching connected contacts.</p>}
+          </div>
+        </div>
+      )}
+
+      <button
+        className="settings-primary-action"
+        disabled={busy || ((privacy.status || 'contacts') === 'selected' && selectedIds.length === 0)}
+        onClick={onSave}
+      >
         {busy ? 'Saving…' : 'Save privacy'}
       </button>
 
-      <div className="blocked-users-panel">
-        <div className="privacy-section-title"><span>Blocked users</span><small>They cannot find or contact you</small></div>
+      <div className="settings-list-group">
+        <p className="settings-group-label">Blocked users<span className="settings-group-meta">They cannot find or contact you</span></p>
         {blocked.length ? blocked.map(row => (
-          <div className="blocked-user-row" key={row.id}>
+          <div className="settings-row" key={row.id}>
             <SafeAvatar src={row.avatar_url} name={row.display_name} size={36} />
-            <span>{row.display_name}</span>
-            <button type="button" onClick={() => onUnblock(row.id)}>Unblock</button>
+            <span className="settings-row-copy"><strong>{row.display_name}</strong></span>
+            <button type="button" className="settings-row-action danger" onClick={() => onUnblock(row.id)}>Unblock</button>
           </div>
-        )) : <p className="privacy-empty-state">No blocked users.</p>}
+        )) : <p className="settings-empty-state">No blocked users.</p>}
       </div>
     </section>
   );
 }
-

@@ -9,6 +9,7 @@ import SecuritySettingsSection from './SecuritySettingsSection';
 import DeviceSessionsSection from './DeviceSessionsSection';
 import NotificationSettingsSection from './NotificationSettingsSection';
 import DataSupportSection from './DataSupportSection';
+import AppPreferencesSection from './AppPreferencesSection';
 import { getDeviceIdentity, isLegacyGenericDeviceName } from '../utils/deviceIdentity';
 import './ProfileConnectionMode.css';
 import './ProfileCredentialsLayout.css';
@@ -382,6 +383,7 @@ export default function SettingsPanelProduction({ user, profile, conversations, 
           </div>
           <p>{publicConnections ? 'Your Aahat ID is searchable. Switch back to Private whenever you want PIN-protected requests.' : 'Share both only with someone you want to connect with. Their invitation must still be accepted by you.'}</p>
         </div>
+        <AppPreferencesSection />
       </section>}
       {tab === 'privacy' && <PrivacySettingsSection
         privacy={privacy}

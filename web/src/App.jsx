@@ -8,6 +8,7 @@ import { useStatuses } from './hooks/useStatuses';
 import { useChannels } from './hooks/useChannels';
 import { useAahatContacts } from './hooks/useAahatContacts';
 import { supabase, isSupabaseConfigured } from './supabase';
+import { onTimeFormatChange } from './utils/dateTime';
 
 import AuthScreen from './components/AuthScreenProduction';
 import PasswordRecoveryGate from './components/PasswordRecoveryGate';
@@ -161,6 +162,11 @@ export default function App() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Switching the 12/24-hour preference must restamp timestamps that are
+  // already on screen, so force one re-render when it changes.
+  const [timeFormatRevision, setTimeFormatRevision] = useState(0);
+  useEffect(() => onTimeFormatChange(() => setTimeFormatRevision(revision => revision + 1)), []);
 
   // Lock an open mobile chat to the browser's actually visible area. This keeps
   // the contact header fixed while only the message list shrinks for the keyboard.
@@ -665,6 +671,7 @@ export default function App() {
               onFetchSharedMedia={fetchSharedMedia}
               onConsumeAttachment={consumeAttachment}
               onResolveAttachmentUrl={getAttachmentUrl}
+              timeFormatRevision={timeFormatRevision}
               onBack={selectedConversationId ? handleMobileBack : undefined}
               onStartCall={handleStartCall}
               conversations={conversations}

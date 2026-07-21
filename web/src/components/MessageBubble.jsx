@@ -35,7 +35,10 @@ function MessageBubble({
   onToggleSelect,
   onStartSelect,
   onConsumeAttachment,
-  onResolveAttachmentUrl
+  onResolveAttachmentUrl,
+  // Bumped when the 12/24-hour preference changes; the value is unused but it
+  // busts this memoised component so the timestamp restamps.
+  timeFormatRevision // eslint-disable-line no-unused-vars
 }) {
   const isMe = msg.isFromMe;
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);

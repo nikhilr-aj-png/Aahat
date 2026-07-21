@@ -37,10 +37,13 @@ test('last seen follows the device 12 or 24 hour clock', async () => {
   const dateTime = await read('web/src/utils/dateTime.js');
   const chat = await read('web/src/components/ChatView.jsx');
 
-  assert.match(dateTime, /resolveDeviceHourCycle/);
+  // Behaviour is covered in time-format-preference.test.mjs; this pins the
+  // contract: an explicit preference wins, otherwise the locale decides.
+  assert.match(dateTime, /localeHourCycle/);
+  assert.match(dateTime, /if \(preference === '12'\) return 'h12'/);
+  assert.match(dateTime, /if \(preference === '24'\) return 'h23'/);
   assert.match(dateTime, /hourCycle === 'h23' \|\| hourCycle === 'h24'/);
   assert.match(dateTime, /hour: is24Hour \? '2-digit' : 'numeric'/);
-  assert.match(dateTime, /hourCycle\s*\n?\s*\}\);/);
   assert.match(dateTime, /export function isDevice24HourClock/);
   // No hard-coded hour12 flag anywhere in the formatter path.
   assert.doesNotMatch(dateTime, /hour12: (true|false)/);
