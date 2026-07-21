@@ -1,0 +1,170 @@
+/* ============================================================
+   Aahat — Design tokens (Stage 1 foundation)
+
+   Extends the token block in index.css with the three scales it
+   was missing, which is why the audit found 42 distinct font
+   sizes, 41 radii and 34 z-index values: there was nothing to
+   reach for.
+
+   This file only DEFINES values. It changes no selectors, so it
+   cannot alter rendering on its own. Screens migrate onto it in
+   later stages.
+
+   Colour is authored semantically (surface/content/border) so a
+   light theme becomes a token override rather than a rewrite.
+   ============================================================ */
+
+:root {
+  /* ---- Spacing: 4px base, matching Material 3 and iOS HIG ---- */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Standard insets, so every screen breathes the same way. */
+  --inset-screen: var(--space-4);
+  --inset-screen-lg: var(--space-6);
+  --gap-list: var(--space-3);
+  --gap-section: var(--space-6);
+
+  /* ---- Type scale ----
+     12px is the floor: the audit found 128 declarations below it,
+     down to 9px, which fails readability on a phone.
+     --text-input is 16px because anything smaller makes iOS Safari
+     zoom the viewport on focus. */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-input: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 34px;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Optical letter-spacing: large text tightens, small text opens up. */
+  --tracking-tight: -0.03em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.08em;
+
+  /* ---- Radius (extends the existing sm/md/lg/xl/full) ---- */
+  --radius-xs: 6px;
+  --radius-2xl: 24px;
+  --radius-pill: 999px;
+
+  /* ---- Elevation: soft and low-contrast, never heavy ---- */
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --elevation-2: 0 4px 12px rgba(0, 0, 0, 0.22);
+  --elevation-3: 0 12px 32px rgba(0, 0, 0, 0.3);
+  --elevation-4: 0 20px 48px rgba(0, 0, 0, 0.38);
+
+  /* ---- Motion: three durations, two curves ---- */
+  --duration-fast: 120ms;
+  --duration-normal: 200ms;
+  --duration-slow: 320ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --motion-fast: var(--duration-fast) var(--ease-standard);
+  --motion-normal: var(--duration-normal) var(--ease-standard);
+  --motion-slow: var(--duration-slow) var(--ease-standard);
+
+  /* ---- Layering: one ordered scale, no more ad-hoc 9999 ---- */
+  --z-base: 1;
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-dropdown: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-max: 600;
+
+  /* ---- Touch targets (WCAG 2.5.5 / iOS HIG / Material) ---- */
+  --touch-min: 44px;
+  --touch-comfortable: 48px;
+
+  /* ---- Semantic surfaces ----
+     Named by role, not by colour, so a theme swap is a token
+     override. Values below are the current dark palette. */
+  --surface-page: linear-gradient(135deg, #0F082E 0%, #0b0f19 100%);
+  --surface-page-solid: #0F082E;
+  --surface-raised: rgba(255, 255, 255, 0.04);
+  --surface-raised-hover: rgba(255, 255, 255, 0.07);
+  --surface-sunken: rgba(0, 0, 0, 0.2);
+  --surface-overlay: rgba(20, 14, 48, 0.97);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --content-primary: #F1F5F9;
+  --content-secondary: #94A3B8;
+  --content-muted: #64748B;
+  --content-on-accent: #FFFFFF;
+
+  --focus-ring: 0 0 0 2px var(--surface-page-solid), 0 0 0 4px var(--accent-light);
+}
+
+/* ============================================================
+   Canonical breakpoints — use ONLY these going forward.
+   The audit found 41 distinct max-widths (48px … 1560px), which
+   is why layouts change at unpredictable sizes.
+
+     compact   max-width: 360px   small phones (300-360 test range)
+     mobile    max-width: 480px   phones (375, 425)
+     tablet    max-width: 768px   tablets / mobile landscape
+     laptop    max-width: 1024px
+     desktop   min-width: 1440px  wide layouts
+     ultrawide min-width: 1920px  cap content width (2560 test)
+
+   Custom properties cannot be used inside media queries, so this
+   stays a documented contract enforced by scripts/design-audit.mjs.
+   ============================================================ */
+
+/* Content never stretches edge-to-edge on very wide screens. */
+:root {
+  --content-max-width: 1180px;
+  --reading-max-width: 720px;
+}
+
+/* ---- Theme readiness ----
+   Light mode is not enabled in this pass, but the contract is
+   defined so shipping it later means filling in these values
+   rather than rewriting selectors. Kept behind an explicit
+   opt-in class so no current screen changes. */
+:root.theme-light {
+  --surface-page: linear-gradient(135deg, #F8FAFC 0%, #EEF2F7 100%);
+  --surface-page-solid: #F8FAFC;
+  --surface-raised: rgba(15, 23, 42, 0.04);
+  --surface-raised-hover: rgba(15, 23, 42, 0.07);
+  --surface-sunken: rgba(15, 23, 42, 0.06);
+  --surface-overlay: rgba(255, 255, 255, 0.98);
+
+  --border-subtle: rgba(15, 23, 42, 0.08);
+  --border-default: rgba(15, 23, 42, 0.12);
+  --border-strong: rgba(15, 23, 42, 0.2);
+
+  --content-primary: #0F172A;
+  --content-secondary: #475569;
+  --content-muted: #64748B;
+
+  --elevation-1: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --elevation-2: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --elevation-3: 0 12px 32px rgba(15, 23, 42, 0.1);
+  --elevation-4: 0 20px 48px rgba(15, 23, 42, 0.14);
+}

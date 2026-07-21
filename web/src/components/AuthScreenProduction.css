@@ -87,11 +87,12 @@
 
 .auth-footer-actions .auth-link-btn {
   justify-content: center;
-  min-height: 38px;
+  /* WCAG 2.5.5 touch target. Measured at 38px before this. */
+  min-height: var(--touch-min, 44px);
   margin: 0;
   padding: 0 13px;
   color: #aaa2bd;
-  font-size: 12px;
+  font-size: var(--text-sm, 13px);
   font-weight: 650;
   border: 1px solid transparent;
   border-radius: 10px;
@@ -125,7 +126,8 @@
   .aahat-auth-card .input-wrapper,.aahat-auth-card .input-wrapper input { min-height: 44px; }
   .aahat-auth-card .auth-form > .btn-primary { min-height: 44px; }
   .auth-footer-actions { margin-top: 12px; padding-top: 10px; }
-  .auth-footer-actions .auth-link-btn { min-height: 34px; }
+  /* Short viewports tighten spacing but never below the touch-target floor. */
+  .auth-footer-actions .auth-link-btn { min-height: var(--touch-min, 44px); }
 }
 
 @media (max-height: 620px) and (min-width: 521px) {
@@ -157,7 +159,34 @@
   .auth-footer-actions.single .auth-link-btn { flex: 0 1 auto; }
 }
 
-/* Pre-login legal note (privacy policy reachable before sign-in) */
-.auth-legal-note { margin: 14px 0 0; text-align: center; color: #8a83a0; font-size: 11px; line-height: 1.5; }
-.auth-legal-note a { color: #b9a9ff; text-decoration: none; font-weight: 500; }
+/* Pre-login legal note (privacy policy reachable before sign-in).
+   Type sits at the 12px readability floor; the links carry vertical padding
+   so their tap area clears 44px without changing the visual line height. */
+.auth-legal-note {
+  margin: 14px 0 0;
+  text-align: center;
+  color: #8a83a0;
+  font-size: var(--text-xs, 12px);
+  line-height: var(--leading-relaxed, 1.65);
+}
+
+.auth-legal-note a {
+  display: inline-block;
+  /* Vertical padding only. Horizontal padding widened these inline links
+     enough to push the sentence's trailing period onto its own line. */
+  padding: var(--space-3, 12px) 0;
+  /* Keep the padded hit area from stretching the paragraph. */
+  margin: calc(var(--space-3, 12px) * -1) 0;
+  color: #b9a9ff;
+  font-size: var(--text-xs, 12px);
+  font-weight: 500;
+  text-decoration: none;
+}
+
 .auth-legal-note a:hover { text-decoration: underline; }
+
+.auth-legal-note a:focus-visible {
+  outline: 2px solid var(--accent-light, #8659F1);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs, 6px);
+}
