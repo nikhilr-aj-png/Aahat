@@ -32,6 +32,25 @@ test('list surfaces use hairline separators instead of boxed rows', async () => 
   assert.match(flat, /\.chat-item \+ \.chat-item,[\s\S]{0,200}border-top: 1px solid var\(--flat-divider\)/);
 });
 
+test('panels that occlude another screen are never made transparent', async () => {
+  const flat = await read('web/src/flat-ui.css');
+
+  // Regression: .sidebar is a full-screen fixed overlay on mobile (z-index
+  // 100) and .chat-details-sidebar is a fixed sheet (z-index 120). Setting
+  // either to a transparent background lets the layer underneath — the chat
+  // empty state — bleed through the conversation list.
+  const withoutComments = flat.replace(/\/\*[\s\S]*?\*\//g, '');
+  const transparentTargets = [...withoutComments.matchAll(/([^{}]+)\{[^{}]*background:\s*transparent[^{}]*\}/g)]
+    .flatMap(match => match[1].split(',').map(selector => selector.trim()));
+
+  for (const overlay of ['.sidebar', '.chat-details-sidebar', '.status-section']) {
+    assert.ok(
+      !transparentTargets.includes(overlay),
+      `${overlay} must keep an opaque background — it covers another screen`
+    );
+  }
+});
+
 test('floating layers keep a surface so they still read as raised', async () => {
   const flat = await read('web/src/flat-ui.css');
 

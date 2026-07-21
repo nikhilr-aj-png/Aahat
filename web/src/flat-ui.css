@@ -130,11 +130,18 @@
 }
 
 /* ---------- Conversation list, contacts, status ---------- */
-.sidebar,
+/* IMPORTANT: .sidebar and .status-section must keep their own opaque
+   background. On mobile the sidebar is a full-screen `position: fixed`
+   overlay (z-index 100) that covers the chat view — making it transparent
+   lets the chat empty state bleed through behind the conversation list.
+   Only their inner wrappers, which never occlude anything, are flattened. */
 .sidebar-inner,
-.status-section,
 .contacts-section {
   background: transparent;
+}
+
+.sidebar {
+  border-right: 1px solid var(--flat-divider);
 }
 
 .chat-item,
@@ -176,9 +183,10 @@
   background: transparent;
 }
 
+/* Border only: on mobile this is a full-screen fixed sheet (z-index 120) and
+   must keep the opaque background chat-responsive.css gives it. */
 .chat-details-sidebar {
   border-left: 1px solid var(--flat-divider);
-  background: transparent;
 }
 
 .details-block,
