@@ -50,3 +50,15 @@
   .data-media-grid article { min-height: 0; }
   .delete-account-dialog { padding: 24px 18px 18px; }
 }
+
+/* Legal & policies links (Play Store readiness: policies reachable in-app) */
+.legal-links-card { margin-top: 14px; padding: 15px 17px; border: 1px solid rgba(143,120,209,.18); border-radius: 16px; background: rgba(255,255,255,.018); }
+.legal-card-heading { display: flex; align-items: center; gap: 13px; }
+.legal-card-heading > div { display: flex; flex-direction: column; gap: 4px; }
+.legal-card-heading strong { display: block; color: #f2eeff; font-size: 13px; }
+.legal-card-heading p { margin: 0; color: #9c94af; font-size: 11px; line-height: 1.55; }
+.legal-links-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 14px; }
+.legal-links-row a { display: flex; align-items: center; gap: 8px; padding: 10px 12px; color: #d7ceff; font-size: 12px; font-weight: 500; text-decoration: none; border: 1px solid rgba(139,105,255,.2); border-radius: 12px; background: rgba(107,69,236,.08); transition: background .2s var(--ease-smooth), border-color .2s var(--ease-smooth), transform .2s var(--ease-smooth); }
+.legal-links-row a:hover { background: rgba(107,69,236,.16); border-color: rgba(139,105,255,.4); transform: translateY(-1px); }
+.legal-links-row svg { color: #c8baff; flex: 0 0 auto; }
+@media (max-width: 620px) { .legal-links-row { grid-template-columns: 1fr; } }

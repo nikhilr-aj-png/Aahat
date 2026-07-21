@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, Ban, Check, CheckCircle2, Clock3, EyeOff, FileWarning, Gavel,
   History, LoaderCircle, MessageSquare, RefreshCw, Search, ShieldAlert,
-  ShieldCheck, UserCheck, Users, X, XCircle,
+  ShieldCheck, Trash2, UserCheck, Users, X, XCircle,
 } from 'lucide-react';
 import { supabase } from '../supabase';
 import './AdminEmbedProduction.css';
@@ -31,7 +31,7 @@ function hasFreshDatabasePresence(user) {
   return Boolean(user.is_online && Number.isFinite(lastSeen) && Date.now() - lastSeen < 45_000);
 }
 
-export default function AdminEmbedProduction({ isUserOnline }) {
+export default function AdminEmbedProduction() {
   const [tab, setTab] = useState('overview');
   const [overview, setOverview] = useState(EMPTY);
   const [profiles, setProfiles] = useState([]);
@@ -69,6 +69,15 @@ export default function AdminEmbedProduction({ isUserOnline }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Keep presence dots live: refresh quietly while the tab is visible. The 45s
+  // server freshness window means a sub-45s cadence keeps online/offline honest.
+  useEffect(() => {
+    const tick = () => { if (document.visibilityState === 'visible') void load(true); };
+    const interval = window.setInterval(tick, 25000);
+    document.addEventListener('visibilitychange', tick);
+    return () => { window.clearInterval(interval); document.removeEventListener('visibilitychange', tick); };
+  }, [load]);
+
   const shownUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
     return profiles.filter(user => (status === 'all' || user.account_status === status)
@@ -79,25 +88,33 @@ export default function AdminEmbedProduction({ isUserOnline }) {
     || (reportFilter === 'active' && ['open', 'reviewing'].includes(report.status))
     || report.status === reportFilter), [reports, reportFilter]);
 
-  const onlineState = useCallback(user => (
-    typeof isUserOnline === 'function' ? Boolean(isUserOnline(user.id)) : hasFreshDatabasePresence(user)
-  ), [isUserOnline]);
+  // Admins see global operational presence straight from the database heartbeat
+  // (is_online + last_seen freshness), not the viewer's contact-scoped realtime
+  // presence — otherwise every non-contact would incorrectly read as offline here.
+  const onlineState = useCallback(user => hasFreshDatabasePresence(user), []);
   const liveOnlineCount = useMemo(() => profiles.filter(onlineState).length, [profiles, onlineState]);
 
   const openAction = (type, item, nextStatus) => { setReason(''); setDialog({ type, item, status: nextStatus }); };
   const submitAction = async () => {
     if (!dialog || busy) return;
     if (dialog.type === 'user' && dialog.status !== 'active' && reason.trim().length < 3) {
-      setError('Suspend या ban करने के लिए कम-से-कम 3 अक्षर का कारण लिखें।');
+      setError('Suspend, ban या delete करने के लिए कम-से-कम 3 अक्षर का कारण लिखें।');
       return;
     }
     setBusy(true); setError('');
-    const result = dialog.type === 'user'
-      ? await supabase.rpc('admin_set_account_status', { p_user_id: dialog.item.id, p_status: dialog.status, p_reason: reason.trim() })
-      : await supabase.rpc('admin_update_report_status', { p_report_id: dialog.item.id, p_status: dialog.status, p_reason: reason.trim() });
+    let result;
+    if (dialog.type === 'user' && dialog.status === 'deleted') {
+      // Permanent deletion runs through the service-role Edge Function.
+      result = await supabase.functions.invoke('admin-delete-user', { body: { userId: dialog.item.id, reason: reason.trim() } });
+    } else if (dialog.type === 'user') {
+      result = await supabase.rpc('admin_set_account_status', { p_user_id: dialog.item.id, p_status: dialog.status, p_reason: reason.trim() });
+    } else {
+      result = await supabase.rpc('admin_update_report_status', { p_report_id: dialog.item.id, p_status: dialog.status, p_reason: reason.trim() });
+    }
     if (result.error) setError(result.error.message);
     else {
-      setDialog(null); setNotice(dialog.type === 'user' ? 'Account status updated.' : 'Report updated.');
+      setDialog(null);
+      setNotice(dialog.type === 'user' ? (dialog.status === 'deleted' ? 'Account permanently deleted.' : 'Account status updated.') : 'Report updated.');
       await load(true); window.setTimeout(() => setNotice(''), 3000);
     }
     setBusy(false);
@@ -132,9 +149,9 @@ export default function AdminEmbedProduction({ isUserOnline }) {
         {tab === 'users' && <section>
           <div className="admin-section-heading"><div><span className="admin-eyebrow">Account management</span><h3>Users</h3></div><small>{shownUsers.length} results</small></div>
           <div className="admin-toolbar"><label className="admin-search"><Search size={17}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or email"/></label><div className="admin-filter-row">{['all','active','suspended','banned'].map(item => <button className={status === item ? 'active' : ''} onClick={() => setStatus(item)} key={item}>{item}</button>)}</div></div>
-          <div className="admin-user-table"><div className="admin-table-head"><span>User</span><span>Activity</span><span>Reports</span><span>Status</span><span>Action</span></div>{shownUsers.map(user => <article className="admin-user-row" key={user.id}>
-            <div className="admin-user-identity"><Avatar user={user}/><span><strong>{user.display_name || 'Unnamed user'}</strong><small>{user.email}</small></span></div><div className="admin-user-activity"><i className={onlineState(user) ? 'online' : ''}/><span>{onlineState(user) ? 'Online' : formatDate(user.last_seen)}</span></div><span className="admin-report-count">{user.report_count || 0}</span><span className={`admin-status-badge is-${user.account_status}`}>{user.account_status}</span>
-            <div className="admin-user-actions">{user.role === 'super_admin' ? <span className="admin-protected-label"><ShieldCheck size={14}/> Protected</span> : user.account_status === 'active' ? <><button onClick={() => openAction('user', user, 'suspended')}>Suspend</button><button className="danger" onClick={() => openAction('user', user, 'banned')}>Ban</button></> : <button className="success" onClick={() => openAction('user', user, 'active')}><UserCheck size={14}/> Reactivate</button>}</div>
+          <div className="admin-user-table"><div className="admin-table-head"><span>User</span><span>Presence</span><span>Reports</span><span>Account</span><span>Action</span></div>{shownUsers.map(user => <article className="admin-user-row" key={user.id}>
+            <div className="admin-user-identity"><Avatar user={user}/><span><strong>{user.display_name || 'Unnamed user'}</strong><small>{user.email}</small></span></div><div className="admin-user-activity"><i className={onlineState(user) ? 'online' : ''}/><span>{onlineState(user) ? 'Online' : user.last_seen ? `Last seen ${formatDate(user.last_seen)}` : 'Offline'}</span></div><span className="admin-report-count">{user.report_count || 0}</span><span className={`admin-status-badge is-${user.account_status}`}>{user.account_status}</span>
+            <div className="admin-user-actions">{user.role === 'super_admin' ? <span className="admin-protected-label"><ShieldCheck size={14}/> Protected</span> : <>{user.account_status === 'active' ? <><button onClick={() => openAction('user', user, 'suspended')}>Suspend</button><button className="danger" onClick={() => openAction('user', user, 'banned')}>Ban</button></> : <button className="success" onClick={() => openAction('user', user, 'active')}><UserCheck size={14}/> Reactivate</button>}<button className="danger" onClick={() => openAction('user', user, 'deleted')}><Trash2 size={14}/> Delete</button></>}</div>
           </article>)}{shownUsers.length === 0 && <Empty icon={Users} title="No users found" text="Try another search or status filter."/>}</div>
         </section>}
         {tab === 'reports' && <section>
@@ -145,7 +162,7 @@ export default function AdminEmbedProduction({ isUserOnline }) {
       </>}
     </main>
   </div>
-  {dialog && <div className="admin-dialog-backdrop" onMouseDown={e => e.target === e.currentTarget && !busy && setDialog(null)}><div className="admin-action-dialog" role="dialog" aria-modal="true"><span className={`admin-dialog-icon ${['banned','suspended'].includes(dialog.status) ? 'danger' : ''}`}><Gavel size={22}/></span><h3>{dialog.type === 'user' ? `${dialog.status === 'active' ? 'Reactivate' : dialog.status} account` : `${dialog.status} report`}</h3><p>{dialog.type === 'user' ? `${dialog.item.display_name} की account access बदलने से पहले निर्णय का कारण दर्ज करें।` : 'यह moderation decision audit trail में सुरक्षित रहेगा।'}</p><label>Admin note {dialog.type === 'user' && dialog.status !== 'active' && <b>Required</b>}<textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason and useful context…" rows={4} autoFocus/></label><div><button onClick={() => setDialog(null)} disabled={busy}>Cancel</button><button className="primary" onClick={submitAction} disabled={busy}>{busy && <LoaderCircle size={15} className="is-spinning"/>} Confirm action</button></div></div></div>}
+  {dialog && <div className="admin-dialog-backdrop" onMouseDown={e => e.target === e.currentTarget && !busy && setDialog(null)}><div className="admin-action-dialog" role="dialog" aria-modal="true"><span className={`admin-dialog-icon ${['banned','suspended','deleted'].includes(dialog.status) ? 'danger' : ''}`}>{dialog.status === 'deleted' ? <Trash2 size={22}/> : <Gavel size={22}/>}</span><h3>{dialog.type === 'user' ? `${dialog.status === 'active' ? 'Reactivate' : dialog.status === 'deleted' ? 'Delete' : dialog.status} account` : `${dialog.status} report`}</h3><p>{dialog.type === 'user' ? (dialog.status === 'deleted' ? `${dialog.item.display_name} का account और उससे जुड़ा data स्थायी रूप से मिटा दिया जाएगा। यह वापस नहीं आ सकता।` : `${dialog.item.display_name} की account access बदलने से पहले निर्णय का कारण दर्ज करें।`) : 'यह moderation decision audit trail में सुरक्षित रहेगा।'}</p><label>Admin note {dialog.type === 'user' && dialog.status !== 'active' && <b>Required</b>}<textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Reason and useful context…" rows={4} autoFocus/></label><div><button onClick={() => setDialog(null)} disabled={busy}>Cancel</button><button className="primary" onClick={submitAction} disabled={busy}>{busy && <LoaderCircle size={15} className="is-spinning"/>} Confirm action</button></div></div></div>}
   </div>;
 }
 

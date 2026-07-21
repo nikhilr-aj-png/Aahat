@@ -156,3 +156,8 @@
   .auth-footer-actions .auth-link-btn { flex: 1 1 150px; }
   .auth-footer-actions.single .auth-link-btn { flex: 0 1 auto; }
 }
+
+/* Pre-login legal note (privacy policy reachable before sign-in) */
+.auth-legal-note { margin: 14px 0 0; text-align: center; color: #8a83a0; font-size: 11px; line-height: 1.5; }
+.auth-legal-note a { color: #b9a9ff; text-decoration: none; font-weight: 500; }
+.auth-legal-note a:hover { text-decoration: underline; }

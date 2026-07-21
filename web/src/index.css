@@ -5090,6 +5090,10 @@ body {
     flex: 0 0 auto;
     z-index: 60;
     background: #0e0926;
+    /* Keep the docked input clear of the Android/iOS gesture bar when the
+       keyboard is closed. env() collapses to 0 while the keyboard is open,
+       so this never adds a gap above the on-screen keyboard. */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
 .attachment-preview video {

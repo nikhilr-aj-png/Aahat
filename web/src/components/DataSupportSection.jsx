@@ -1,4 +1,4 @@
-import { Archive, Download, FileText, Headphones, Image, LifeBuoy, Send, ShieldAlert, Trash2, Video, X } from 'lucide-react';
+import { Archive, Cookie, Download, FileText, Headphones, Image, LifeBuoy, ScrollText, Send, ShieldAlert, ShieldCheck, Trash2, Video, X } from 'lucide-react';
 import { useState } from 'react';
 import { CHAT_MEDIA_LIMITS } from '../utils/mediaCompression';
 import './DataSupportSection.css';
@@ -44,6 +44,16 @@ export default function DataSupportSection({
       <span className="data-card-icon"><Archive size={21}/></span>
       <div><strong>Download your Aahat data</strong><p>Create a private JSON copy of your profile, contacts, conversations, sent messages, statuses, calls and support requests.</p></div>
       <button type="button" disabled={busy} onClick={onExport}><Download size={17}/>{busyAction === 'data-export' ? 'Preparing…' : 'Export my data'}</button>
+    </div>
+
+    <div className="legal-links-card">
+      <div className="legal-card-heading"><span className="data-card-icon"><ScrollText size={21}/></span><div><strong>Legal and policies</strong><p>The documents that govern your use of Aahat. Opens in a new tab.</p></div></div>
+      <div className="legal-links-row">
+        <a href="/privacy.html" target="_blank" rel="noopener noreferrer"><ShieldCheck size={16}/>Privacy Policy</a>
+        <a href="/terms.html" target="_blank" rel="noopener noreferrer"><FileText size={16}/>Terms of Service</a>
+        <a href="/cookies.html" target="_blank" rel="noopener noreferrer"><Cookie size={16}/>Cookie Policy</a>
+        <a href="/deletion.html" target="_blank" rel="noopener noreferrer"><Trash2 size={16}/>Data deletion</a>
+      </div>
     </div>
 
     <form className="support-request-card" onSubmit={event => { event.preventDefault(); onSubmitSupport(); }}>

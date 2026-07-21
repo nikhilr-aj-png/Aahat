@@ -743,7 +743,6 @@ export default function App() {
           <AdminEmbedPanel
             conversations={conversations}
             messages={activeMessages}
-            isUserOnline={isUserOnline}
           />
         )}
       </div>

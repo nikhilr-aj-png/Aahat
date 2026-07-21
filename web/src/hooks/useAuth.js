@@ -1,6 +1,24 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../supabase';
 
+// Deterministic serialization of a profile row, ignoring the volatile presence
+// fields the 15s heartbeat rewrites. Used to skip self-heartbeat echoes so a
+// last_seen tick doesn't replace the profile object and re-render the whole app.
+const stableSort = (value) => {
+  if (Array.isArray(value)) return value.map(stableSort);
+  if (value && typeof value === 'object') {
+    return Object.keys(value).sort().reduce((acc, key) => { acc[key] = stableSort(value[key]); return acc; }, {});
+  }
+  return value;
+};
+const meaningfulProfileKey = (row) => {
+  if (!row) return '';
+  const rest = { ...row };
+  delete rest.is_online;
+  delete rest.last_seen;
+  return JSON.stringify(stableSort(rest));
+};
+
 /**
  * useAuth — Handles authentication state, session management,
  * profile creation/sync, and user lifecycle.
@@ -176,7 +194,10 @@ export function useAuth() {
         table: 'profiles',
         filter: `id=eq.${user.id}`
       }, (payload) => {
-        if (payload.new) setProfile(payload.new);
+        if (!payload.new) return;
+        // Ignore echoes of our own presence heartbeat (only is_online/last_seen
+        // changed); still sync any real profile or settings change made elsewhere.
+        setProfile(prev => (meaningfulProfileKey(prev) === meaningfulProfileKey(payload.new) ? prev : payload.new));
       })
       .subscribe();
 

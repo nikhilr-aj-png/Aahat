@@ -31,6 +31,7 @@ export default function AuthScreenProduction() {
     </div> : <div className="auth-footer-actions single">
       <button type="button" className="auth-link-btn" onClick={()=>setMode('login')}><ArrowLeft size={14}/>Back to sign in</button>
     </div>}
+    <p className="auth-legal-note">By continuing you agree to our <a href="/terms.html" target="_blank" rel="noopener noreferrer">Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.</p>
   </div>;
 }
 import './AuthScreenProduction.css';
