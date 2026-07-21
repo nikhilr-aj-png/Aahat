@@ -1,14 +1,13 @@
 import { memo, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Smile, Trash2, Check, CheckCheck, Reply, Play, Pause, FileText, Edit3, ChevronDown, ChevronLeft, ListChecks, RefreshCw, Download, Film } from 'lucide-react';
+import { Smile, Trash2, Check, CheckCheck, Reply, Play, Pause, FileText, Edit3, ChevronDown, ChevronLeft, ListChecks, RefreshCw, Download, Film, Image as ImageIcon, Music, TimerOff } from 'lucide-react';
 import { formatDeviceTime } from '../utils/dateTime';
+import {
+  formatBytes, resolveAttachmentKind, describeAttachmentType,
+  expiredAttachmentLabel, isExpiredAttachmentMessage
+} from '../utils/attachments';
 
-const formatBytes = (bytes) => {
-  if (!bytes) return '';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / (1024 ** index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
-};
+const KIND_ICONS = { image: ImageIcon, video: Film, audio: Music, voice_note: Music, file: FileText };
 
 const SAFE_REACTION_EMOJIS = [
   '\u{1F44D}', '\u{2764}\u{FE0F}', '\u{1F602}', '\u{1F62E}', '\u{1F622}', '\u{1F64F}'
@@ -34,7 +33,9 @@ function MessageBubble({
   onToggleActionMenu,
   showSenderAvatar,
   onToggleSelect,
-  onStartSelect
+  onStartSelect,
+  onConsumeAttachment,
+  onResolveAttachmentUrl
 }) {
   const isMe = msg.isFromMe;
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
@@ -42,6 +43,8 @@ function MessageBubble({
   const [audioInstance, setAudioInstance] = useState(null);
   const [showDeleteMenu, setShowDeleteMenu] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
   const actionMenuRef = useRef(null);
   const actionTriggerRef = useRef(null);
   const longPressTimerRef = useRef(null);
@@ -133,9 +136,44 @@ function MessageBubble({
 
   useEffect(() => { if (selectionMode) onToggleActionMenu?.(null); }, [selectionMode, onToggleActionMenu]);
 
-  const toggleAudio = () => {
+  /**
+   * Auto-expiring media: saves the attachment to the device, and only once the
+   * file has actually been written does it ask the server to strip the
+   * attachment from both sides of the conversation.
+   */
+  const downloadAndExpireAttachment = async () => {
+    if (isDownloading || !msg.attachment_url) return;
+    setIsDownloading(true);
+    setDownloadError('');
+    try {
+      // Chat buckets are private; mint a signed URL for this download only.
+      const signedUrl = await onResolveAttachmentUrl?.(msg);
+      if (!signedUrl) throw new Error('This attachment is no longer available.');
+      const response = await fetch(signedUrl, { credentials: 'omit' });
+      if (!response.ok) throw new Error(`Download failed (${response.status})`);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = msg.attachment_name || 'aahat-attachment';
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      // Revoke late so slower platforms (iOS Safari, Android WebView) finish saving.
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+      await onConsumeAttachment?.(msg.id);
+    } catch (error) {
+      console.error('Attachment download failed:', error);
+      setDownloadError(error.message || 'Could not download this attachment.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const toggleAudio = async () => {
     const isMockUrl = !msg.attachment_url || (!msg.attachment_url.startsWith('http') && !msg.attachment_url.startsWith('blob:'));
-    
+
     if (isMockUrl) {
       setIsPlayingAudio(!isPlayingAudio);
       if (!isPlayingAudio) {
@@ -157,9 +195,21 @@ function MessageBubble({
       if (audioInstance) audioInstance.pause();
       setIsPlayingAudio(false);
     } else {
-      const audio = audioInstance || new Audio(msg.attachment_url);
-      if (!audioInstance) setAudioInstance(audio);
-      
+      let audio = audioInstance;
+      if (!audio) {
+        // Private bucket: playback needs a freshly signed URL too.
+        try {
+          const signedUrl = await onResolveAttachmentUrl?.(msg);
+          if (!signedUrl) throw new Error('This voice note is no longer available.');
+          audio = new Audio(signedUrl);
+        } catch (error) {
+          console.error('Voice note could not be opened:', error);
+          setDownloadError(error.message || 'Could not play this voice note.');
+          return;
+        }
+        setAudioInstance(audio);
+      }
+
       audio.play().catch(e => {
         console.error("Audio playback failed:", e);
         setIsPlayingAudio(false);
@@ -180,17 +230,15 @@ function MessageBubble({
   const attachmentName = msg.attachment_name || 'Attachment';
   const mimeType = msg.attachment_mime_type || '';
   const attachmentUrl = typeof msg.attachment_url === 'string' ? msg.attachment_url : '';
-  const isVoiceNote = msg.message_type === 'voice_note' || msg.message_type === 'audio' ||
-    attachmentUrl.includes('voice-note');
-  const isPdf = mimeType === 'application/pdf' ||
-    attachmentName.toLowerCase().endsWith('.pdf') ||
-    attachmentUrl.toLowerCase().includes('.pdf');
-  const isImage = msg.message_type === 'image' ||
-    mimeType.startsWith('image/') ||
-    /\.(jpe?g|png|gif|webp)(?:[?#]|$)/i.test(attachmentUrl);
-  const isVideo = msg.message_type === 'video' || mimeType.startsWith('video/') ||
-    /\.(mp4|webm|mov)(?:[?#]|$)/i.test(attachmentUrl);
-  const isFile = msg.message_type === 'file' && !isPdf;
+  const isVoiceNote = (msg.message_type === 'voice_note' || attachmentUrl.includes('voice-note')) && Boolean(attachmentUrl);
+  const attachmentKind = resolveAttachmentKind({
+    messageType: msg.message_type, mimeType, name: attachmentName, url: attachmentUrl
+  });
+  // Every non-voice attachment renders as a compact file card, never as a
+  // full-size media preview.
+  const hasFileCard = Boolean(attachmentUrl) && !isVoiceNote;
+  const isExpiredAttachment = isExpiredAttachmentMessage(msg);
+  const expiredKind = msg.attachment_expired_type || msg.message_type || 'file';
   const isSystem = msg.message_type === 'system';
   const isOptimistic = msg._optimistic;
   const isFailed = msg._status === 'failed';
@@ -291,45 +339,45 @@ function MessageBubble({
             </div>
           )}
 
-          {/* Image attachment */}
-          {isImage && msg.attachment_url && !isVoiceNote && !isPdf && (
-            <div className="message-attachment">
-              <img src={msg.attachment_url} alt="Attachment" loading="lazy" />
+          {/* Attachment already downloaded away by its receiver */}
+          {isExpiredAttachment && (
+            <div className="expired-attachment-note">
+              <TimerOff size={14} />
+              <span>{expiredAttachmentLabel(expiredKind)}</span>
             </div>
           )}
 
-                    {isVideo && msg.attachment_url && (
-            <div className="message-video-attachment">
-              <video src={msg.attachment_url} controls playsInline preload="metadata" />
-              <span>{attachmentName}</span>
-            </div>
-          )}
+          {/* Compact file card — one shape for photos, videos, audio and documents */}
+          {hasFileCard && (() => {
+            const KindIcon = KIND_ICONS[attachmentKind] || FileText;
+            return (
+              <div className={`message-file-card kind-${attachmentKind}`}>
+                <div className="file-card-icon"><KindIcon size={18} /></div>
+                <div className="file-card-copy">
+                  <strong title={attachmentName}>{attachmentName}</strong>
+                  <span>
+                    {describeAttachmentType(mimeType, attachmentName, attachmentKind)}
+                    {msg.attachment_size ? ` · ${formatBytes(msg.attachment_size)}` : ''}
+                  </span>
+                  <small className="file-card-expiry">
+                    {isMe ? 'Removed once the receiver downloads it' : 'Downloads once, then disappears'}
+                  </small>
+                </div>
+                <button
+                  type="button"
+                  className="file-download-btn"
+                  onClick={downloadAndExpireAttachment}
+                  disabled={isDownloading}
+                  title={isMe ? 'Download attachment' : 'Download and remove from chat'}
+                  aria-label={`Download ${attachmentName}`}
+                >
+                  {isDownloading ? <div className="upload-spinner" /> : <Download size={15} />}
+                </button>
+              </div>
+            );
+          })()}
 
-          {/* PDF attachment */}
-          {isPdf && msg.attachment_url && (
-            <div className="message-attachment pdf-attachment" style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '12px', border: '1px solid var(--panel-border)', display: 'flex', alignItems: 'center', gap: '12px', minWidth: '200px' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', flexShrink: 0 }}>
-                <FileText size={20} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-                <span style={{ fontSize: '13px', fontWeight: '600', color: 'white', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{msg.attachment_name || 'Document.pdf'}</span>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>PDF Document</span>
-              </div>
-              <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" style={{ padding: '6px 12px', fontSize: '11.5px', color: 'white', background: 'rgba(255,255,255,0.08)', border: '1px solid var(--panel-border)', borderRadius: '6px', textDecoration: 'none' }}>Open</a>
-            </div>
-          )}
-
-          {/* Generic file attachment */}
-          {isFile && msg.attachment_url && !isPdf && (
-            <div className="message-file-card">
-              <div className="file-card-icon"><Film size={18} /></div>
-              <div className="file-card-copy">
-                <strong>{attachmentName}</strong>
-                <span>{mimeType || 'File'} {formatBytes(msg.attachment_size)}</span>
-              </div>
-              <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="file-download-btn" title="Download attachment"><Download size={15} /></a>
-            </div>
-          )}
+          {downloadError && <p className="file-card-error" role="alert">{downloadError}</p>}
 
           {/* Voice note */}
           {isVoiceNote && (
@@ -348,6 +396,16 @@ function MessageBubble({
                 <span className="wave-bar-static h-2" />
               </div>
               <span className="voice-duration">0:14</span>
+              <button
+                type="button"
+                className="voice-download-btn"
+                onClick={downloadAndExpireAttachment}
+                disabled={isDownloading}
+                title={isMe ? 'Download voice note' : 'Download and remove from chat'}
+                aria-label="Download voice note"
+              >
+                {isDownloading ? <div className="upload-spinner" /> : <Download size={13} />}
+              </button>
             </div>
           )}
 

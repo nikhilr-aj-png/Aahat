@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
-import { 
-  ArrowLeft, ChevronDown, Phone, Video, Search,
+import {
+  ChevronDown, Phone, Video, Search,
   MoreVertical, Info, Users, Image, X, Forward, Trash2
 } from 'lucide-react';
 import MessageBubble from './MessageBubble';
@@ -9,6 +9,7 @@ import SafeAvatar from './SafeAvatar';
 
 import { supabase } from '../supabase';
 import { formatDeviceTime } from '../utils/dateTime';
+import { formatBytes, resolveAttachmentKind, describeAttachmentType } from '../utils/attachments';
 
 /**
  * ChatView â€” Main chat area (V2).
@@ -22,6 +23,7 @@ export default function ChatView({
   onLoadMoreMessages, hasMoreMessages, isLoadingMoreMessages,
   onUploadFile,
   onSearchMessages, onFetchSharedMedia,
+  onConsumeAttachment, onResolveAttachmentUrl,
   onBack,
   onStartCall,
   conversations,
@@ -119,6 +121,19 @@ export default function ChatView({
     return () => { cancelled = true; };
   }, [showGroupDetails, onFetchSharedMedia]);
 
+  // Shared media lives in a private bucket, so opening one mints a signed URL
+  // on demand instead of following a stored public link.
+  const openSharedMedia = async (media) => {
+    setMenuActionError('');
+    try {
+      const signedUrl = await onResolveAttachmentUrl?.(media);
+      if (!signedUrl) throw new Error('This attachment is no longer available.');
+      window.open(signedUrl, '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      setMenuActionError(error.message || 'Could not open this attachment.');
+    }
+  };
+
   const runMenuAction = async (name, action, confirmation) => {
     if (busyMenuAction) return;
     if (confirmation && !window.confirm(confirmation)) return;
@@ -176,6 +191,22 @@ export default function ChatView({
     viewport.addEventListener('resize', keepLatestVisible);
     return () => viewport.removeEventListener('resize', keepLatestVisible);
   }, [conversation?.id]);
+  // The header no longer carries a back button, so mobile keeps an edge swipe
+  // (alongside the hardware/browser back button) as the way out of a chat.
+  const edgeSwipeRef = useRef(null);
+  const handleEdgeSwipeStart = event => {
+    edgeSwipeRef.current = event.pointerType !== 'touch' || event.clientX > 28
+      ? null
+      : { x: event.clientX, y: event.clientY };
+  };
+  const handleEdgeSwipeEnd = event => {
+    const start = edgeSwipeRef.current;
+    edgeSwipeRef.current = null;
+    if (!start || !onBack) return;
+    const deltaX = event.clientX - start.x;
+    if (deltaX > 70 && Math.abs(event.clientY - start.y) < 60) onBack();
+  };
+
   const handleScroll = () => {
     if (!messagesListRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = messagesListRef.current;
@@ -299,10 +330,20 @@ export default function ChatView({
   };
   const handleForwardToContact = async targetConvId => {
     if (!forwardingMessages.length) return;
-    await Promise.all(forwardingMessages.map(message => onForwardMessage?.(message, targetConvId)));
+    // Expiring media must not be forwarded: the copy would point at the same
+    // storage object, so the first download would break the original message —
+    // and it would let media outlive the chat the sender shared it in.
+    const forwardable = forwardingMessages.filter(message => !message.attachment_url);
+    const skipped = forwardingMessages.length - forwardable.length;
+    if (forwardable.length) {
+      await Promise.all(forwardable.map(message => onForwardMessage?.(message, targetConvId)));
+    }
     setForwardingMessages([]);
     setSelectedMessageIds(new Set());
-    alert(`${forwardingMessages.length} message(s) forwarded successfully!`);
+    alert([
+      forwardable.length ? `${forwardable.length} message(s) forwarded successfully!` : '',
+      skipped ? `${skipped} attachment(s) were not forwarded — media is deleted after download and cannot be re-shared.` : ''
+    ].filter(Boolean).join('\n\n'));
   };
 
   const formatLastSeen = value => {
@@ -350,17 +391,25 @@ export default function ChatView({
   }
 
   return (
-    <div className="chat-area-container" id="chat-view">
+    <div
+      className={`chat-area-container ${showGroupDetails ? 'details-open' : ''}`}
+      id="chat-view"
+      onPointerDown={handleEdgeSwipeStart}
+      onPointerUp={handleEdgeSwipeEnd}
+      onPointerCancel={() => { edgeSwipeRef.current = null; }}
+    >
       <div className="chat-view">
         {/* Header */}
         <div className="chat-header" id="chat-header">
-          {onBack && (
-            <button className="btn-icon mobile-back" onClick={onBack} id="btn-back">
-              <ArrowLeft size={18} />
-            </button>
-          )}
-
-          <div className="chat-header-info">
+          {/* Tapping the profile section opens the contact / group information page. */}
+          <button
+            type="button"
+            className="chat-header-info"
+            onClick={() => setShowGroupDetails(true)}
+            title={conversation.type === 'group' ? 'Group details' : 'Contact information'}
+            aria-label={`Open information for ${conversation.name}`}
+            id="btn-header-profile"
+          >
             <div className="avatar-wrapper">
               <SafeAvatar
                 src={conversation.avatarUrl}
@@ -383,7 +432,7 @@ export default function ChatView({
                 getStatusText() ? <p className="status-text">{getStatusText()}</p> : null
               )}
             </div>
-          </div>
+          </button>
 
           <div className="chat-header-actions">
             {conversation.type === 'direct' && conversation.type !== 'self' && (
@@ -397,24 +446,6 @@ export default function ChatView({
               </>
             )}
 
-            <button
-              className={`btn-icon header-action-btn ${showInChatSearch ? 'active' : ''}`}
-              onClick={() => setShowInChatSearch(!showInChatSearch)}
-              title="Search Messages"
-              id="btn-search-chat"
-            >
-              <Search size={18} />
-            </button>
-
-            <button
-              className={`btn-icon header-action-btn ${showGroupDetails ? 'active' : ''}`}
-              onClick={() => setShowGroupDetails(!showGroupDetails)}
-              title={conversation.type === 'group' ? 'Group Details' : 'Contact Info'}
-              id="btn-info-chat"
-            >
-              <Info size={18} />
-            </button>
-
             <div className="dropdown-trigger-wrapper">
               <button className="btn-icon header-action-btn" onClick={() => setShowMoreMenu(!showMoreMenu)} title="More Options" id="btn-more-chat">
                 <MoreVertical size={18} />
@@ -422,6 +453,13 @@ export default function ChatView({
               {showMoreMenu && (
                 <div className="chat-dropdown-menu" ref={moreMenuRef}>
                   {menuActionError && <p className="chat-menu-error" role="alert">{menuActionError}</p>}
+                  <button onClick={() => { setShowMoreMenu(false); setShowInChatSearch(true); }} id="btn-search-chat">
+                    <Search size={14} /> Search Messages
+                  </button>
+                  <button onClick={() => { setShowMoreMenu(false); setShowGroupDetails(true); }} id="btn-info-chat">
+                    <Info size={14} /> {conversation.type === 'group' ? 'Group Details' : 'Contact Info'}
+                  </button>
+                  <div className="chat-dropdown-divider" role="separator" />
                   <button disabled={Boolean(busyMenuAction)} onClick={() => runMenuAction(
                     conversation.isArchived ? 'Unarchive chat' : 'Archive chat',
                     () => onToggleArchive?.(conversation.id)
@@ -535,6 +573,8 @@ export default function ChatView({
                   isSelected={selectedMessageIds.has(item.data.id)}
                   onToggleSelect={toggleMessageSelection}
                   onStartSelect={startMessageSelection}
+                  onConsumeAttachment={onConsumeAttachment}
+                  onResolveAttachmentUrl={onResolveAttachmentUrl}
                 />
               );
             })}
@@ -759,21 +799,26 @@ export default function ChatView({
               ) : sharedMedia.length === 0 ? (
                 <p className="no-media-label">No media shared in this chat yet</p>
               ) : (
-                <div className="shared-media-grid">
+                <div className="shared-media-list">
                   {sharedMedia.map(media => {
                     const mimeType = media.attachment_mime_type || '';
-                    const isVideoMedia = media.message_type === 'video' || mimeType.startsWith('video/');
-                    const isImageMedia = media.message_type === 'image' || mimeType.startsWith('image/');
+                    const name = media.attachment_name || 'Attachment';
+                    const kind = resolveAttachmentKind({
+                      messageType: media.message_type, mimeType, name, url: media.attachment_url
+                    });
                     return (
-                      <div key={media.id} className="shared-media-item">
-                        {isVideoMedia ? (
-                          <video src={media.attachment_url} controls playsInline preload="metadata" aria-label={media.attachment_name || 'Shared video'} />
-                        ) : isImageMedia ? (
-                          <img src={media.attachment_url} alt={media.attachment_name || 'Shared image'} loading="lazy" />
-                        ) : (
-                          <a href={media.attachment_url} target="_blank" rel="noreferrer">{media.attachment_name || 'Open attachment'}</a>
-                        )}
-                      </div>
+                      <button
+                        key={media.id}
+                        type="button"
+                        className={`shared-media-row kind-${kind}`}
+                        onClick={() => openSharedMedia(media)}
+                      >
+                        <span className="shared-media-name" title={name}>{name}</span>
+                        <span className="shared-media-meta">
+                          {describeAttachmentType(mimeType, name, kind)}
+                          {media.attachment_size ? ` · ${formatBytes(media.attachment_size)}` : ''}
+                        </span>
+                      </button>
                     );
                   })}
                 </div>

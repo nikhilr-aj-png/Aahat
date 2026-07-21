@@ -4,8 +4,24 @@ export const CHAT_MEDIA_LIMITS = Object.freeze({
   videoInputBytes: 50 * 1024 * 1024,
   videoOutputBytes: 25 * 1024 * 1024,
   videoDurationSeconds: 180,
-  pdfBytes: 10 * 1024 * 1024
+  pdfBytes: 10 * 1024 * 1024,
+  audioBytes: 20 * 1024 * 1024,
+  documentBytes: 10 * 1024 * 1024
 });
+
+// Documents are uploaded as-is; only the size is policed.
+export const SHAREABLE_DOCUMENT_TYPES = Object.freeze([
+  'application/pdf',
+  'application/zip',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'text/csv'
+]);
 
 const mb = bytes => `${Math.round(bytes / (1024 * 1024))}MB`;
 const jpegName = name => `${(name || 'photo').replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]+/gi, '-') || 'photo'}.jpg`;
@@ -142,5 +158,13 @@ export async function prepareChatMedia(file, onProgress) {
     if (file.size > CHAT_MEDIA_LIMITS.pdfBytes) throw new Error(`PDF is too large. Maximum size is ${mb(CHAT_MEDIA_LIMITS.pdfBytes)}.`);
     return file;
   }
-  throw new Error('Only photos, videos and PDF files can be attached here.');
+  if (file.type.startsWith('audio/')) {
+    if (file.size > CHAT_MEDIA_LIMITS.audioBytes) throw new Error(`Audio file is too large. Maximum size is ${mb(CHAT_MEDIA_LIMITS.audioBytes)}.`);
+    return file;
+  }
+  if (SHAREABLE_DOCUMENT_TYPES.includes(file.type)) {
+    if (file.size > CHAT_MEDIA_LIMITS.documentBytes) throw new Error(`Document is too large. Maximum size is ${mb(CHAT_MEDIA_LIMITS.documentBytes)}.`);
+    return file;
+  }
+  throw new Error('Only photos, videos, audio files and documents can be attached here.');
 }

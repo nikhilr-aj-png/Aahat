@@ -169,7 +169,9 @@ test('12-hour hard delete keeps a privacy-safe tombstone and cleans media', asyn
   assert.match(hook, /storage\.from\(data\.storage_bucket\)\.remove/);
   assert.match(bubble, /Delete for everyone \(within 12 hours\)/);
   assert.match(bubble, /You deleted this message/);
-  assert.match(bubble, /message-video-attachment/);
+  // Attachments render as compact file cards, not inline media previews.
+  assert.match(bubble, /message-file-card kind-/);
+  assert.doesNotMatch(bubble, /message-video-attachment/);
   assert.match(input, /prepareChatMedia/);
   assert.doesNotMatch(input, /chat-media-limits/);
   assert.match(compression, /imageInputBytes: 5 \* 1024 \* 1024/);
@@ -253,7 +255,9 @@ test('chat header search and info use full-history server methods with safe fall
   assert.match(hook, /rpc\('list_conversation_media'/);
   assert.match(hook, /\.not\('attachment_url', 'is', null\)/);
   assert.match(chat, /Searching the full conversation/);
-  assert.match(chat, /<video src=\{media\.attachment_url\} controls/);
+  // Shared media lists files compactly instead of embedding players.
+  assert.match(chat, /className="shared-media-list"/);
+  assert.match(chat, /describeAttachmentType\(mimeType, name, kind\)/);
   assert.match(migration, /function public\.search_conversation_messages/);
   assert.match(migration, /function public\.list_conversation_media/);
 });

@@ -6,11 +6,17 @@ const MAX_IMAGE_UPLOAD_BYTES = 1 * 1024 * 1024;
 const MAX_VIDEO_UPLOAD_BYTES = 25 * 1024 * 1024;
 const MAX_PDF_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MAX_AUDIO_UPLOAD_BYTES = 20 * 1024 * 1024;
+const MAX_DOCUMENT_UPLOAD_BYTES = 10 * 1024 * 1024;
 const ALLOWED_UPLOAD_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'video/quicktime',
   'audio/mpeg', 'audio/mp4', 'audio/webm', 'audio/wav', 'audio/ogg',
   'application/pdf', 'application/zip', 'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain', 'text/csv'
 ]);
 
 const statusFor = (message, userId) => {
@@ -22,11 +28,24 @@ const statusFor = (message, userId) => {
 };
 
 const storageObjectFromPublicUrl = (url) => {
-  const marker = '/storage/v1/object/public/';
-  if (!url?.includes(marker)) return null;
-  const [bucket, ...parts] = url.split(marker)[1].split('/');
+  const marker = ['/storage/v1/object/public/', '/storage/v1/object/sign/']
+    .find(candidate => url?.includes(candidate));
+  if (!marker) return null;
+  const [bucket, ...parts] = url.split(marker)[1].split('?')[0].split('/');
   return bucket && parts.length ? { bucket, path: parts.join('/') } : null;
 };
+
+// Chat media lives in private buckets, so every read needs a short-lived
+// signed URL. The bucket/path pair is kept on the message row by a trigger;
+// older rows fall back to parsing the stored URL.
+const storageObjectForMessage = (message) => {
+  if (message?.attachment_bucket && message?.attachment_path) {
+    return { bucket: message.attachment_bucket, path: message.attachment_path };
+  }
+  return storageObjectFromPublicUrl(message?.attachment_url);
+};
+
+const SIGNED_URL_TTL_SECONDS = 120;
 
 const hydrateReplyTargets = async (rows) => {
   const replyIds = [...new Set(rows.map(row => row.reply_to_id).filter(Boolean))];
@@ -270,6 +289,88 @@ export function useMessages(user, conversationId) {
     await fetchPage(false);
   }, [fetchPage]);
 
+  /**
+   * Mints a short-lived signed URL for a message's attachment. Chat buckets are
+   * private: read access is granted only while a message the caller can see
+   * still points at the object, so this fails as soon as the media expires.
+   */
+  const getAttachmentUrl = useCallback(async (message) => {
+    const object = storageObjectForMessage(message);
+    if (!object) throw new Error('This attachment is no longer available.');
+    const { data, error } = await supabase.storage.from(object.bucket)
+      .createSignedUrl(object.path, SIGNED_URL_TTL_SECONDS);
+    if (error) throw error;
+    return data.signedUrl;
+  }, []);
+
+  /**
+   * Auto-expiring media: called by the receiver once the attachment has been
+   * written to their device. The RPC strips the attachment from the message for
+   * both sides — which immediately revokes read access, since the storage
+   * policy resolves objects through the message row — and queues the purge.
+   * The object is then deleted straight away; the queue is the retry path.
+   */
+  const consumeAttachment = useCallback(async (messageId) => {
+    const { data, error } = await supabase.rpc('consume_message_attachment', { p_message_id: messageId });
+    if (error) throw error;
+    if (data?.skipped) return data;
+
+    const expiredType = data?.expired_type || 'file';
+    setMessages(current => current.map(message => message.id === messageId ? {
+      ...message,
+      attachment_url: null,
+      attachment_name: null,
+      attachment_size: null,
+      attachment_mime_type: null,
+      attachment_bucket: null,
+      attachment_path: null,
+      attachment_expired_type: expiredType,
+      attachment_consumed_at: new Date().toISOString()
+    } : message));
+
+    if (data?.storage_bucket && data?.storage_path) {
+      const cleanup = await supabase.storage.from(data.storage_bucket).remove([data.storage_path]);
+      const { error: completionError } = await supabase.rpc('complete_attachment_purge', {
+        p_message_id: messageId,
+        p_success: !cleanup.error,
+        p_error: cleanup.error?.message || null
+      });
+      if (cleanup.error) console.warn('Attachment purge stays queued for retry:', cleanup.error.message);
+      if (completionError) console.warn('Could not record the purge result:', completionError.message);
+    }
+    await fetchPage(false);
+    return data;
+  }, [fetchPage]);
+
+  // Retry path: drains purge requests this account is party to, so an
+  // interrupted delete does not leave the object behind.
+  useEffect(() => {
+    if (!user) return undefined;
+    let cancelled = false;
+    const drainPurgeQueue = async () => {
+      const { data, error } = await supabase.from('attachment_purge_queue')
+        .select('message_id,storage_bucket,storage_path')
+        .eq('status', 'pending')
+        .limit(25);
+      if (error || cancelled || !data?.length) return;
+      for (const row of data) {
+        const cleanup = await supabase.storage.from(row.storage_bucket).remove([row.storage_path]);
+        const { error: completionError } = await supabase.rpc('complete_attachment_purge', {
+          p_message_id: row.message_id,
+          p_success: !cleanup.error,
+          p_error: cleanup.error?.message || null
+        });
+        if (completionError) console.warn('Attachment purge stays queued:', completionError.message);
+      }
+    };
+    drainPurgeQueue().catch(console.warn);
+    const queueId = window.setInterval(() => drainPurgeQueue().catch(console.warn), 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(queueId);
+    };
+  }, [user]);
+
   const addReaction = useCallback(async (messageId, emoji) => {
     const { data } = await supabase.from('message_reactions').select('id').eq('message_id', messageId).eq('user_id', user.id).eq('emoji', emoji).maybeSingle();
     const result = data
@@ -350,7 +451,7 @@ export function useMessages(user, conversationId) {
     });
     if (error && /list_conversation_media|schema cache|PGRST202/i.test(error.message || '')) {
       const fallback = await supabase.from('messages')
-        .select('id,conversation_id,sender_id,message_type,attachment_url,attachment_name,attachment_size,attachment_mime_type,created_at,deleted_for_users')
+        .select('id,conversation_id,sender_id,message_type,attachment_url,attachment_name,attachment_size,attachment_mime_type,attachment_bucket,attachment_path,created_at,deleted_for_users')
         .eq('conversation_id', conversationId)
         .eq('is_deleted_for_everyone', false)
         .not('attachment_url', 'is', null)
@@ -368,7 +469,7 @@ export function useMessages(user, conversationId) {
       : file.type.startsWith('video/') ? MAX_VIDEO_UPLOAD_BYTES
         : file.type.startsWith('audio/') ? MAX_AUDIO_UPLOAD_BYTES
           : file.type === 'application/pdf' ? MAX_PDF_UPLOAD_BYTES
-            : MAX_VIDEO_UPLOAD_BYTES;
+            : MAX_DOCUMENT_UPLOAD_BYTES;
     if (file.size > uploadLimit) throw new Error(`Prepared file exceeds the ${Math.round(uploadLimit / 1024 / 1024)}MB upload limit.`);
     if (file.type && !ALLOWED_UPLOAD_TYPES.has(file.type)) throw new Error(`Unsupported file type: ${file.type}`);
     const oldObject = storageObjectFromPublicUrl(oldUrl);
@@ -378,6 +479,9 @@ export function useMessages(user, conversationId) {
     const bucket = preferredBucket || (file.type.startsWith('audio/') ? 'voice-notes' : 'attachments');
     const { error } = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type, upsert: false });
     if (error) throw error;
+    // Chat buckets are private, so this URL is not fetchable. It is stored as
+    // the object's canonical identity — a trigger parses bucket/path out of it,
+    // and reads go through getAttachmentUrl's signed URLs.
     const { data } = supabase.storage.from(bucket).getPublicUrl(path);
     await supabase.from('storage_files').insert({ owner_id: user.id, bucket_id: bucket, object_path: path, public_url: data.publicUrl, mime_type: file.type, file_size: file.size }).then(() => undefined);
     return data.publicUrl;
@@ -387,6 +491,7 @@ export function useMessages(user, conversationId) {
     messages, isLoading, isLoadingMore, hasMore, loadMore: () => fetchPage(true),
     sendMessage, retryMessage, editMessage, deleteForMe, deleteForEveryone,
     addReaction, removeReaction, togglePinMessage, toggleStarMessage, markAsRead,
+    consumeAttachment, getAttachmentUrl,
     uploadFile, searchMessages, fetchSharedMedia, refetch: () => fetchPage(false)
   };
 }

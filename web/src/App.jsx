@@ -97,7 +97,8 @@ export default function App() {
     messages: activeMessages,
     sendMessage, retryMessage, editMessage, deleteForMe, deleteForEveryone,
     addReaction, removeReaction,
-    markAsRead, uploadFile, searchMessages, fetchSharedMedia, refetch: refetchMessages, loadMore, hasMore, isLoadingMore
+    markAsRead, uploadFile, searchMessages, fetchSharedMedia, consumeAttachment, getAttachmentUrl,
+    refetch: refetchMessages, loadMore, hasMore, isLoadingMore
   } = useMessages(user, selectedConversationId);
 
   // --- Presence ---
@@ -398,7 +399,7 @@ export default function App() {
     }
   }, [setSelectedConversationId]);
 
-  const handleSend = useCallback(async (text, attachmentPayload, replyPayload) => {
+  const sendOneMessage = useCallback(async (text, attachmentPayload, replyPayload) => {
     const options = {};
     const attachmentUrl = typeof attachmentPayload === 'string' ? attachmentPayload : attachmentPayload?.url;
     if (attachmentPayload && typeof attachmentPayload === 'object') {
@@ -441,6 +442,19 @@ export default function App() {
 
     await sendMessage(text, options);
   }, [sendMessage]);
+
+  // The composer can queue several files at once. Each attachment becomes its
+  // own message, sent in order, with the typed text riding on the first one.
+  const handleSend = useCallback(async (text, attachmentPayload, replyPayload) => {
+    const payloads = Array.isArray(attachmentPayload) ? attachmentPayload : [attachmentPayload];
+    if (!payloads.length || (payloads.length === 1 && !payloads[0])) {
+      await sendOneMessage(text, null, replyPayload);
+      return;
+    }
+    for (const [index, payload] of payloads.entries()) {
+      await sendOneMessage(index === 0 ? text : '', payload, index === 0 ? replyPayload : null);
+    }
+  }, [sendOneMessage]);
 
   const handleStartCall = useCallback((type) => {
     if (!activeConversation) return;
@@ -649,6 +663,8 @@ export default function App() {
               onUploadFile={uploadFile}
               onSearchMessages={searchMessages}
               onFetchSharedMedia={fetchSharedMedia}
+              onConsumeAttachment={consumeAttachment}
+              onResolveAttachmentUrl={getAttachmentUrl}
               onBack={selectedConversationId ? handleMobileBack : undefined}
               onStartCall={handleStartCall}
               conversations={conversations}

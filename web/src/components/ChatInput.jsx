@@ -1,7 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Paperclip, Send, X, Camera, Mic, MicOff, Smile, RefreshCw, FileText } from 'lucide-react';
+import { Paperclip, Send, X, Camera, Mic, MicOff, Smile, RefreshCw, FileText, Image as ImageIcon, Film, Music } from 'lucide-react';
 import { prepareChatMedia } from '../utils/mediaCompression';
+import { formatBytes, resolveAttachmentKind, describeAttachmentType } from '../utils/attachments';
+
+const ATTACHMENT_ACCEPT = [
+  'image/*', 'video/*', 'audio/*',
+  'application/pdf', 'application/zip', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.csv'
+].join(',');
+
+const KIND_ICONS = { image: ImageIcon, video: Film, audio: Music, voice_note: Music, file: FileText };
 
 const POPULAR_EMOJIS = ['😊', '😂', '🔥', '👍', '❤️', '👏', '🙌', '🎉', '✨', '💡'];
 const SAFE_POPULAR_EMOJIS = POPULAR_EMOJIS.map((emoji, index) => [
@@ -16,7 +24,8 @@ const SAFE_POPULAR_EMOJIS = POPULAR_EMOJIS.map((emoji, index) => [
  */
 export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply, editingMessage, onCancelEdit, onSetTyping, conversationId, onInputFocus }) {
   const [inputText, setInputText] = useState('');
-  const [selectedImage, setSelectedImage] = useState(null);
+  // Multiple photos, videos, audio files and documents can be queued together.
+  const [attachments, setAttachments] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -31,7 +40,7 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
   useEffect(() => {
     if (!editingMessage) return;
     setInputText(editingMessage.content || '');
-    setSelectedImage(null);
+    setAttachments([]);
     setShowEmojiPicker(false);
     requestAnimationFrame(() => {
       messageInputRef.current?.focus();
@@ -76,15 +85,12 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
 
   const handleSubmit = (e) => {
     e?.preventDefault();
-    if (!inputText.trim() && !selectedImage && !isRecording) return;
-    
-    const attachmentPayload = selectedImage
-      ? (typeof selectedImage === 'string' ? selectedImage : selectedImage)
-      : null;
-    onSend(inputText, attachmentPayload);
+    if (!inputText.trim() && !attachments.length && !isRecording) return;
+
+    onSend(inputText, attachments.length ? attachments : null);
     setInputText('');
     if (onCancelEdit) onCancelEdit();
-    setSelectedImage(null);
+    setAttachments([]);
     if (onCancelReply) onCancelReply();
   };
 
@@ -140,31 +146,41 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
     };
   }, [showCameraFeed, facingMode]);
 
+  // Prepares and uploads every picked file, keeping the ones that succeed and
+  // reporting the rest together so one bad file cannot cancel the whole batch.
   const handleFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
     setIsUploading(true);
-    setUploadStatus(file.type.startsWith('video/') ? 'Preparing video...' : 'Compressing photo...');
+    const failures = [];
     try {
-      const preparedFile = await prepareChatMedia(file, percent => setUploadStatus(`Compressing video... ${percent}%`));
-      setUploadStatus('Uploading...');
-      const url = await onUploadFile(preparedFile);
-      setSelectedImage({
-        url,
-        name: preparedFile.name,
-        size: preparedFile.size,
-        mimeType: preparedFile.type,
-        originalSize: file.size
-      });
-    } catch (err) {
-      console.error('Upload failed:', err);
-      alert(err.message || 'Could not prepare this attachment.');
+      for (const [index, file] of files.entries()) {
+        const position = files.length > 1 ? ` (${index + 1}/${files.length})` : '';
+        try {
+          setUploadStatus(`${file.type.startsWith('video/') ? 'Preparing video' : 'Preparing file'}...${position}`);
+          const preparedFile = await prepareChatMedia(file, percent => setUploadStatus(`Compressing video ${percent}%${position}`));
+          setUploadStatus(`Uploading...${position}`);
+          const url = await onUploadFile(preparedFile);
+          setAttachments(current => [...current, {
+            id: `${Date.now()}-${index}-${preparedFile.name}`,
+            url,
+            name: preparedFile.name,
+            size: preparedFile.size,
+            mimeType: preparedFile.type,
+            originalSize: file.size
+          }]);
+        } catch (err) {
+          console.error('Upload failed:', file.name, err);
+          failures.push(`${file.name}: ${err.message || 'could not be prepared'}`);
+        }
+      }
     } finally {
       setIsUploading(false);
       setUploadStatus('');
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+    if (failures.length) alert(`Some attachments were skipped:\n\n${failures.join('\n')}`);
   };
   const handleCameraOpen = () => {
     setFacingMode('user');
@@ -200,13 +216,14 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
         const preparedFile = await prepareChatMedia(file);
         setUploadStatus('Uploading...');
         const url = await onUploadFile(preparedFile);
-        setSelectedImage({
+        setAttachments(current => [...current, {
+          id: `${Date.now()}-camera-${preparedFile.name}`,
           url,
           name: preparedFile.name,
           size: preparedFile.size,
           mimeType: preparedFile.type,
           originalSize: file.size
-        });
+        }]);
       } catch (err) {
         console.error('Upload captured photo failed:', err);
         alert(err.message || 'Could not prepare this photo.');
@@ -266,12 +283,13 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
         setIsUploading(true);
         try {
           const url = await onUploadFile(audioFile);
-          onSend("", {
+          onSend("", [{
+            id: audioFile.name,
             url,
             name: audioFile.name,
             size: audioFile.size,
             mimeType: audioFile.type
-          });
+          }]);
         } catch (err) {
           console.error("Voice note upload failed:", err);
           alert(err.message || "Could not upload this voice note.");
@@ -319,8 +337,8 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
     setShowEmojiPicker(false);
   };
 
-  const clearAttachment = () => {
-    setSelectedImage(null);
+  const removeAttachment = (attachmentId) => {
+    setAttachments(current => current.filter(item => item.id !== attachmentId));
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -392,26 +410,35 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
           type="file"
           ref={fileInputRef}
           style={{ display: 'none' }}
-          accept="image/*,video/*,application/pdf"
+          accept={ATTACHMENT_ACCEPT}
+          multiple
           onChange={handleFileChange}
         />
 
-        {/* Attachment Preview */}
-        {selectedImage && (
-          <div className="attachment-preview">
-            {(typeof selectedImage === 'object' ? selectedImage.mimeType === 'application/pdf' : selectedImage.toLowerCase().includes('.pdf')) ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--panel-border)', borderRadius: '8px', marginRight: '10px' }}>
-                <FileText size={16} style={{ color: '#ef4444' }} />
-                <span style={{ fontSize: '11px', color: 'white' }}>{typeof selectedImage === 'object' ? selectedImage.name : 'Document.pdf'}</span>
-              </div>
-            ) : (
-              typeof selectedImage === 'object' && selectedImage.mimeType?.startsWith('video/')
-                ? <video src={selectedImage.url} muted playsInline preload="metadata" aria-label="Video attachment preview" />
-                : <img src={typeof selectedImage === 'object' ? selectedImage.url : selectedImage} alt="Attachment preview" />
-            )}
-            <button type="button" className="attachment-remove" onClick={clearAttachment}>
-              <X size={14} />
-            </button>
+        {/* Queued attachments render as compact file chips, never as large previews. */}
+        {attachments.length > 0 && (
+          <div className="attachment-queue" aria-label={`${attachments.length} attachment(s) ready to send`}>
+            {attachments.map(attachment => {
+              const kind = resolveAttachmentKind({ mimeType: attachment.mimeType, name: attachment.name, url: attachment.url });
+              const KindIcon = KIND_ICONS[kind] || FileText;
+              return (
+                <div key={attachment.id} className={`attachment-chip kind-${kind}`}>
+                  <span className="attachment-chip-icon"><KindIcon size={15} /></span>
+                  <span className="attachment-chip-copy">
+                    <strong title={attachment.name}>{attachment.name}</strong>
+                    <span>{describeAttachmentType(attachment.mimeType, attachment.name, kind)}{attachment.size ? ` · ${formatBytes(attachment.size)}` : ''}</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="attachment-chip-remove"
+                    onClick={() => removeAttachment(attachment.id)}
+                    aria-label={`Remove ${attachment.name}`}
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -420,8 +447,8 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
           {/* Attach Button */}
           <button
             type="button"
-            className={`btn-icon attach-btn ${selectedImage ? 'has-file' : ''}`}
-            title="Attach File"
+            className={`btn-icon attach-btn ${attachments.length ? 'has-file' : ''}`}
+            title="Attach files"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading || isRecording}
             id="btn-attach"
@@ -482,7 +509,7 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
             type="button"
             className={`btn-icon voice-record-btn ${isRecording ? 'recording-active' : ''}`}
             onClick={toggleRecording}
-            disabled={isUploading || (inputText.trim().length > 0 || selectedImage)}
+            disabled={isUploading || inputText.trim().length > 0 || attachments.length > 0}
             title={isRecording ? "Stop & Send" : "Record Voice Note"}
             id="btn-voice-record"
           >
@@ -493,7 +520,7 @@ export default function ChatInput({ onSend, onUploadFile, replyTo, onCancelReply
           <button
             type="submit"
             className="btn-send"
-            disabled={isUploading || (!inputText.trim() && !selectedImage && !isRecording)}
+            disabled={isUploading || (!inputText.trim() && !attachments.length && !isRecording)}
             id="btn-send"
           >
             <Send size={18} />
