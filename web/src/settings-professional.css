@@ -205,7 +205,11 @@
 .settings-panel .settings-content button:disabled { opacity: 0.48; cursor: not-allowed; transform: none; }
 .settings-panel .settings-content button.danger { color: #fecaca; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.24); box-shadow: none; }
 
-.settings-panel .settings-content section > div:not(.user-avatar) {
+/* .settings-list-group is exempt: it is the glass card primitive from
+   PrivacySettingsSection.css, and this generic "every div is a row" rule
+   outranks it — which turned each group into a bordered box with
+   align-items:center, squashing the group label to its text width. */
+.settings-panel .settings-content section > div:not(.user-avatar):not(.settings-list-group) {
   display: flex;
   align-items: center;
   min-height: 52px;
@@ -226,7 +230,7 @@
   box-shadow: 0 0 0 5px rgba(95, 52, 247, 0.08), 0 12px 30px rgba(0, 0, 0, 0.2);
 }
 
-.settings-panel .settings-content section > div:not(.user-avatar) { flex-wrap: wrap; }
+.settings-panel .settings-content section > div:not(.user-avatar):not(.settings-list-group) { flex-wrap: wrap; }
 .settings-panel .settings-content section > div:not(.user-avatar) > img { max-width: 180px; height: auto; border-radius: 12px; }
 .settings-panel .settings-content section > div:not(.user-avatar) > code { overflow-wrap: anywhere; color: #e1d8fc; }
 

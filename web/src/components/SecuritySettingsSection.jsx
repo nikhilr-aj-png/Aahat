@@ -84,7 +84,7 @@ export default function SecuritySettingsSection({
         <button className="security-primary" disabled={busy || !passwordReady}><KeyRound size={15}/>{passwordBusy ? 'Updating…' : 'Update password'}</button>
       </form>
 
-      <div className="mfa-security-card">
+      <div className={`mfa-security-card ${factors.length > 0 ? 'is-enabled' : ''}`}>
         <div className="security-card-heading"><ShieldCheck size={20}/><span><strong>Authenticator 2FA</strong><small>Add a rotating code after your password at every new sign-in.</small></span>{factors.length > 0 && <i className="security-enabled-badge"><Check size={13}/>Enabled</i>}</div>
 
         {factors.map(factor => (

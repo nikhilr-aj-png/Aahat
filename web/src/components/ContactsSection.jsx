@@ -95,17 +95,28 @@ export default function ContactsSection({
         </article>)}
       </section>}
 
-      <section className="aahat-request-section">
+      {/* Connected people render as a card grid rather than a list — the
+          extra class carries the grid so the section heading can still be a
+          direct child and span the full row. */}
+      <section className="aahat-request-section aahat-contacts-grid">
         <h3>Connected people</h3>
         {isLoading ? <div className="aahat-empty">Loading contacts…</div> : directContacts.length === 0 ? (
           <div className="aahat-empty"><Users size={32}/><p>No connected contacts yet.</p><small>Use Add Contact to connect with someone.</small></div>
         ) : directContacts.map(conversation => (
-          <article className="aahat-contact-card" key={conversation.id} onClick={() => { setOpenContactMenu(null); onSelectConversation(conversation.id); }}>
+          <article
+            className={`aahat-contact-card ${canViewOnlineStatus?.(conversation.otherMemberId) && !isUserOnline(conversation.otherMemberId) ? 'is-offline' : ''}`}
+            key={conversation.id}
+            onClick={() => { setOpenContactMenu(null); onSelectConversation(conversation.id); }}
+          >
             <div className="avatar-wrapper">
-              <SafeAvatar src={conversation.avatarUrl} name={conversation.name} size={44}/>
+              <SafeAvatar src={conversation.avatarUrl} name={conversation.name} size={72}/>
               {canViewOnlineStatus?.(conversation.otherMemberId) && <div className={`status-badge ${isUserOnline(conversation.otherMemberId) ? 'active' : 'offline'}`}/>}
             </div>
-            <div><strong>{conversation.name}</strong>{canViewOnlineStatus?.(conversation.otherMemberId) && <small>{isUserOnline(conversation.otherMemberId) ? 'Online' : 'Offline'}</small>}</div>
+            <div>
+              <strong>{conversation.name}</strong>
+              {conversation.otherMemberVirtualNumber && <small className="aahat-contact-id">ID: {conversation.otherMemberVirtualNumber}</small>}
+              {canViewOnlineStatus?.(conversation.otherMemberId) && <small>{isUserOnline(conversation.otherMemberId) ? 'Online' : 'Offline'}</small>}
+            </div>
             <div className="contact-card-actions" onClick={event => event.stopPropagation()}>
               <button className="contact-chat-button" onClick={() => onSelectConversation(conversation.id)}><MessageSquare size={15}/>Chat</button>
               <button className="contact-menu-trigger" aria-label={`More actions for ${conversation.name}`} onClick={() => setOpenContactMenu(current => current === conversation.id ? null : conversation.id)}><MoreVertical size={17}/></button>

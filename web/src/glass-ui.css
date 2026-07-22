@@ -1,0 +1,581 @@
+/* =============================================================
+   Aahat — glass surface pass
+
+   Replaces the earlier flat-surface pass. Where that one removed
+   every card, outline and shadow so hierarchy came from spacing
+   alone, this one restores the layered glassmorphic surfaces the
+   Stitch design is built on: a translucent violet panel, a 16px
+   backdrop blur, a 1px luminous border, and a 24px radius.
+
+   All values come from --glass-* / --glow-* in design-tokens.css,
+   which were lifted from the Stitch export. Nothing here should
+   hardcode an rgba; if a value is missing, add the token.
+
+   TWO RULES THAT ARE NOT TASTE — do not "simplify" them away:
+
+   1. Full-screen overlays stay OPAQUE.
+      .sidebar, .chat-details-sidebar and .status-section are
+      position: fixed full-screen layers on mobile (z-index 100 and
+      120). They cover the chat view. Giving them a translucent
+      background lets the chat empty state bleed through behind the
+      conversation list. resonance.css already gives them solid
+      colours; glass belongs on their inner cards, never on them.
+
+   2. Blur is capped at two stacked layers.
+      Each backdrop-filter forces its own compositor layer, and the
+      Android TWA build runs on low-end hardware. A glass card
+      inside a glass group inside a glass panel is three layers for
+      one visual effect. Blur the outer surface OR the rows, not
+      both. design-tokens.css carries the reduced-transparency and
+      no-backdrop-filter fallbacks.
+
+   Loaded after index.css / resonance.css / the section stylesheets
+   so it wins on ties, and before premium-chat-list.css, which owns
+   chat-list sizing.
+   ============================================================= */
+
+/* One reusable surface. Anything that should read as glass gets
+   these four declarations and nothing else. */
+.glass-panel,
+.section-card,
+.panel-card,
+.info-card {
+  border: var(--glass-border);
+  border-radius: var(--radius-card);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: none;
+}
+
+/* ---------- Scrollbars ---------- */
+/* Stitch uses a 6px violet-tinted thumb on every scrollable region. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201, 190, 255, 0.2) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  background: rgba(201, 190, 255, 0.2);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(201, 190, 255, 0.4);
+}
+
+/* ---------- Conversation list, contacts, status ---------- */
+/* Rows are discrete glass cards separated by space, not rows split
+   by hairlines. The flat pass used !important to beat index.css;
+   the same is needed here for the same reason. */
+.chat-item,
+.contact-row,
+.status-row,
+.aahat-contact-card {
+  border: var(--glass-border) !important;
+  border-radius: var(--radius-card) !important;
+  background: var(--glass-bg) !important;
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: none !important;
+  transition: border-color var(--motion-normal), box-shadow var(--motion-normal),
+    transform var(--motion-fast);
+}
+
+/* index.css draws a divider under every row via ::after. Cards are
+   separated by the gap instead, so the divider is redundant. */
+.chat-item::after {
+  display: none;
+}
+
+.chat-item:hover,
+.contact-row:hover,
+.status-row:hover,
+.aahat-contact-card:hover {
+  border-color: var(--glass-border-hover-color) !important;
+  box-shadow: var(--glass-glow-hover) !important;
+}
+
+/* Sidebar.jsx renders `chat-item selected`, not `active` — the flat
+   pass styled `.active`, so the selected row never actually changed.
+   Both are matched here so neither naming can silently break it. */
+.chat-item.selected,
+.chat-item.active {
+  border-color: var(--glass-border-hover-color) !important;
+  background: rgba(95, 52, 247, 0.28) !important;
+  box-shadow: var(--glow-accent) !important;
+}
+
+.chat-item:active,
+.contact-row:active,
+.aahat-contact-card:active {
+  transform: scale(0.98);
+}
+
+/* Overlays keep the opaque background resonance.css gives them —
+   see rule 1 in the header. Only the inner wrapper, which never
+   occludes anything, is allowed to go transparent. */
+.sidebar-inner,
+.contacts-section {
+  background: transparent;
+}
+
+.sidebar {
+  border-right: 1px solid rgba(201, 190, 255, 0.1);
+}
+
+/* ---------- Chat surface ---------- */
+.chat-view,
+.chat-area-container,
+.messages-list {
+  background: transparent;
+}
+
+.chat-header {
+  border-bottom: 1px solid rgba(201, 190, 255, 0.1);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+
+.chat-details-sidebar {
+  border-left: 1px solid rgba(201, 190, 255, 0.1);
+}
+
+/* Detail blocks are cards again, stacked with space between them. */
+.details-block,
+.details-avatar-card {
+  padding: var(--space-4);
+  border: var(--glass-border);
+  border-radius: var(--radius-card);
+  background: var(--glass-bg);
+  box-shadow: none;
+}
+
+.details-block + .details-block {
+  margin-top: var(--space-3);
+  border-top: var(--glass-border);
+  padding-top: var(--space-4);
+}
+
+/* The composer is one floating glass field, matching Stitch's
+   "Whisper your message…" bar. */
+.chat-input-area-wrapper {
+  background: transparent;
+}
+
+.chat-input-bar {
+  border: 0;
+  border-top: 1px solid rgba(201, 190, 255, 0.1);
+  background: transparent;
+  box-shadow: none;
+}
+
+.chat-input-wrapper {
+  border: var(--glass-border);
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  transition: border-color var(--motion-normal), box-shadow var(--motion-normal);
+}
+
+.chat-input-wrapper:focus-within {
+  border-color: var(--glass-border-hover-color);
+  box-shadow: var(--glass-glow-hover);
+}
+
+/* Attachment chips and file cards are small glass tiles. */
+.attachment-chip,
+.message-file-card,
+.shared-media-row {
+  border: var(--glass-border);
+  border-radius: var(--radius-md, 12px);
+  background: var(--glass-bg);
+}
+
+.expired-attachment-note {
+  border: var(--glass-border);
+  border-radius: var(--radius-md, 12px);
+  background: transparent;
+}
+
+/* ---------- Settings ---------- */
+.settings-panel {
+  background: var(--surface-page);
+}
+
+.settings-panel .settings-sidebar {
+  border-right: 1px solid rgba(201, 190, 255, 0.1);
+  background: transparent;
+}
+
+.settings-panel .settings-sidebar button {
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 12px);
+  background: transparent;
+  box-shadow: none;
+  transition: background var(--motion-normal), border-color var(--motion-normal);
+}
+
+.settings-panel .settings-sidebar button:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-panel .settings-sidebar button.active {
+  color: #e1d8fc;
+  border-color: var(--glass-border-hover-color);
+  background: rgba(134, 89, 241, 0.18);
+  box-shadow: var(--glow-accent);
+}
+
+/* A section is a column of glass groups, laid out on the page. */
+.settings-panel .settings-content > section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-panel .settings-content section > h4 {
+  margin: var(--space-2) 0 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Nested panels are cards again. Note these do NOT get a blur: they
+   already sit inside a page that has none, so a border plus the
+   translucent fill is the whole effect — see rule 2. */
+.settings-panel .settings-content .settings-aahat-card,
+.settings-panel .settings-content .settings-aahat-credentials,
+.settings-panel .settings-content .profile-connection-mode,
+.settings-panel .settings-content .device-session-card,
+.settings-panel .settings-content .notification-setting-card,
+.settings-panel .settings-content .data-support-card {
+  padding: var(--space-4);
+  border: var(--glass-border);
+  border-radius: var(--radius-card);
+  background: var(--glass-bg);
+  box-shadow: none;
+}
+
+.settings-panel .settings-content .device-session-card,
+.settings-panel .settings-content .notification-setting-card,
+.settings-panel .settings-content .data-support-card {
+  border-bottom: var(--glass-border);
+  transition: border-color var(--motion-normal), box-shadow var(--motion-normal);
+}
+
+.settings-panel .settings-content .device-session-card:hover,
+.settings-panel .settings-content .notification-setting-card:hover,
+.settings-panel .settings-content .data-support-card:hover {
+  border-color: var(--glass-border-hover-color);
+  box-shadow: var(--glass-glow-hover);
+}
+
+/* Checkbox rows sit inside a group, so they stay dividers rather
+   than becoming a card each — a card per toggle is visual noise. */
+.settings-panel .settings-content label:has(input[type="checkbox"]):not(.settings-row) {
+  min-height: var(--touch-comfortable);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+
+/* Inputs are glass fields that illuminate on focus, per the Stitch
+   input spec, replacing the flat pass's bare underline. */
+.settings-panel .settings-content input:not([type="checkbox"]):not([type="file"]),
+.settings-panel .settings-content textarea,
+.settings-panel .settings-content select {
+  padding: var(--space-3) var(--space-4);
+  border: var(--glass-border);
+  border-radius: var(--radius-md, 12px);
+  background: var(--surface-sunken);
+  transition: border-color var(--motion-normal), box-shadow var(--motion-normal);
+}
+
+.settings-panel .settings-content input:not([type="checkbox"]):not([type="file"]):focus,
+.settings-panel .settings-content textarea:focus,
+.settings-panel .settings-content select:focus {
+  border-color: var(--accent-light, #8659F1);
+  box-shadow: var(--glow-accent);
+  outline: none;
+}
+
+.settings-panel .settings-content .settings-message {
+  padding: var(--space-3) var(--space-4);
+  border: var(--glass-border);
+  border-radius: var(--radius-md, 12px);
+}
+
+/* ---------- Floating layers ---------- */
+/* Modals, dropdowns and menus use the heavier recipe so they read
+   as raised above the page rather than as part of it. */
+.modal-card,
+.chat-dropdown-menu,
+.message-action-menu,
+.emoji-picker-container,
+.settings-avatar-menu,
+.camera-workspace {
+  border: var(--glass-border-heavy);
+  background: var(--glass-bg-heavy);
+  -webkit-backdrop-filter: var(--glass-blur-heavy);
+  backdrop-filter: var(--glass-blur-heavy);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.4);
+}
+
+.modal-card {
+  border-radius: var(--radius-card);
+}
+
+/* ---------- Primary actions ---------- */
+/* Stitch gives every primary button a violet drop-glow that grows
+   and lifts on hover. */
+.btn-primary,
+.settings-panel .settings-content button[type="submit"] {
+  box-shadow: var(--glow-accent);
+  transition: box-shadow var(--motion-normal), transform var(--motion-normal);
+}
+
+.btn-primary:hover,
+.settings-panel .settings-content button[type="submit"]:hover {
+  box-shadow: var(--glow-accent-strong);
+  transform: translateY(-2px);
+}
+
+/* Presence dots glow so they stay visible against a blurred card. */
+.status-badge.active,
+.status-dot.online {
+  box-shadow: var(--glow-online);
+}
+
+/* ---------- Mobile shell: floating nav + FAB ---------- */
+/* Scoped to the same breakpoint index.css uses to switch the nav on. Both
+   index.css and resonance.css style this element, and both load earlier,
+   so the full recipe is restated rather than patched. */
+
+/* Hidden by default so the FAB never appears on desktop, independently of
+   the render condition in App.jsx. Declared before the media query that
+   shows it — same specificity, so source order decides. */
+.mobile-fab {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-bottom-nav {
+    bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+    width: 92%;
+    max-width: 520px;
+    height: auto;
+    padding: var(--space-2);
+    gap: var(--space-1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-pill);
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-blur-heavy);
+    backdrop-filter: var(--glass-blur-heavy);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+  }
+
+  .mobile-nav-btn {
+    gap: var(--space-1);
+    min-height: var(--touch-min);
+    padding: var(--space-2) var(--space-3);
+    /* Was 10px, and 9.5px at 425px — below the 12px readability floor the
+       chat-list pass established. Stitch's nav label is 12px. */
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    border-radius: var(--radius-pill);
+  }
+
+  /* The active tab is a filled violet pill, not a tinted rectangle. */
+  .mobile-nav-btn.active {
+    color: var(--content-on-accent);
+    background: var(--accent);
+    box-shadow: var(--glow-accent);
+  }
+
+  .mobile-nav-btn:active {
+    transform: scale(0.92);
+  }
+
+  /* ---- New-chat FAB ---- */
+  .mobile-fab {
+    position: fixed;
+    right: var(--space-6);
+    /* Clears the nav: nav bottom offset + nav height + a gap. */
+    bottom: calc(var(--space-6) + 68px + var(--space-4) + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-card);
+    background: var(--accent-gradient);
+    color: #fff;
+    box-shadow: var(--glow-accent), var(--elevation-3);
+    cursor: pointer;
+    z-index: var(--z-sticky);
+    transition: transform var(--motion-fast), box-shadow var(--motion-normal);
+  }
+
+  .mobile-fab:active {
+    transform: scale(0.95);
+  }
+
+  .mobile-fab:focus-visible {
+    outline: 2px solid var(--accent-light);
+    outline-offset: 3px;
+  }
+
+  /* The nav used to sit 10px from the bottom and 64px tall, so index.css
+     reserved 84px. It now sits 24px up and is ~68px tall, so the old
+     clearance would let the floating pill cover the last card. */
+  .sidebar,
+  .contacts-section,
+  .status-section {
+    padding-bottom: calc(var(--space-6) + 68px + var(--space-4) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* At 360px and below, four 12px labels plus a filled active pill overflow
+   the bar. Material's answer — and the one that keeps the readability
+   floor — is to label the active tab only. */
+@media (max-width: 360px) {
+  .mobile-nav-btn:not(.active) span {
+    display: none;
+  }
+
+  .mobile-nav-btn {
+    padding: var(--space-2);
+  }
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 768px) {
+  .settings-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-panel .settings-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid rgba(201, 190, 255, 0.1);
+  }
+
+  .settings-panel .settings-content {
+    padding: var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  }
+
+  .settings-panel .settings-content > section {
+    width: 100%;
+  }
+
+  /* Uniform touch targets across every settings list. */
+  .settings-panel .settings-content label:has(input[type="checkbox"]):not(.settings-row),
+  .settings-panel .settings-content .device-session-card,
+  .settings-panel .settings-content .notification-setting-card,
+  .settings-panel .settings-content .data-support-card {
+    min-height: 62px;
+  }
+}
+
+/* ---------- Measured fixes from scripts/viewport-audit.mjs ----------
+   Every rule below closes a defect the audit reported at 300-2560px, not a
+   preference. Kept together so re-running the audit maps onto this block.
+
+     chat header actions        32x32 -> 44px
+     composer actions           28x28 -> 44px
+     message input              225x16 -> 44px tall
+     file download button       32x32 -> 44px
+     message timestamp          9.5px -> 12px
+     attachment expiry note     9.5px -> 12px
+     invitation count badge     11px  -> 12px
+     contacts primary button    143x38 -> 44px tall
+     audience option row        40px  -> 48px
+     row action button          34px  -> 44px                          */
+
+.header-action-btn,
+.file-download-btn,
+.attach-btn,
+.camera-btn,
+.voice-record-btn,
+.emoji-toggle-btn,
+.btn-send {
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+}
+
+/* The field measured 16px tall because the wrapper carried the height and
+   the input itself did not — so the actual tap target was a thin strip. */
+#message-input {
+  min-height: var(--touch-min);
+}
+
+.msg-time-stamp,
+.file-card-expiry,
+.status-text,
+.date-separator span,
+.file-card-copy span,
+.aahat-request-section h3 span {
+  font-size: var(--text-xs);
+}
+
+.aahat-contacts-page .admin-btn {
+  min-height: var(--touch-min);
+}
+
+/* The two settings row heights are fixed at their source, in
+   PrivacySettingsSection.css, because a rule in settings-professional.css
+   outranks anything this file can say without over-specifying. */
+
+/* ---------- Ultrawide ---------- */
+/* Stitch's 2560 screen centres its content rather than letting the panels
+   stretch. index.css caps .app-container at 1400px from 1440px up, but the
+   full-page sections (contacts, status, settings) have no cap at all and
+   run edge to edge on a 4K display. */
+@media (min-width: 1920px) {
+  .aahat-contacts-page,
+  .status-section-container,
+  .settings-panel .settings-content {
+    max-width: var(--content-max-width);
+    margin-inline: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-item,
+  .contact-row,
+  .status-row,
+  .aahat-contact-card,
+  .chat-input-wrapper,
+  .btn-primary,
+  .settings-panel .settings-content input,
+  .settings-panel .settings-content textarea,
+  .settings-panel .settings-content select {
+    transition: none;
+  }
+
+  .chat-item:active,
+  .contact-row:active,
+  .aahat-contact-card:active,
+  .btn-primary:hover {
+    transform: none;
+  }
+}

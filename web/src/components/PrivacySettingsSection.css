@@ -1,8 +1,13 @@
 /* =============================================================
-   Settings list primitives — flat rows on one background.
-   No cards, no nested panels: grouping comes from a label, a
-   hairline divider and spacing. Shared by the Privacy section
-   and the app-preference rows.
+   Settings list primitives.
+
+   The GROUP is the glass card; the ROWS inside it stay hairline
+   dividers. This is deliberate: Stitch cards a section, not each
+   individual control, and a card per toggle turns a settings page
+   into visual noise. It also keeps blur to one layer per group
+   rather than one per row — see the note in glass-ui.css.
+
+   Shared by the Privacy section and the app-preference rows.
    ============================================================= */
 
 .settings-panel .settings-content > section.settings-privacy {
@@ -32,21 +37,27 @@
   line-height: 1.5;
 }
 
-/* ---- Group ---- */
+/* ---- Group: the glass card ---- */
 .settings-list-group {
   display: flex;
   flex-direction: column;
+  padding: var(--space-2, 8px) var(--space-4, 16px);
+  border: var(--glass-border);
+  border-radius: var(--radius-card, 24px);
+  background: var(--glass-bg);
 }
 
+/* The label is the card's heading (it sits inside the group), so it gets
+   breathing room above the first row rather than sitting on the border. */
 .settings-group-label {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin: 0 0 2px;
-  padding: 0 2px;
+  margin: 0;
+  padding: var(--space-3, 12px) 0 var(--space-2, 8px);
   color: var(--accent-light, #8659F1);
-  font-size: 11px;
+  font-size: var(--text-xs, 12px);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -54,7 +65,7 @@
 
 .settings-group-meta {
   color: var(--text-secondary, #8e98aa);
-  font-size: 10px;
+  font-size: var(--text-xs, 12px);
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
@@ -67,12 +78,13 @@
   width: 100%;
   min-height: 60px;
   margin: 0;
-  padding: 12px 2px;
+  padding: 12px 0;
   gap: 14px;
   color: inherit;
   font: inherit;
   text-align: left;
-  /* Only a hairline divider — never a box. */
+  /* Inside the group card a row is still only a divider — the card already
+     provides the surface. */
   border: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 0;
@@ -86,11 +98,32 @@
   border-bottom: 0;
 }
 
+/* settings-professional.css styles every `section > div > button` and every
+   `label:has(checkbox)` as a standalone bordered row, with selectors that
+   outrank the primitive above. Inside a group card that produces a box
+   within a box. These restate the primitive at matching specificity so a
+   row stays a divider wherever it appears. */
+.settings-panel .settings-content section > div > button.settings-row,
+.settings-panel .settings-content label.settings-row:has(input[type="checkbox"]) {
+  min-height: 60px;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-panel .settings-content section > div > button.settings-row:last-child,
+.settings-panel .settings-content label.settings-row:has(input[type="checkbox"]):last-child {
+  border-bottom: 0;
+}
+
 .settings-panel .settings-content .settings-row:hover {
-  /* Bleed the hover past the row padding so it reads as a list row. */
+  /* Bleed the hover to the card's inner edge so it reads as a full-width
+     list row rather than a floating strip. */
   background: rgba(255, 255, 255, 0.035);
-  box-shadow: 0 0 0 10px rgba(255, 255, 255, 0.035);
-  clip-path: inset(0 -10px);
+  box-shadow: 0 0 0 var(--space-4, 16px) rgba(255, 255, 255, 0.035);
+  clip-path: inset(0 calc(-1 * var(--space-4, 16px)));
 }
 
 .settings-panel .settings-content .settings-row:focus-visible {
@@ -127,7 +160,7 @@
 
 .settings-row-copy small {
   color: var(--text-secondary, #8e98aa);
-  font-size: 11.5px;
+  font-size: var(--text-xs, 12px);
   font-weight: 500;
   line-height: 1.45;
 }
@@ -151,7 +184,7 @@
 }
 
 .settings-panel .settings-content .settings-row-action {
-  min-height: 34px;
+  min-height: var(--touch-min, 44px);
   padding: 0 14px;
   color: var(--text-secondary);
   font-size: 12px;
@@ -334,7 +367,7 @@
   }
 
   .settings-row-copy small {
-    font-size: 11px;
+    font-size: var(--text-xs, 12px);
   }
 
   .settings-row-stacked {

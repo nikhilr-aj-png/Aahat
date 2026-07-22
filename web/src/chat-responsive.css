@@ -391,8 +391,10 @@ button.file-download-btn:disabled {
     height: 30px !important;
   }
 
+  /* Was 10.5px, below the 12px readability floor. The header has room —
+     the name beside it already truncates, so this never needed to shrink. */
   .chat-header-details .status-text {
-    font-size: 10.5px;
+    font-size: var(--text-xs, 12px);
   }
 }
 

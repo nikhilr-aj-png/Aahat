@@ -7,7 +7,8 @@ import './resonance.css'
 import './settings-professional.css'
 import './aahat-contacts.css'
 import './chat-responsive.css'
-import './flat-ui.css'
+import './glass-ui.css'
+import './premium-chat-list.css'
 import App from './App.jsx'
 import TouchRefreshGesture from './components/TouchRefreshGesture.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
@@ -15,18 +16,37 @@ import ClockIntegrityGate from './components/ClockIntegrityGate.jsx'
 import { applyInstalledPwaOrientation } from './utils/pwaOrientation.js'
 import { refreshDeviceTimeFormat } from './utils/dateTime.js'
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <ErrorBoundary>
-      <>
-        <TouchRefreshGesture />
-        <ClockIntegrityGate>
-          <App />
-        </ClockIntegrityGate>
-      </>
-    </ErrorBoundary>
-  </StrictMode>,
-)
+// Dev-only design preview: /?preview=chats|chat|privacy|preferences renders the
+// real screen components against fixture data so they can be measured at every
+// breakpoint without a Supabase session. import.meta.env.DEV is statically
+// false in a production build, so this branch and its imports are tree-shaken.
+const previewScreen = import.meta.env.DEV
+  ? new URLSearchParams(window.location.search).get('preview')
+  : null;
+
+if (previewScreen) {
+  const { default: DesignPreview } = await import('./dev/DesignPreview.jsx');
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <ErrorBoundary>
+        <DesignPreview screen={previewScreen} />
+      </ErrorBoundary>
+    </StrictMode>,
+  );
+} else {
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <ErrorBoundary>
+        <>
+          <TouchRefreshGesture />
+          <ClockIntegrityGate>
+            <App />
+          </ClockIntegrityGate>
+        </>
+      </ErrorBoundary>
+    </StrictMode>,
+  )
+}
 const syncInstalledOrientation = () => {
   void applyInstalledPwaOrientation();
 };

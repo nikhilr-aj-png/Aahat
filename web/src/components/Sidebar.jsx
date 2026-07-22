@@ -112,7 +112,9 @@ export default function Sidebar({
               {conv.previewText || (isSelf ? 'Message yourself' : 'No messages yet')}
             </span>
             {conv.unreadCount > 0 && (
-              <span className="unread-badge" />
+              <span className="unread-badge" aria-label={`${conv.unreadCount} unread`}>
+                {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
+              </span>
             )}
           </div>
         </div>
@@ -200,7 +202,10 @@ export default function Sidebar({
         </div>
 
         {/* Filter Chips */}
-        <div className="filter-chips" style={{ display: 'flex', gap: '6px', padding: '8px 20px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+        {/* Presentation lives in premium-chat-list.css. Inline styles here used
+            to hardcode font-size/padding/radius, which silently overrode every
+            stylesheet rule and made the chips untouchable by the design system. */}
+        <div className="filter-chips">
           {[
             { key: 'all', label: 'All' },
             { key: 'unread', label: `Unread${unreadTotal > 0 ? ` (${unreadTotal})` : ''}` },
@@ -210,15 +215,10 @@ export default function Sidebar({
           ].map(f => (
             <button
               key={f.key}
+              type="button"
               className={`filter-chip ${filterCategory === f.key ? 'active' : ''}`}
+              aria-pressed={filterCategory === f.key}
               onClick={() => setFilterCategory(f.key)}
-              style={{
-                padding: '4px 12px', borderRadius: '16px', fontSize: '11px', fontWeight: '600',
-                border: '1px solid var(--panel-border)', cursor: 'pointer', whiteSpace: 'nowrap',
-                transition: 'all 0.15s',
-                background: filterCategory === f.key ? 'var(--accent-gradient)' : 'var(--glass-subtle)',
-                color: filterCategory === f.key ? 'white' : 'var(--text-secondary)'
-              }}
             >
               {f.label}
             </button>
