@@ -136,6 +136,15 @@ const measure = ({ touchMin, fontMin }) => {
 const run = async () => {
   mkdirSync(outDir, { recursive: true });
   const browser = await chromium.launch();
+
+  // Warm-up pass. On a cold dev server the first viewport measures while Vite
+  // is still compiling and reports a false BLANK. Compile once, discard.
+  const warmup = await browser.newContext({ viewport: { width: 1024, height: 768 } });
+  const warmupPage = await warmup.newPage();
+  await warmupPage.goto(url, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {});
+  await warmupPage.waitForTimeout(1500);
+  await warmup.close();
+
   const results = [];
   let reachedApp = false;
 

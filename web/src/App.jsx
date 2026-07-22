@@ -24,7 +24,7 @@ import SafeAvatar from './components/SafeAvatar';
 import ContactsSection from './components/ContactsSection';
 import { requestNotificationPermission } from './firebase';
 
-import { ArrowLeft, Lock, MessageSquare, CircleDot, Settings, LogOut, Sparkles, X, Shield, Users } from 'lucide-react';
+import { ArrowLeft, Lock, MessageSquare, CircleDot, Settings, LogOut, Sparkles, X, Shield, Users, Plus } from 'lucide-react';
 
 const BrandLogo = () => (
   <img src="/logo.png" alt="Aahat" className="brand-logo-image" />
@@ -811,6 +811,21 @@ export default function App() {
             <span>Settings</span>
           </button>
         </div>
+      )}
+
+      {/* New-chat FAB — mobile only, and only on the conversation list, which
+          is the one screen where "start a chat" is the primary action. Sits
+          above the floating nav; .mobile-fab owns the offset so the nav
+          height lives in one place. */}
+      {isMobile && activeTab === 'chats' && !selectedConversationId && (
+        <button
+          type="button"
+          className="mobile-fab"
+          onClick={openNewChatModal}
+          aria-label="Start a new chat"
+        >
+          <Plus size={26} />
+        </button>
       )}
 
       <PasswordRecoveryGate />

@@ -2,7 +2,7 @@
 .mfa-gate-card { display: grid; justify-items: center; width: min(100%, 410px); max-height: calc(100dvh - 32px); padding: clamp(22px,4vh,30px); gap: 10px; overflow-y: auto; text-align: center; border: 1px solid rgba(154,134,226,.2); border-radius: 23px; background: #120c2e; box-shadow: 0 24px 72px rgba(0,0,0,.4); box-sizing: border-box; scrollbar-width: thin; }
 .mfa-gate-logo { width: 56px; height: 56px; border-radius: 15px; }
 .mfa-gate-icon { display: grid; place-items: center; width: 44px; height: 44px; color: #cbbdff; border: 1px solid rgba(139,102,255,.34); border-radius: 14px; background: rgba(112,72,239,.13); }
-.mfa-gate-eyebrow { color: #a994ff; font-size: 10px; font-weight: 800; letter-spacing: .17em; text-transform: uppercase; }
+.mfa-gate-eyebrow { color: #a994ff; font-size: var(--text-xs, 12px); font-weight: 800; letter-spacing: .17em; text-transform: uppercase; }
 .mfa-gate h1 { margin: 2px 0 0; font-size: clamp(25px,6vw,31px); line-height: 1.12; letter-spacing: -.04em; }
 .mfa-gate p { margin: 2px 0; color: #a7a0bd; font-size: 12px; line-height: 1.55; }
 .mfa-factor-select { display: grid; width: 100%; gap: 7px; color: #aaa2bf; font-size: 12px; text-align: left; }
@@ -16,7 +16,7 @@
 .mfa-signout { display: inline-flex; align-items: center; min-height: 34px !important; padding: 0 12px; gap: 7px; color: #aca4c2; border: 0; background: transparent; }
 .mfa-gate-error { width: 100%; padding: 11px 13px; color: #fecaca; font-size: 12px; line-height: 1.5; border: 1px solid rgba(239,68,68,.25); border-radius: 11px; background: rgba(239,68,68,.09); box-sizing: border-box; }
 .mfa-gate-help { padding: 12px; border-radius: 12px; background: rgba(245,158,11,.08); }
-.mfa-gate-card > small { color: #777087; font-size: 9px; line-height: 1.4; }
+.mfa-gate-card > small { color: #777087; font-size: var(--text-xs, 12px); line-height: 1.4; }
 @media (max-height: 650px) { .mfa-gate { place-items: center; } .mfa-gate-card { padding: 18px 22px; gap: 8px; } .mfa-gate-logo { width: 48px; height: 48px; } .mfa-gate-icon { width: 38px; height: 38px; } }
 @media (max-width: 480px) { .mfa-gate { padding: 0; } .mfa-gate-card { width: 100%; max-height: 100dvh; min-height: 100dvh; padding: 24px 20px; border: 0; border-radius: 0; box-shadow: none; } }
 
@@ -24,26 +24,32 @@
 .security-title { display: flex !important; align-items: center !important; min-height: 0 !important; padding: 0 !important; gap: 13px !important; border: 0 !important; background: transparent !important; }
 .security-title > div { display: grid; place-items: center; width: 48px; height: 48px; flex: 0 0 48px; color: #cbbdff; border: 1px solid rgba(139,102,255,.32); border-radius: 15px; background: rgba(112,72,239,.14); }
 .security-title h3 { margin: 0; color: #fff; font-size: 25px; }
-.security-title p { margin: 3px 0 0; color: #929bad; font-size: 11px; }
-.password-security-card,.mfa-security-card { display: grid; padding: 20px; gap: 17px; border: 1px solid rgba(154,134,226,.15); border-radius: 18px; background: rgba(6,4,24,.26); }
-.security-inline-message { padding: 11px 13px; color: #d8e0eb; font-size: 11px; line-height: 1.5; border: 1px solid rgba(148,163,184,.16); border-radius: 11px; background: rgba(30,35,47,.7); }
+.security-title p { margin: 3px 0 0; color: #929bad; font-size: var(--text-xs, 12px); }
+.password-security-card,.mfa-security-card { display: grid; padding: 20px; gap: 17px; border: var(--glass-border); border-radius: var(--radius-card, 24px); background: var(--glass-bg); }
+
+/* Stitch marks the active security method with a green rail down its left
+   edge, so "which factor is actually on" reads before any text does. The
+   class is only present when at least one factor is enrolled, so this
+   reflects real state — it is not decoration. */
+.mfa-security-card.is-enabled { border-left: 3px solid var(--success, #22C55E); }
+.security-inline-message { padding: 11px 13px; color: #d8e0eb; font-size: var(--text-xs, 12px); line-height: 1.5; border: 1px solid rgba(148,163,184,.16); border-radius: 11px; background: rgba(30,35,47,.7); }
 .security-inline-message.success { color: #a7f3d0; border-color: rgba(16,185,129,.25); background: rgba(16,185,129,.08); }
 .security-inline-message.error { color: #fde68a; border-color: rgba(245,158,11,.26); background: rgba(245,158,11,.08); }
 .security-card-heading { display: flex; align-items: center; gap: 10px; color: #b6a6f1; }
 .security-card-heading > span { display: grid; flex: 1; gap: 3px; }
 .security-card-heading strong { color: #f0ecfa; font-size: 14px; }
-.security-card-heading small { color: #8791a3; font-size: 10px; line-height: 1.45; }
+.security-card-heading small { color: #8791a3; font-size: var(--text-xs, 12px); line-height: 1.45; }
 .security-password-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }
 .secure-input { position: relative; display: block !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; background: transparent !important; }
 .secure-input input { padding-right: 42px !important; }
 .secure-input button { position: absolute; top: 50%; right: 5px; min-height: 34px !important; padding: 0 9px !important; color: #958da8 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; transform: translateY(-50%) !important; }
 .password-checks { display: flex; flex-wrap: wrap; gap: 7px 14px; }
-.password-checks > span { display: inline-flex; align-items: center; gap: 5px; color: #727c8e; font-size: 10px; }
+.password-checks > span { display: inline-flex; align-items: center; gap: 5px; color: #727c8e; font-size: var(--text-xs, 12px); }
 .password-checks > span.met { color: #77d8b0; }
 .password-checks > span.warning { color: #f5a9a9; }
 .check-dot { width: 6px; height: 6px; border-radius: 50%; background: #4f5260; }
 .settings-panel .settings-content button.security-primary { color: #fff; }
-.security-enabled-badge { display: inline-flex; align-items: center; padding: 5px 9px; gap: 4px; color: #8de0bd; font-size: 10px; font-style: normal; border: 1px solid rgba(52,211,153,.2); border-radius: 999px; background: rgba(16,185,129,.08); }
+.security-enabled-badge { display: inline-flex; align-items: center; padding: 5px 9px; gap: 4px; color: #8de0bd; font-size: var(--text-xs, 12px); font-style: normal; border: 1px solid rgba(52,211,153,.2); border-radius: 999px; background: rgba(16,185,129,.08); }
 .mfa-empty { display: grid !important; grid-template-columns: auto minmax(0,1fr) auto; align-items: center !important; min-height: 0 !important; padding: 15px !important; gap: 12px !important; }
 .mfa-empty > span,.mfa-factor-row > span:nth-child(2) { display: grid; gap: 3px; }
 .settings-panel .settings-content .mfa-security-card { display: grid !important; grid-template-columns: minmax(0,1fr); align-items: stretch !important; width: 100%; box-sizing: border-box; }
@@ -54,19 +60,19 @@
 .settings-panel .settings-content button.mfa-add-factor:hover { color: #fff; border-color: rgba(139,102,255,.4); background: rgba(112,72,239,.14); }
 @media (max-width: 520px) { .mfa-factor-row .security-danger-link { min-width: 82px; margin-left: 6px; } .settings-panel .settings-content button.mfa-add-factor { width: 100%; justify-self: stretch; } }
 .mfa-empty strong,.mfa-factor-row strong { color: #e9e4f4; font-size: 12px; }
-.mfa-empty small,.mfa-factor-row small { color: #818b9e; font-size: 10px; line-height: 1.4; }
+.mfa-empty small,.mfa-factor-row small { color: #818b9e; font-size: var(--text-xs, 12px); line-height: 1.4; }
 .mfa-factor-row { display: grid !important; grid-template-columns: auto minmax(0,1fr) auto; align-items: center !important; min-height: 0 !important; padding: 13px !important; }
 .mfa-phone-icon { display: grid !important; place-items: center; width: 38px; height: 38px; color: #b8a8f5; border-radius: 12px; background: rgba(112,72,239,.13); }
 .settings-panel .settings-content button.security-danger-link { min-height: 34px; color: #f6a5a5; border: 1px solid rgba(239,68,68,.19); background: rgba(239,68,68,.07); box-shadow: none; }
 .mfa-enrollment { display: grid; gap: 15px; }
 .mfa-steps { display: flex; gap: 12px; }
-.mfa-steps span { display: inline-flex; align-items: center; gap: 6px; color: #a8afbd; font-size: 10px; }
+.mfa-steps span { display: inline-flex; align-items: center; gap: 6px; color: #a8afbd; font-size: var(--text-xs, 12px); }
 .mfa-steps b { display: grid; place-items: center; width: 20px; height: 20px; color: #dcd3ff; border-radius: 50%; background: rgba(112,72,239,.2); }
 .mfa-enrollment-body { display: grid !important; grid-template-columns: auto minmax(0,1fr); align-items: center !important; min-height: 0 !important; padding: 14px !important; gap: 16px !important; }
 .mfa-enrollment-body img { width: 154px; max-width: 100%; padding: 8px; border-radius: 14px; background: #fff; box-sizing: border-box; }
 .mfa-manual-setup { display: grid; align-content: center; gap: 8px; }
-.mfa-manual-setup small { color: #929bad; font-size: 10px; }
-.mfa-manual-setup code { padding: 9px; color: #ded5ff; font-size: 11px; overflow-wrap: anywhere; border-radius: 9px; background: rgba(112,72,239,.09); }
+.mfa-manual-setup small { color: #929bad; font-size: var(--text-xs, 12px); }
+.mfa-manual-setup code { padding: 9px; color: #ded5ff; font-size: var(--text-xs, 12px); overflow-wrap: anywhere; border-radius: 9px; background: rgba(112,72,239,.09); }
 .mfa-manual-setup button { justify-self: start; min-height: 34px !important; color: #d9d0f7 !important; border: 1px solid rgba(154,134,226,.17) !important; background: rgba(255,255,255,.025) !important; box-shadow: none !important; }
 .mfa-enrollment-actions { display: flex; gap: 9px; }
 .settings-panel .settings-content button.security-secondary { color: #c9c2d8; border: 1px solid rgba(154,134,226,.15); background: rgba(255,255,255,.025); box-shadow: none; }

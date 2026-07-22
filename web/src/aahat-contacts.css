@@ -58,30 +58,114 @@
 .aahat-request-section h3 { margin: 0 0 10px; font-size: 14px; color: var(--text-secondary); }
 .aahat-request-section h3 span { margin-left: 6px; padding: 2px 7px; border-radius: 999px; background: var(--accent-primary); color: white; font-size: 11px; }
 
-.aahat-request-card,
-.aahat-contact-card {
+/* Invitations stay horizontal rows — they are a queue to act on, and the
+   Accept/Decline pair reads faster on one line. Surface comes from
+   glass-ui.css; only layout is set here. */
+.aahat-request-card {
   gap: 13px;
   margin-bottom: 9px;
   padding: 14px;
-  border: 1px solid var(--panel-border);
-  border-radius: 13px;
-  background: rgba(30, 41, 59, .3);
 }
-.aahat-request-card > div:nth-child(2),
-.aahat-contact-card > div:nth-child(2) { display: flex; flex: 1; flex-direction: column; gap: 3px; }
+.aahat-request-card > div:nth-child(2) { display: flex; flex: 1; flex-direction: column; gap: 3px; }
 .aahat-request-card small, .aahat-contact-card small { display: flex; align-items: center; gap: 5px; color: var(--text-secondary); }
 .aahat-request-actions { gap: 8px; }
 .aahat-request-card button, .aahat-contact-card button {
-  padding: 7px 11px;
+  min-height: var(--touch-min, 44px);
+  padding: 0 14px;
   border: 1px solid var(--panel-border);
-  border-radius: 8px;
+  border-radius: var(--radius-pill, 999px);
   background: transparent;
   color: var(--text-primary);
+  font-weight: var(--weight-semibold, 600);
   cursor: pointer;
 }
 .aahat-request-card button.accept { border-color: rgba(34, 197, 94, .45); background: rgba(34, 197, 94, .12); color: #86efac; }
-.aahat-contact-card { cursor: pointer; }
-.aahat-contact-card:hover { background: rgba(51, 65, 85, .48); transform: translateY(-1px); }
+/* Decline is the second button and reads as the destructive half of the pair. */
+.aahat-request-actions button:not(.accept) { border-color: rgba(239, 68, 68, .4); background: rgba(239, 68, 68, .1); color: #fca5a5; }
+
+/* ---- Connected people: a responsive card grid ----
+   The Stitch contacts hub lays contacts out as centred cards, 4-up on
+   desktop, collapsing to 1 on a phone. auto-fill + minmax does that without
+   a breakpoint per column count. */
+.aahat-contacts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4, 16px);
+  align-items: start;
+}
+
+/* The heading and the empty state are not cards — they span the row. */
+.aahat-contacts-grid > h3,
+.aahat-contacts-grid > .aahat-empty {
+  grid-column: 1 / -1;
+}
+
+.aahat-contact-card {
+  position: relative;
+  flex-direction: column;
+  gap: var(--space-3, 12px);
+  margin-bottom: 0;
+  padding: var(--space-6, 24px) var(--space-4, 16px);
+  text-align: center;
+  cursor: pointer;
+}
+
+.aahat-contact-card > div:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  width: 100%;
+}
+
+.aahat-contact-card strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-base, 15px);
+}
+
+.aahat-contact-id {
+  color: var(--text-muted);
+  font-size: var(--text-xs, 12px);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .04em;
+}
+
+/* An offline contact recedes rather than disappearing. */
+.aahat-contact-card.is-offline {
+  opacity: .65;
+}
+
+.aahat-contact-card.is-offline:hover,
+.aahat-contact-card.is-offline:focus-within {
+  opacity: 1;
+}
+
+.aahat-contact-card .contact-card-actions {
+  display: flex;
+  gap: var(--space-2, 8px);
+  width: 100%;
+}
+
+/* Message is the primary action and takes the width; the overflow menu is
+   a fixed square beside it. */
+.aahat-contact-card .contact-chat-button {
+  flex: 1;
+  justify-content: center;
+  border-color: transparent;
+  background: var(--accent-gradient);
+  color: #fff;
+  box-shadow: var(--glow-accent);
+}
+
+.aahat-contact-card .contact-menu-trigger {
+  flex: 0 0 var(--touch-min, 44px);
+  justify-content: center;
+  padding: 0;
+}
 
 .aahat-empty {
   padding: 36px;

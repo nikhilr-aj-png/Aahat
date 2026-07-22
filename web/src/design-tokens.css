@@ -118,6 +118,56 @@
   --content-on-accent: #FFFFFF;
 
   --focus-ring: 0 0 0 2px var(--surface-page-solid), 0 0 0 4px var(--accent-light);
+
+  /* ---- Glass ----
+     Lifted verbatim from the Stitch export, where the same recipe repeats
+     across every screen (mobile 375, contacts hub, settings panel). Kept as
+     tokens so no screen re-types the rgba by hand and drifts.
+
+     Two weights only:
+       glass      in-page surfaces — list rows, cards, section groups
+       glass-heavy floating layers — modals, dropdowns, menus
+
+     NOTE: backdrop-filter only reads what is painted BEHIND the element. On an
+     element that covers a whole screen there is nothing meaningful behind it,
+     so the blur costs a compositor layer and buys nothing. Use glass on
+     in-page surfaces, not on full-screen overlays. */
+  --glass-bg: rgba(28, 21, 69, 0.6);
+  --glass-bg-heavy: rgba(28, 21, 69, 0.8);
+  --glass-blur: blur(16px);
+  --glass-blur-heavy: blur(24px);
+  --glass-border: 1px solid rgba(201, 190, 255, 0.1);
+  --glass-border-heavy: 1px solid rgba(201, 190, 255, 0.3);
+  --glass-border-hover-color: rgba(201, 190, 255, 0.3);
+  --glass-glow-hover: 0 0 30px rgba(95, 52, 247, 0.15);
+
+  /* Violet drop-glow for primary actions; green for presence. */
+  --glow-accent: 0 0 15px rgba(95, 52, 247, 0.4);
+  --glow-accent-strong: 0 0 25px rgba(95, 52, 247, 0.6);
+  --glow-online: 0 0 8px rgba(34, 197, 94, 0.6);
+
+  /* Stitch cards are rounded-2xl; the pill nav is fully round. */
+  --radius-card: 24px;
+}
+
+/* Accessibility / performance fallback.
+   Users who ask for reduced transparency, and engines without backdrop-filter,
+   get the solid panel colour instead of a translucent one. Declared here so
+   every glass surface inherits the fallback from one place. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-bg: #1C1545;
+    --glass-bg-heavy: #1C1545;
+    --glass-blur: none;
+    --glass-blur-heavy: none;
+  }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  :root {
+    --glass-bg: #1C1545;
+    --glass-bg-heavy: #1C1545;
+  }
 }
 
 /* ============================================================

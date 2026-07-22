@@ -1,0 +1,262 @@
+/* ============================================================
+   Aahat — chat list refinement (Stage 2)
+
+   Every change here was driven by a measured defect from
+   scripts/viewport-audit.mjs at 300-2560px, not by taste alone:
+
+     search input          243x15  -> 44px tall
+     filter chips          80x22   -> 44px tall
+     app download button   64x27   -> 44px tall
+     chip / label / time   10-11px -> 12px readability floor
+     conversation name     wrapped to 2 lines -> single line, ellipsis
+     filter row            clipped mid-chip -> scrolls with a fade edge
+
+   Those fixes all still stand under the Stitch glass design — Stitch does
+   not contradict any of them. What changed with the glass pass is only the
+   surface: rows are discrete cards separated by space, so this file now
+   also owns the list rhythm (gap, inset) that hairline dividers used to
+   provide. Card colour/border/blur live in glass-ui.css.
+
+   Loaded after index.css and glass-ui.css so it wins on ties.
+   ============================================================ */
+
+/* ---- The list: cards on a page, not rows in a table ---- */
+.chat-list-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 12px);
+  padding: var(--space-2, 8px) var(--space-4, 16px) var(--space-4, 16px);
+}
+
+/* ---- Conversation rows: one fixed height, always ---- */
+/* A wrapping name made rows different heights, which is the single most
+   visible break in a chat list. Premium clients truncate instead. */
+.chat-item {
+  min-height: 72px;
+  /* Stitch cards are p-4 all round; the row no longer needs the extra
+     horizontal inset that separated it from the list edge. */
+  padding: var(--space-4, 16px);
+  gap: var(--space-4, 16px);
+  /* index.css uses a 3px left border for the selected state; the glass
+     pass expresses that with a border+glow, so the reserved strip would
+     just shift every row's content. */
+  border-left-width: 1px;
+}
+
+.chat-item .avatar-image,
+.chat-item .avatar-wrapper {
+  width: 48px;
+  height: 48px;
+}
+
+.chat-item-name {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-base, 15px);
+  font-weight: var(--weight-semibold, 600);
+  line-height: var(--leading-tight, 1.25);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-item-message,
+.chat-item-preview {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-sm, 13px);
+  line-height: var(--leading-normal, 1.5);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The timestamp must never be squeezed by a long name. Stitch tints it with
+   the accent rather than muting it, so a recent chat reads as recent. */
+.chat-item-time {
+  flex-shrink: 0;
+  margin-left: var(--space-2, 8px);
+  color: var(--accent-light, #8659F1);
+  font-size: var(--text-xs, 12px);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---- Unread badge: a filled violet dot that glows ----
+   index.css renders this as a bare dot. Stitch makes it a 20px circle so
+   it can carry a count, and glows it so it survives the blurred card. */
+.chat-item .unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--accent, #5F34F7);
+  box-shadow: var(--glow-accent);
+  color: #fff;
+  font-size: var(--text-xs, 12px);
+  font-weight: var(--weight-bold, 700);
+  line-height: 1;
+}
+
+/* ---- Search: a real 44px field, on glass ---- */
+.sidebar .search-box,
+.sidebar .search-container,
+.sidebar .search-bar {
+  min-height: var(--touch-min, 44px);
+  padding: 0 var(--space-4, 16px);
+  border: var(--glass-border);
+  border-radius: var(--radius-pill, 999px);
+  background: var(--glass-bg);
+  transition: border-color var(--motion-normal), box-shadow var(--motion-normal);
+}
+
+.sidebar .search-bar:focus-within {
+  border-color: var(--glass-border-hover-color);
+  box-shadow: var(--glass-glow-hover);
+}
+
+.sidebar .search-bar input {
+  border: 0;
+  background: transparent;
+}
+
+.sidebar input#search-input,
+.sidebar .search-box input {
+  min-height: var(--touch-min, 44px);
+  /* 16px keeps iOS Safari from zooming the viewport on focus. */
+  font-size: var(--text-input, 16px);
+}
+
+/* ---- Filter chips: tappable, readable, and visibly scrollable ----
+   The inline styles that used to hardcode these values were removed from
+   Sidebar.jsx, so the stylesheet now owns the chip completely. */
+.filter-chips .filter-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-min, 44px);
+  padding: 0 var(--space-4, 16px);
+  color: var(--content-secondary, #94A3B8);
+  font-size: var(--text-xs, 12px);
+  font-weight: var(--weight-semibold, 600);
+  white-space: nowrap;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: var(--radius-pill, 999px);
+  background: transparent;
+  cursor: pointer;
+  transition: color var(--motion-fast, 120ms ease), background var(--motion-fast, 120ms ease),
+    border-color var(--motion-fast, 120ms ease);
+}
+
+.filter-chips .filter-chip:hover {
+  color: var(--content-primary, #F1F5F9);
+  border-color: var(--border-default, rgba(255, 255, 255, 0.1));
+}
+
+.filter-chips .filter-chip.active {
+  color: var(--content-on-accent, #fff);
+  border-color: transparent;
+  background: var(--accent, #5F34F7);
+  box-shadow: var(--glow-accent);
+}
+
+/* The row was clipping mid-chip with no hint that it scrolls. A fade at the
+   trailing edge reads as "more this way" without adding chrome. */
+.filter-chips,
+.chat-filters,
+.sidebar-filters {
+  display: flex;
+  gap: var(--space-2, 8px);
+  padding-right: var(--space-6, 24px);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+}
+
+.filter-chips::-webkit-scrollbar,
+.chat-filters::-webkit-scrollbar,
+.sidebar-filters::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- Section labels ---- */
+.section-label {
+  padding: var(--space-4, 16px) var(--space-4, 16px) var(--space-2, 8px);
+  font-size: var(--text-xs, 12px);
+  font-weight: var(--weight-semibold, 600);
+  letter-spacing: var(--tracking-wide, 0.08em);
+}
+
+/* ---- Header action ---- */
+.app-download-button {
+  min-height: var(--touch-min, 44px);
+  padding: 0 var(--space-4, 16px);
+  font-size: var(--text-sm, 13px);
+  font-weight: var(--weight-semibold, 600);
+  border-radius: var(--radius-pill, 999px);
+}
+
+/* ---- Keyboard accessibility: the audit found 9 focus rules for 177 buttons ---- */
+.sidebar button:focus-visible,
+.sidebar a:focus-visible,
+.sidebar input:focus-visible,
+.chat-item:focus-visible {
+  outline: 2px solid var(--accent-light, #8659F1);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm, 8px);
+}
+
+/* ---- Narrow phones (300-360px) ---- */
+@media (max-width: 360px) {
+  .chat-list-section {
+    gap: var(--space-2, 8px);
+    padding-left: var(--space-3, 12px);
+    padding-right: var(--space-3, 12px);
+  }
+
+  .chat-item {
+    padding: var(--space-3, 12px);
+    gap: var(--space-3, 12px);
+  }
+
+  /* A 48px avatar plus 12px gaps leaves too little for the name at 320px. */
+  .chat-item .avatar-image,
+  .chat-item .avatar-wrapper {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* Type stays at the readability floor; only spacing tightens. */
+  .chat-item-name {
+    font-size: var(--text-sm, 13px);
+  }
+
+  .filter-chip {
+    padding: 0 var(--space-3, 12px);
+  }
+
+  .section-label {
+    padding-left: var(--space-3, 12px);
+    padding-right: var(--space-3, 12px);
+  }
+}
+
+/* ---- Wide screens: stop the list stretching into a void ---- */
+@media (min-width: 1600px) {
+  .sidebar-inner {
+    max-width: 480px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-item,
+  .filter-chip {
+    transition: none;
+  }
+}
