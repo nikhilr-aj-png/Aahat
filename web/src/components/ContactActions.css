@@ -1,8 +1,15 @@
 .aahat-contact-card { position: relative; }
 .aahat-contact-card .contact-card-actions { display: flex; align-items: center; gap: 7px; }
 .aahat-contact-card .contact-chat-button { white-space: nowrap; }
-.aahat-contact-card .contact-menu-trigger { display: grid; place-items: center; width: 34px; min-width: 34px; height: 34px; padding: 0; }
+/* 44px is the touch minimum; this used to be 34px. */
+.aahat-contact-card .contact-menu-trigger { display: grid; place-items: center; width: 44px; min-width: 44px; height: 44px; padding: 0; }
 .contact-menu-popover { position: absolute; top: calc(100% - 5px); right: 12px; z-index: 20; display: grid; min-width: 190px; padding: 6px; border: 1px solid rgba(180, 165, 236, .18); border-radius: 13px; background: #171033; box-shadow: 0 18px 46px rgba(0,0,0,.45); }
+
+/* The card must be lifted, not the popover. The glass pass gives every card
+   a backdrop-filter, which makes it a stacking context — so the popover's
+   own z-index is trapped inside its card and the NEXT card paints over the
+   menu. Raising the open card lifts the menu with it. */
+.aahat-contact-card:has(.contact-menu-popover) { z-index: 30; }
 .aahat-contact-card .contact-menu-popover button { justify-content: flex-start; min-height: 40px; color: #fca5a5; border: 0; background: transparent; }
 .aahat-contact-card .contact-menu-popover button:hover { background: rgba(239,68,68,.1); }
 .aahat-contact-card .contact-menu-popover button.block { color: #ffc06f; }
@@ -20,10 +27,14 @@
 .contact-delete-actions button:disabled { opacity: .55; cursor: wait; }
 
 @media (max-width: 520px) {
-  .aahat-contact-card { align-items: center; flex-wrap: wrap; }
-  .aahat-contact-card .contact-card-actions { width: 100%; padding-left: 57px; }
-  .aahat-contact-card .contact-chat-button { flex: 1; justify-content: center; }
-  .contact-menu-popover { position: static; width: calc(100% - 57px); min-width: 0; margin: 2px 0 0 57px; box-shadow: none; }
+  /* The row no longer wraps: the actions are two icon squares, not a
+     labelled button, so they fit beside the name at 320px. Wrapping them
+     onto their own full-width line doubled the row height for nothing.
+
+     The popover therefore stays absolutely positioned — as a static flex
+     child of a nowrap row it would be laid out inline, beside the avatar.
+     It only needs to stop overflowing the narrow card. */
+  .contact-menu-popover { right: 8px; min-width: 0; width: calc(100% - 16px); max-width: 260px; }
   .aahat-contact-card .contact-menu-popover button { width: 100%; }
   .contact-delete-dialog { padding: 20px; border-radius: 19px; }
   .contact-delete-actions { display: grid; grid-template-columns: 1fr 1fr; }

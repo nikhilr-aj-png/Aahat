@@ -83,40 +83,38 @@
 /* Decline is the second button and reads as the destructive half of the pair. */
 .aahat-request-actions button:not(.accept) { border-color: rgba(239, 68, 68, .4); background: rgba(239, 68, 68, .1); color: #fca5a5; }
 
-/* ---- Connected people: a responsive card grid ----
-   The Stitch contacts hub lays contacts out as centred cards, 4-up on
-   desktop, collapsing to 1 on a phone. auto-fill + minmax does that without
-   a breakpoint per column count. */
-.aahat-contacts-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--space-4, 16px);
-  align-items: start;
-}
+/* ---- Connected people: a compact list ----
+   Deliberately NOT the centred card grid from the Stitch contacts hub.
+   That layout gives one contact the footprint of a small poster, so a
+   handful of people fill the screen and scanning the list is slow. A
+   contact list is a list: one row per person, the same 72px rhythm as the
+   conversation list, so the two screens feel like the same app.
 
-/* The heading and the empty state are not cards — they span the row. */
-.aahat-contacts-grid > h3,
-.aahat-contacts-grid > .aahat-empty {
-  grid-column: 1 / -1;
+   Capped at the reading width — rows stretched across a 2560px display
+   put the name and the actions a screen apart. */
+.aahat-contacts-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+  width: min(100%, var(--reading-max-width, 720px));
 }
 
 .aahat-contact-card {
   position: relative;
-  flex-direction: column;
+  align-items: center;
   gap: var(--space-3, 12px);
+  min-height: 72px;
   margin-bottom: 0;
-  padding: var(--space-6, 24px) var(--space-4, 16px);
-  text-align: center;
+  padding: var(--space-3, 12px) var(--space-4, 16px);
   cursor: pointer;
 }
 
 .aahat-contact-card > div:nth-child(2) {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  align-items: center;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
-  width: 100%;
 }
 
 .aahat-contact-card strong {
@@ -125,18 +123,34 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--text-base, 15px);
+  font-weight: var(--weight-semibold, 600);
+}
+
+/* ID and presence share one secondary line, separated by a dot, so the row
+   stays two lines tall however much metadata a contact has. */
+.aahat-contact-card .aahat-contact-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs, 12px);
+}
+
+.aahat-contact-meta > span + span::before {
+  content: '·';
+  margin-right: var(--space-2, 8px);
+  color: var(--text-muted);
 }
 
 .aahat-contact-id {
-  color: var(--text-muted);
-  font-size: var(--text-xs, 12px);
   font-variant-numeric: tabular-nums;
   letter-spacing: .04em;
 }
 
 /* An offline contact recedes rather than disappearing. */
 .aahat-contact-card.is-offline {
-  opacity: .65;
+  opacity: .7;
 }
 
 .aahat-contact-card.is-offline:hover,
@@ -144,27 +158,40 @@
   opacity: 1;
 }
 
+/* Both actions are icon squares at the end of the row. */
 .aahat-contact-card .contact-card-actions {
   display: flex;
-  gap: var(--space-2, 8px);
-  width: 100%;
+  flex-shrink: 0;
+  gap: var(--space-1, 4px);
 }
 
-/* Message is the primary action and takes the width; the overflow menu is
-   a fixed square beside it. */
-.aahat-contact-card .contact-chat-button {
-  flex: 1;
-  justify-content: center;
-  border-color: transparent;
-  background: var(--accent-gradient);
-  color: #fff;
-  box-shadow: var(--glow-accent);
-}
-
+.aahat-contact-card .contact-chat-button,
 .aahat-contact-card .contact-menu-trigger {
   flex: 0 0 var(--touch-min, 44px);
   justify-content: center;
   padding: 0;
+}
+
+.aahat-contact-card .contact-chat-button {
+  color: var(--accent-light, #8659F1);
+  border-color: transparent;
+  background: rgba(134, 89, 241, 0.14);
+}
+
+/* Narrow phones: the ID is the line that can be dropped — the name and
+   presence matter more, and the ID is one tap away in the chat header. */
+@media (max-width: 360px) {
+  .aahat-contact-card {
+    padding: var(--space-3, 12px);
+  }
+
+  .aahat-contact-card .aahat-contact-id {
+    display: none;
+  }
+
+  .aahat-contact-meta > span + span::before {
+    content: none;
+  }
 }
 
 .aahat-empty {
